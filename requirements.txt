@@ -19,6 +19,7 @@ h5py==2.10.0
 idna==2.10
 imageio==2.9.0
 importlib-metadata @ file:///home/conda/feedstock_root/build_artifacts/importlib-metadata_1593211370946/work
+imutils==0.5.3
 ipykernel @ file:///home/conda/feedstock_root/build_artifacts/ipykernel_1595446881062/work/dist/ipykernel-5.3.4-py3-none-any.whl
 ipython @ file:///home/conda/feedstock_root/build_artifacts/ipython_1593235467607/work
 ipython-genutils==0.2.0

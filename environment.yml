@@ -83,6 +83,7 @@ dependencies:
     - h5py==2.10.0
     - idna==2.10
     - imageio==2.9.0
+    - imutils==0.5.3
     - ipython-genutils==0.2.0
     - joblib==0.16.0
     - json5==0.9.5
