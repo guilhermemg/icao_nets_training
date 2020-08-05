@@ -22,3 +22,7 @@ etc/jupyter/jupyter_notebook_config.d/
 notebooks/model.h5
 
 notebooks/train.png
+
+notebooks/figs
+
+notebooks/models
