@@ -13,7 +13,7 @@ from imutils import paths
 import matplotlib.pyplot as plt
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import MobileNetV2, InceptionV3
+from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
@@ -22,7 +22,6 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
-from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
@@ -43,21 +42,22 @@ from data_loaders.data_loader import DLName
 
 from net_data_loaders.net_data_loader import NetDataLoader
 
-from gt_loaders.gen_gt import Eval
-from gt_loaders.fvc_gt import FVC_GTLoader
-from gt_loaders.pybossa_gt import PybossaGTLoader
+# from gt_loaders.gen_gt import Eval
+# from gt_loaders.fvc_gt import FVC_GTLoader
+# from gt_loaders.pybossa_gt import PybossaGTLoader
 
 
-## restrict memory -------------------
+## restrict memory growth -------------------
 
 import tensorflow as tf
-physical_devices = tf.config.list_physical_devices('GPU') 
-try: 
-    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
-except: 
-    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
+#physical_devices = tf.config.list_physical_devices('GPU') 
+#try: 
+#    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
+#except: 
+#    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 
-## restrict memory -------------------    
+## restrict memory growth -------------------    
+
 
 print('Starting Neptune')
 neptune.init('guilhermemg/icao-nets-training')    
@@ -80,11 +80,11 @@ def lr_scheduler(epoch):
 
     
 # Define parameters
-PARAMS = {'batch_size': 32,
+PARAMS = {'batch_size': 64,
           'n_epochs': 40,
           'shuffle': True,
           'dense_units': 128,
-          'learning_rate': 1e-4,
+          'learning_rate': 1e-3,
           'optimizer': 'Adam',
           'dropout': 0.5,
           'early_stopping':10
@@ -95,7 +95,8 @@ m = OpenfaceMouth()
 req = cts.ICAO_REQ.MOUTH
 
 dl_names = [DLName.FVC_PYBOSSA, DLName.VGGFACE2, DLName.FEI_DB, DLName.GEORGIA_TECH,
-           DLName.IMFDB, DLName.LFW, DLName.CELEBA]
+           DLName.IMFDB, DLName.LFW, DLName.CELEBA, DLName.COLOR_FERET,
+           DLName.ICPR04, DLName.UNI_ESSEX, DLName.CVL]
 print(f'DL names: {dl_names}')
 
 print('Loading data')
@@ -231,7 +232,6 @@ with tempfile.TemporaryDirectory(dir='.') as d:
 # print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
 
 print('Evaluating model')
-
 # Evaluate model
 eval_metrics = model.evaluate(test_gen, verbose=0)
 for j, metric in enumerate(eval_metrics):
