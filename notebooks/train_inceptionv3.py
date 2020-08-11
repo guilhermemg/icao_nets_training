@@ -1,7 +1,10 @@
+import os
 import sys
 import cv2
 import random
 import datetime
+import neptune
+import tempfile
 import numpy as np
 import pandas as pd
 
@@ -10,7 +13,7 @@ from imutils import paths
 import matplotlib.pyplot as plt
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import MobileNetV2, InceptionV3
+from tensorflow.keras.applications import InceptionV3
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
@@ -18,10 +21,10 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
+from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
@@ -35,26 +38,16 @@ import utils.draw_utils as dr
 
 from models.oface_mouth_model import OpenfaceMouth
 
-from data_loaders.fvc_pyb_loader import FvcPybossaDL
-from data_loaders.vgg_loader import VggFace2DL
-from data_loaders.caltech_loader import CaltechDL
-from data_loaders.cvl_loader import CvlDL
-from data_loaders.colorferet_loader import ColorFeretDL
-from data_loaders.fei_loader import FeiDB_DL
-from data_loaders.gtech_loader import GeorgiaTechDL
-from data_loaders.uni_essex_loader import UniEssexDL
-from data_loaders.icpr04_loader import ICPR04_DL
-from data_loaders.imfdb_loader import IMFDB_DL
-from data_loaders.ijbc_loader import IJBC_DL
-from data_loaders.lfw_loader import LFWDL
-from data_loaders.celeba_loader import CelebA_DL
-from data_loaders.casia_webface_loader import CasiaWebface_DL
+from data_loaders.data_loader import DLName
 
-from gt_loaders.gen_gt import Eval
-from gt_loaders.fvc_gt import FVC_GTLoader
-from gt_loaders.pybossa_gt import PybossaGTLoader
+from net_data_loaders.net_data_loader import NetDataLoader
 
-from tagger.tagger import Tagger
+# from gt_loaders.gen_gt import Eval
+# from gt_loaders.fvc_gt import FVC_GTLoader
+# from gt_loaders.pybossa_gt import PybossaGTLoader
+
+
+## restrict memory growth -------------------
 
 import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU') 
@@ -63,128 +56,137 @@ try:
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 
+## restrict memory growth -------------------    
+
+
+
+print('Starting Neptune')
+neptune.init('guilhermemg/icao-nets-training')    
+    
+def log_data(logs):
+    neptune.log_metric('epoch_accuracy', logs['accuracy'])
+    neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
+    neptune.log_metric('epoch_loss', logs['loss'])    
+    neptune.log_metric('epoch_val_loss', logs['val_loss'])    
+
+    
+def lr_scheduler(epoch):
+    if epoch < 10:
+        new_lr = PARAMS['learning_rate']
+    else:
+        new_lr = PARAMS['learning_rate'] * np.exp(0.1 * ((epoch//50)*50 - epoch))
+
+    neptune.log_metric('learning_rate', new_lr)
+    return new_lr
+
 
 m = OpenfaceMouth()
-
 req = cts.ICAO_REQ.MOUTH
 
-dl_list = [FvcPybossaDL(aligned=False), FvcPybossaDL(aligned=True),
-           CaltechDL(aligned=False), 
-           VggFace2DL(aligned=False), VggFace2DL(aligned=True),
-           CvlDL(aligned=False), 
-           ColorFeretDL(aligned=False), 
-           FeiDB_DL(aligned=False), FeiDB_DL(aligned=True),
-           CvlDL(aligned=False), 
-           GeorgiaTechDL(aligned=False), GeorgiaTechDL(aligned=True), 
-           UniEssexDL(aligned=False), 
-           ICPR04_DL(aligned=False), 
-           IMFDB_DL(aligned=True),
-           IJBC_DL(aligned=False),
-           LFWDL(aligned=False), LFWDL(aligned=True), 
-           CelebA_DL(aligned=True),
-           CasiaWebface_DL(aligned=False)
-          ]
+dl_names = [DLName.FVC_PYBOSSA, DLName.VGGFACE2, DLName.FEI_DB, DLName.GEORGIA_TECH,
+           DLName.IMFDB, DLName.LFW, DLName.CELEBA, DLName.COLOR_FERET,
+           DLName.ICPR04, DLName.UNI_ESSEX, DLName.CVL]
+print(f'DL names: {dl_names}')
 
-in_data = pd.DataFrame(columns=['origin','img_name','comp'])
-
-for dl in dl_list:
-    if dl.is_aligned():
-        t = Tagger(dl, m, req)
-        t.load_labels_df()
-        tmp_df = t.labels_df
-        tmp_df['origin'] = dl.get_name().value
-        tmp_df['aligned'] = dl.is_aligned()
-        in_data = in_data.append(tmp_df)
-
-in_data['comp'] = in_data['comp'].astype('str')
-in_data.shape    
+print('Loading data')
+netDataLoader = NetDataLoader(m, req, dl_names, True)
+in_data = netDataLoader.load_data()
+print('Data loaded')
 
 
 # # Network Training
 
-# ## Data Selection and Preprocessing
-data = []
-labels = []
+INIT_LR = 1e-3
+EPOCHS = 40
+BS = 64
+SHUFFLE = True
 
-for img_path,label in zip(in_data.img_name,in_data.comp):
-	image = load_img(img_path, target_size=(224, 224))
-	image = img_to_array(image)
-	image = preprocess_input(image)
+N_TRAIN_PROP = 0.9
+N_TEST_PROP = 0.1
+N_TRAIN = int(len(in_data)*N_TRAIN_PROP)
+N_TEST = len(in_data) - N_TRAIN
+SEED = 0
 
-	data.append(image)
-	labels.append(label)
-
-data = np.array(data, dtype="float32")
-labels = np.array(labels)
-
-print(data.shape, labels.shape)
-
+print(f'N_TRAIN: {N_TRAIN}')
+print(f'N_TEST: {N_TEST}')
+print(f'N: {len(in_data)}')
 
 # ## Training InceptionV3
 
-# In[15]:
+W,H = 299,299
 
-
+print('Starting data generators')
 datagen = ImageDataGenerator(preprocessing_function=prep_input_inceptionv3, 
-                             validation_split=0.15)
+                             validation_split=0.15,
+                             rescale=1.0/255.0)
 
-train_gen = datagen.flow_from_dataframe(in_data[:15000], 
+train_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN], 
                                         x_col="img_name", 
                                         y_col="comp",
-                                        target_size=(299, 299),
+                                        target_size=(W, H),
                                         class_mode="binary",
-                                        batch_size=32, 
-                                        shuffle=True,
+                                        batch_size=BS, 
+                                        shuffle=SHUFFLE,
                                         subset='training',
-                                        seed=0)
+                                        seed=SEED)
 
-validation_gen = datagen.flow_from_dataframe(in_data[:15000],
+validation_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN],
                                             x_col="img_name", 
                                             y_col="comp",
-                                            target_size=(299, 299),
+                                            target_size=(W, H),
                                             class_mode="binary",
-                                            batch_size=32, 
-                                            shuffle=True,
+                                            batch_size=BS, 
+                                            shuffle=SHUFFLE,
                                             subset='validation',
-                                            seed=0)
+                                            seed=SEED)
 
-test_gen = datagen.flow_from_dataframe(in_data[15000:],
+test_gen = datagen.flow_from_dataframe(in_data[N_TRAIN:],
                                        x_col="img_name", 
                                        y_col="comp",
-                                       target_size=(299, 299),
+                                       target_size=(W, H),
                                        class_mode="binary",
-                                       batch_size=32, 
-                                       shuffle=True,
-                                       seed=0)
+                                       batch_size=BS, 
+                                       shuffle=False,
+                                       seed=SEED)
 
 
-# In[16]:
+# Define parameters
+PARAMS = {'batch_size': BS,
+          'n_epochs': EPOCHS,
+          'shuffle': SHUFFLE,
+          'dense_units': 128,
+          'learning_rate': INIT_LR,
+          'optimizer': 'Adam',
+          'dropout': 0.5,
+          'early_stopping': 10,
+          'n_train_prop': N_TRAIN_PROP,
+          'n_test_prop': N_TEST_PROP,
+          'n_train': train_gen.n,
+          'n_validation': validation_gen.n,
+          'n_test': test_gen.n,
+          'seed': SEED}
 
 
-INIT_LR = 1e-4
-EPOCHS = 40
-BS = 32  
+print('Creating experiment')
+neptune.create_experiment(name='train_inceptionv3',
+                          params=PARAMS,
+                          properties={'dl_names': str([dl_name.value for dl_name in dl_names]),
+                                      'dl_aligned': True,
+                                      'icao_req': req.value,
+                                      'tagger_model': m.get_model_name().value},
+                          description='Training with aligned images only, no data augmentation using keras methods.',
+                          tags=['inceptionv3'],
+                          upload_source_files=['train_inceptionv3.py'])
 
-# (trainX, testX, trainY, testY) = train_test_split(data, labels,
-# 	test_size=0.20, stratify=labels, random_state=42)
 
-# # construct the training image generator for data augmentation
-# aug = ImageDataGenerator(
-# 	rotation_range=20,
-# 	zoom_range=0.15,
-# 	width_shift_range=0.2,
-# 	height_shift_range=0.2,
-# 	shear_range=0.15,
-# 	horizontal_flip=True,
-# 	fill_mode="nearest")
+print('Training network')
 
-# load the MobileNetV2 network, ensuring the head FC layer sets are
+
+# load the InceptionV3 network, ensuring the head FC layer sets are
 # left off
 baseModel = InceptionV3(weights="imagenet", include_top=False,
-	input_tensor=Input(shape=(299, 299, 3)))
+	input_tensor=Input(shape=(W, H, 3)))
 
-# construct the head of the model that will be placed on top of the
-# the base model
 headModel = baseModel.output
 headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
 headModel = Flatten(name="flatten")(headModel)
@@ -192,74 +194,57 @@ headModel = Dense(128, activation="relu")(headModel)
 headModel = Dropout(0.5)(headModel)
 headModel = Dense(2, activation="softmax")(headModel)
 
-# place the head FC model on top of the base model (this will become
-# the actual model we will train)
 model = Model(inputs=baseModel.input, outputs=headModel)
 
-# loop over all layers in the base model and freeze them so they will
-# *not* be updated during the first training process
 for layer in baseModel.layers:
 	layer.trainable = False
 
-# compile our model
-print("[INFO] compiling model...")
 opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
 model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
 
-# train the head of the network
-print("[INFO] training head...")
-H = model.fit(
-	train_gen,
-	steps_per_epoch=train_gen.n // BS,
-	validation_data=validation_gen,
-	validation_steps=validation_gen.n // BS,
-	epochs=EPOCHS)
+# Log model summary
+model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
 
+# train the head of the network
+H = model.fit(
+        train_gen,
+        steps_per_epoch=train_gen.n // BS,
+        validation_data=validation_gen,
+        validation_steps=validation_gen.n // BS,
+        epochs=EPOCHS,
+        callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: log_data(logs)),
+                   EarlyStopping(patience=PARAMS['early_stopping'], monitor='accuracy', restore_best_weights=True),
+                   LearningRateScheduler(lr_scheduler)])
+
+
+print('Saving model')
+# Log model weights
+with tempfile.TemporaryDirectory(dir='.') as d:
+    prefix = os.path.join(d, 'model_weights')
+    model.save_weights(os.path.join(prefix, 'model'))
+    for item in os.listdir(prefix):
+        neptune.log_artifact(os.path.join(prefix, item),
+                             os.path.join('model_weights', item))
+        
 
 # ### Testing Trained Model
 
-# In[17]:
-
-
 # make predictions on the testing set
-print("[INFO] evaluating network...")
-predIdxs = model.predict(test_gen, batch_size=BS)
-
-# for each image in the testing set we need to find the index of the
-# label with corresponding largest predicted probability
-predIdxs = np.argmax(predIdxs, axis=1)
-
-# show a nicely formatted classification report
-print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))
+# predIdxs = model.predict(test_gen, batch_size=BS)
+# predIdxs = np.argmax(predIdxs, axis=1)
+# print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))
 
 
-# ## Saving Model
-
-# In[18]:
-
-
-# serialize the model to disk
-print("[INFO] saving model...")
-model.save(f"models/mouth_inceptionv3_model-{datetime.datetime.now()}.h5", save_format="h5")
+print('Evaluating model')
+eval_metrics = model.evaluate(test_gen, verbose=0)
+for j, metric in enumerate(eval_metrics):
+    neptune.log_metric('eval_' + model.metrics_names[j], metric)
 
 
-# ## Plot Training Curves
+print('Finishing Neptune')
+neptune.stop()
 
-# In[19]:
 
 
-# plot the training loss and accuracy
-N = EPOCHS
-plt.style.use("ggplot")
-plt.figure(figsize=(23,7))
-plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
-plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
-plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
-plt.plot(np.arange(0, N), H.history["val_accuracy"], label="val_acc")
-plt.title("Training Loss and Accuracy")
-plt.xlabel("Epoch #")
-plt.ylabel("Loss/Accuracy")
-plt.ylim([0,1])
-plt.legend(loc="lower left")
-plt.savefig("figs/mouth_training_inceptionv3.png")
+
 

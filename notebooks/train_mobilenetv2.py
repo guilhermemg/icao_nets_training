@@ -50,11 +50,11 @@ from net_data_loaders.net_data_loader import NetDataLoader
 ## restrict memory growth -------------------
 
 import tensorflow as tf
-#physical_devices = tf.config.list_physical_devices('GPU') 
-#try: 
-#    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
-#except: 
-#    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
+physical_devices = tf.config.list_physical_devices('GPU') 
+try: 
+    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
+except: 
+    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 
 ## restrict memory growth -------------------    
 
@@ -78,18 +78,6 @@ def lr_scheduler(epoch):
     neptune.log_metric('learning_rate', new_lr)
     return new_lr
 
-    
-# Define parameters
-PARAMS = {'batch_size': 64,
-          'n_epochs': 40,
-          'shuffle': True,
-          'dense_units': 128,
-          'learning_rate': 1e-3,
-          'optimizer': 'Adam',
-          'dropout': 0.5,
-          'early_stopping':10
-          }
-    
 
 m = OpenfaceMouth()
 req = cts.ICAO_REQ.MOUTH
@@ -104,19 +92,18 @@ netDataLoader = NetDataLoader(m, req, dl_names, True)
 in_data = netDataLoader.load_data()
 print('Data loaded')
 
-print('Creating experiment')
-neptune.create_experiment(name='train_mobilenetv2',
-                          params=PARAMS,
-                          properties={'dl_names': str([dl_name.value for dl_name in dl_names]),
-                                      'dl_aligned': True,
-                                      'icao_req': req.value,
-                                      'tagger_model': m.get_model_name().value},
-                          description='Increasing number of epochs from 10 to 40',
-                          tags=['mobilenetv2'],
-                          upload_source_files=['train_mobilenetv2.py'])
 
-  
 # # Network Training
+
+N_TRAIN_PROP = 0.9
+N_TEST_PROP = 0.1
+N_TRAIN = int(len(in_data)*N_TRAIN_PROP)
+N_TEST = len(in_data) - N_TRAIN
+SEED = 0
+
+print(f'N_TRAIN: {N_TRAIN}')
+print(f'N_TEST: {N_TEST}')
+print(f'N: {len(in_data)}')
 
 # ## Training MobileNetV2
 
@@ -132,50 +119,74 @@ datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2,
                              horizontal_flip=True,
                              fill_mode="nearest")
 
-train_gen = datagen.flow_from_dataframe(in_data[:15000], 
+train_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN], 
                                         x_col="img_name", 
                                         y_col="comp",
                                         target_size=(224, 224),
                                         class_mode="binary",
-                                        batch_size=32, 
-                                        shuffle=True,
+                                        batch_size=BS, 
+                                        shuffle=SHUFFLE,
                                         subset='training',
-                                        seed=0)
+                                        seed=SEED)
 
-validation_gen = datagen.flow_from_dataframe(in_data[:15000],
+validation_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN],
                                             x_col="img_name", 
                                             y_col="comp",
                                             target_size=(224, 224),
                                             class_mode="binary",
-                                            batch_size=32, 
-                                            shuffle=True,
+                                            batch_size=BS, 
+                                            shuffle=SHUFFLE,
                                             subset='validation',
-                                            seed=0)
+                                            seed=SEED)
 
-test_gen = datagen.flow_from_dataframe(in_data[15000:],
+test_gen = datagen.flow_from_dataframe(in_data[N_TRAIN:],
                                        x_col="img_name", 
                                        y_col="comp",
                                        target_size=(224, 224),
                                        class_mode="binary",
-                                       batch_size=32, 
-                                       shuffle=True,
-                                       seed=0)
+                                       batch_size=BS, 
+                                       shuffle=False,
+                                       seed=SEED)
 
 
-
-print('Training network')
+# Define parameters
+PARAMS = {'batch_size': 64,
+          'n_epochs': 40,
+          'shuffle': True,
+          'dense_units': 128,
+          'learning_rate': 1e-3,
+          'optimizer': 'Adam',
+          'dropout': 0.5,
+          'early_stopping': 10,
+          'n_train_prop': N_TRAIN_PROP,
+          'n_test_prop': N_TEST_PROP,
+          'n_train': train_gen.n,
+          'n_validation': validation_gen.n,
+          'n_test': test_gen.n,
+          'seed': SEED}
 
 INIT_LR = PARAMS['learning_rate']
 EPOCHS = PARAMS['n_epochs']
 BS = PARAMS['batch_size']  
+SHUFFLE = PARAMS['shuffle']
 
-# load the MobileNetV2 network, ensuring the head FC layer sets are
-# left off
+print('Creating experiment')
+neptune.create_experiment(name='train_mobilenetv2',
+                          params=PARAMS,
+                          properties={'dl_names': str([dl_name.value for dl_name in dl_names]),
+                                      'dl_aligned': True,
+                                      'icao_req': req.value,
+                                      'tagger_model': m.get_model_name().value},
+                          description='Training with aligned images only.',
+                          tags=['mobilenetv2'],
+                          upload_source_files=['train_mobilenetv2.py'])
+
+
+print('Training network')
+
 baseModel = MobileNetV2(weights="imagenet", include_top=False,
 	input_tensor=Input(shape=(224, 224, 3)))
 
-# construct the head of the model that will be placed on top of the
-# the base model
 headModel = baseModel.output
 headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
 headModel = Flatten(name="flatten")(headModel)
@@ -183,12 +194,8 @@ headModel = Dense(PARAMS['dense_units'], activation="relu")(headModel)
 headModel = Dropout(PARAMS['dropout'])(headModel)
 headModel = Dense(2, activation="softmax")(headModel)
 
-# place the head FC model on top of the base model (this will become
-# the actual model we will train)
 model = Model(inputs=baseModel.input, outputs=headModel)
 
-# loop over all layers in the base model and freeze them so they will
-# *not* be updated during the first training process
 for layer in baseModel.layers:
 	layer.trainable = False
 
@@ -211,9 +218,6 @@ H = model.fit(
                    LearningRateScheduler(lr_scheduler)])
 
 
-# ## Saving Model
-# model.save(f"models/mouth_mobilenev2_model-{datetime.datetime.now()}.h5", save_format="h5")
-
 print('Saving model')
 # Log model weights
 with tempfile.TemporaryDirectory(dir='.') as d:
@@ -232,28 +236,10 @@ with tempfile.TemporaryDirectory(dir='.') as d:
 # print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
 
 print('Evaluating model')
-# Evaluate model
 eval_metrics = model.evaluate(test_gen, verbose=0)
 for j, metric in enumerate(eval_metrics):
     neptune.log_metric('eval_' + model.metrics_names[j], metric)
 
-
-# ## Plot Training Curves
-
-# plot the training loss and accuracy
-# N = EPOCHS
-# plt.style.use("ggplot")
-# plt.figure(figsize=(23,7))
-# plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
-# plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
-# plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
-# plt.plot(np.arange(0, N), H.history["val_accuracy"], label="val_acc")
-# plt.title("Training Loss and Accuracy")
-# plt.xlabel("Epoch #")
-# plt.ylabel("Loss/Accuracy")
-# plt.ylim([0,1])
-# plt.legend(loc="lower left")
-# plt.savefig("figs/mouth_training_mobilenetv2.png")
 
 print('Finishing Neptune')
 neptune.stop()
