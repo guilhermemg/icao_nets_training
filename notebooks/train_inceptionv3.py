@@ -82,10 +82,7 @@ def lr_scheduler(epoch):
 
 m = OpenfaceMouth()
 req = cts.ICAO_REQ.MOUTH
-
-dl_names = [DLName.FVC_PYBOSSA, DLName.VGGFACE2, DLName.FEI_DB, DLName.GEORGIA_TECH,
-           DLName.IMFDB, DLName.LFW, DLName.CELEBA, DLName.COLOR_FERET,
-           DLName.ICPR04, DLName.UNI_ESSEX, DLName.CVL]
+dl_names = [x for x in DLName]
 print(f'DL names: {dl_names}')
 
 print('Loading data')

@@ -81,10 +81,7 @@ def lr_scheduler(epoch):
 
 m = OpenfaceMouth()
 req = cts.ICAO_REQ.MOUTH
-
-dl_names = [DLName.FVC_PYBOSSA, DLName.VGGFACE2, DLName.FEI_DB, DLName.GEORGIA_TECH,
-           DLName.IMFDB, DLName.LFW, DLName.CELEBA, DLName.COLOR_FERET,
-           DLName.ICPR04, DLName.UNI_ESSEX, DLName.CVL]
+dl_names = [x for x in DLName]
 print(f'DL names: {dl_names}')
 
 print('Loading data')
@@ -95,11 +92,11 @@ print('Data loaded')
 
 # # Network Training
 
-N_TRAIN_PROP = 0.9
-N_TEST_PROP = 0.1
+N_TRAIN_PROP = 0.7
+N_TEST_PROP = 0.3
 N_TRAIN = int(len(in_data)*N_TRAIN_PROP)
 N_TEST = len(in_data) - N_TRAIN
-SEED = 0
+SEED = 42
 
 print(f'N_TRAIN: {N_TRAIN}')
 print(f'N_TEST: {N_TEST}')
@@ -107,17 +104,19 @@ print(f'N: {len(in_data)}')
 
 # ## Training MobileNetV2
 
+INIT_LR = 1e-4
+EPOCHS = 40
+BS = 64
+SHUFFLE = True
+DROPOUT = 0.5
+EARLY_STOPPING = 10
+OPTIMIZER = 'Adam'
+DENSE_UNITS = 128
+
 print('Starting data generators')
 datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
-                             validation_split=0.15,
-                             rescale=1.0/255.0,
-                             rotation_range=20,
-                             zoom_range=0.15,
-                             width_shift_range=0.2,
-                             height_shift_range=0.2,
-                             shear_range=0.15,
-                             horizontal_flip=True,
-                             fill_mode="nearest")
+                             validation_split=0.25,
+                             rescale=1.0/255.0)
 
 train_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN], 
                                         x_col="img_name", 
@@ -150,14 +149,14 @@ test_gen = datagen.flow_from_dataframe(in_data[N_TRAIN:],
 
 
 # Define parameters
-PARAMS = {'batch_size': 64,
-          'n_epochs': 40,
-          'shuffle': True,
-          'dense_units': 128,
-          'learning_rate': 1e-3,
-          'optimizer': 'Adam',
-          'dropout': 0.5,
-          'early_stopping': 10,
+PARAMS = {'batch_size': BS,
+          'n_epochs': EPOCHS,
+          'shuffle': SHUFFLE,
+          'dense_units': DENSE_UNITS,
+          'learning_rate': INIT_LR,
+          'optimizer': OPTIMIZER,
+          'dropout': DROPOUT,
+          'early_stopping': EARLY_STOPPING,
           'n_train_prop': N_TRAIN_PROP,
           'n_test_prop': N_TEST_PROP,
           'n_train': train_gen.n,
@@ -165,10 +164,6 @@ PARAMS = {'batch_size': 64,
           'n_test': test_gen.n,
           'seed': SEED}
 
-INIT_LR = PARAMS['learning_rate']
-EPOCHS = PARAMS['n_epochs']
-BS = PARAMS['batch_size']  
-SHUFFLE = PARAMS['shuffle']
 
 print('Creating experiment')
 neptune.create_experiment(name='train_mobilenetv2',
@@ -177,7 +172,7 @@ neptune.create_experiment(name='train_mobilenetv2',
                                       'dl_aligned': True,
                                       'icao_req': req.value,
                                       'tagger_model': m.get_model_name().value},
-                          description='Training with aligned images only.',
+                          description='Testing validation split equals to 0.25',
                           tags=['mobilenetv2'],
                           upload_source_files=['train_mobilenetv2.py'])
 
