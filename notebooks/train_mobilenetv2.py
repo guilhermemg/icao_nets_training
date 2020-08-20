@@ -92,60 +92,57 @@ print('Data loaded')
 
 # # Network Training
 
-N_TRAIN_PROP = 0.7
-N_TEST_PROP = 0.3
-N_TRAIN = int(len(in_data)*N_TRAIN_PROP)
-N_TEST = len(in_data) - N_TRAIN
+TRAIN_PROP = 0.8
+VALID_PROP = 0.1
+TEST_PROP = 0.1
 SEED = 42
 
-print(f'N_TRAIN: {N_TRAIN}')
-print(f'N_TEST: {N_TEST}')
 print(f'N: {len(in_data)}')
 
 # ## Training MobileNetV2
 
-INIT_LR = 1e-4
-EPOCHS = 40
-BS = 64
+INIT_LR = 1e-3
+EPOCHS = 100
+BS = 32
 SHUFFLE = True
-DROPOUT = 0.5
-EARLY_STOPPING = 10
+DROPOUT = 0.3
+# EARLY_STOPPING = 10
 OPTIMIZER = 'Adam'
 DENSE_UNITS = 128
 
 print('Starting data generators')
+train_valid_df = in_data.sample(frac=TRAIN_PROP+VALID_PROP, random_state=SEED)
+test_df = in_data[~in_data.img_name.isin(train_valid_df.img_name)]
+
+print('Starting data generators')
 datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
-                             validation_split=0.25,
+                             validation_split=0.2,
                              rescale=1.0/255.0)
 
-train_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN], 
+train_gen = datagen.flow_from_dataframe(train_valid_df, 
                                         x_col="img_name", 
                                         y_col="comp",
                                         target_size=(224, 224),
                                         class_mode="binary",
                                         batch_size=BS, 
-                                        shuffle=SHUFFLE,
-                                        subset='training',
-                                        seed=SEED)
+                                        subset='training')
 
-validation_gen = datagen.flow_from_dataframe(in_data[:N_TRAIN],
+validation_gen = datagen.flow_from_dataframe(train_valid_df,
                                             x_col="img_name", 
                                             y_col="comp",
                                             target_size=(224, 224),
                                             class_mode="binary",
                                             batch_size=BS, 
-                                            shuffle=SHUFFLE,
-                                            subset='validation',
-                                            seed=SEED)
+                                            subset='validation')
 
-test_gen = datagen.flow_from_dataframe(in_data[N_TRAIN:],
+test_gen = datagen.flow_from_dataframe(test_df,
                                        x_col="img_name", 
                                        y_col="comp",
                                        target_size=(224, 224),
                                        class_mode="binary",
-                                       batch_size=BS, 
-                                       shuffle=False,
-                                       seed=SEED)
+                                       batch_size=BS)
+
+print(f'TOTAL: {train_gen.n + validation_gen.n + test_gen.n}')
 
 
 # Define parameters
@@ -156,9 +153,10 @@ PARAMS = {'batch_size': BS,
           'learning_rate': INIT_LR,
           'optimizer': OPTIMIZER,
           'dropout': DROPOUT,
-          'early_stopping': EARLY_STOPPING,
-          'n_train_prop': N_TRAIN_PROP,
-          'n_test_prop': N_TEST_PROP,
+#           'early_stopping': EARLY_STOPPING,
+          'train_prop': TRAIN_PROP,
+          'validation_prop': VALID_PROP,
+          'test_prop': TEST_PROP,
           'n_train': train_gen.n,
           'n_validation': validation_gen.n,
           'n_test': test_gen.n,
@@ -172,7 +170,7 @@ neptune.create_experiment(name='train_mobilenetv2',
                                       'dl_aligned': True,
                                       'icao_req': req.value,
                                       'tagger_model': m.get_model_name().value},
-                          description='Testing validation split equals to 0.25',
+                          description='Shuffling input data, increasing learning rate and decreasing dropout rate.',
                           tags=['mobilenetv2'],
                           upload_source_files=['train_mobilenetv2.py'])
 
@@ -209,8 +207,9 @@ H = model.fit(
         validation_steps=validation_gen.n // BS,
         epochs=EPOCHS,
         callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: log_data(logs)),
-                   EarlyStopping(patience=PARAMS['early_stopping'], monitor='accuracy', restore_best_weights=True),
-                   LearningRateScheduler(lr_scheduler)])
+#                    EarlyStopping(patience=PARAMS['early_stopping'], monitor='accuracy', restore_best_weights=True),
+#                    LearningRateScheduler(lr_scheduler)
+                  ])
 
 
 print('Saving model')
