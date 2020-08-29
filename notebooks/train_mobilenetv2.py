@@ -5,10 +5,10 @@ import random
 import datetime
 import neptune
 import tempfile
+import argparse
+import pprint
 import numpy as np
 import pandas as pd
-
-from imutils import paths
 
 import matplotlib.pyplot as plt
 
@@ -42,10 +42,6 @@ from data_loaders.data_loader import DLName
 
 from net_data_loaders.net_data_loader import NetDataLoader
 
-# from gt_loaders.gen_gt import Eval
-# from gt_loaders.fvc_gt import FVC_GTLoader
-# from gt_loaders.pybossa_gt import PybossaGTLoader
-
 
 ## restrict memory growth -------------------
 
@@ -59,179 +55,189 @@ except:
 ## restrict memory growth -------------------    
 
 
-print('Starting Neptune')
-neptune.init('guilhermemg/icao-nets-training')    
-    
-def log_data(logs):
-    neptune.log_metric('epoch_accuracy', logs['accuracy'])
-    neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
-    neptune.log_metric('epoch_loss', logs['loss'])    
-    neptune.log_metric('epoch_val_loss', logs['val_loss'])    
+class NetworkTrainer:
+    def __init__(self, **kwargs):
+        
+        print('===================')
+        print('Args: ')
+        pprint.pprint(kwargs)
+        print('===================')
+        
+        self.exp_args = kwargs['exp_params']
+        self.prop_args = kwargs['properties']
+        self.net_args = kwargs['net_train_params']
+
+        print('Loading data')
+        netDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
+                                      self.prop_args['dl_names'], self.prop_args['aligned'])
+        self.in_data = netDataLoader.load_data()
+        print(f'Number of Samples: {len(self.in_data)}')
+        print('Data loaded')
 
     
-def lr_scheduler(epoch):
-    if epoch < 10:
-        new_lr = PARAMS['learning_rate']
-    else:
-        new_lr = PARAMS['learning_rate'] * np.exp(0.1 * ((epoch//50)*50 - epoch))
-
-    neptune.log_metric('learning_rate', new_lr)
-    return new_lr
-
-
-m = OpenfaceMouth()
-req = cts.ICAO_REQ.MOUTH
-dl_names = [DLName.FVC_PYBOSSA]
-print(f'DL names: {dl_names}')
-
-print('Loading data')
-netDataLoader = NetDataLoader(m, req, dl_names, True)
-in_data = netDataLoader.load_data()
-print('Data loaded')
+    def start_neptune(self):
+        print('Starting Neptune')
+        neptune.init('guilhermemg/icao-nets-training')    
+    
+    
+    def __log_data(self, logs):
+        neptune.log_metric('epoch_accuracy', logs['accuracy'])
+        neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
+        neptune.log_metric('epoch_loss', logs['loss'])    
+        neptune.log_metric('epoch_val_loss', logs['val_loss'])    
 
 
-TRAIN_PROP = 0.8
-VALID_PROP = 0.1
-TEST_PROP = 0.1
-SEED = 42
+    def __lr_scheduler(self, epoch):
+        if epoch <= 10:
+            new_lr = self.net_args['learning_rate']
+        elif epoch <= 20:
+            new_lr = self.net_args['learning_rate'] * 1e-1
+        elif epoch <= 40:
+            new_lr = self.net_args['learning_rate'] * 1e-2
+        else:
+#             new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//50)*50 - epoch))
+            new_lr = self.net_args['learning_rate'] * 1e-3
 
-print(f'N: {len(in_data)}')
-
-INIT_LR = 1e-3
-EPOCHS = 100
-BS = 32
-SHUFFLE = True
-DROPOUT = 0.5
-# EARLY_STOPPING = 10
-OPTIMIZER = 'Adam'
-DENSE_UNITS = 128
-
-print('Starting data generators')
-train_valid_df = in_data.sample(frac=TRAIN_PROP+VALID_PROP, random_state=SEED)
-test_df = in_data[~in_data.img_name.isin(train_valid_df.img_name)]
-
-print('Starting data generators')
-datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
-                             validation_split=0.2,
-                             rescale=1.0/255.0)
-
-train_gen = datagen.flow_from_dataframe(train_valid_df, 
-                                        x_col="img_name", 
-                                        y_col="comp",
-                                        target_size=(224, 224),
-                                        class_mode="binary",
-                                        batch_size=BS, 
-                                        subset='training')
-
-validation_gen = datagen.flow_from_dataframe(train_valid_df,
-                                            x_col="img_name", 
-                                            y_col="comp",
-                                            target_size=(224, 224),
-                                            class_mode="binary",
-                                            batch_size=BS, 
-                                            subset='validation')
-
-test_gen = datagen.flow_from_dataframe(test_df,
-                                       x_col="img_name", 
-                                       y_col="comp",
-                                       target_size=(224, 224),
-                                       class_mode="binary",
-                                       batch_size=BS)
-
-print(f'TOTAL: {train_gen.n + validation_gen.n + test_gen.n}')
+        neptune.log_metric('learning_rate', new_lr)
+        return new_lr
 
 
-# Define parameters
-PARAMS = {'batch_size': BS,
-          'n_epochs': EPOCHS,
-          'shuffle': SHUFFLE,
-          'dense_units': DENSE_UNITS,
-          'learning_rate': INIT_LR,
-          'optimizer': OPTIMIZER,
-          'dropout': DROPOUT,
-#           'early_stopping': EARLY_STOPPING,
-          'train_prop': TRAIN_PROP,
-          'validation_prop': VALID_PROP,
-          'test_prop': TEST_PROP,
-          'n_train': train_gen.n,
-          'n_validation': validation_gen.n,
-          'n_test': test_gen.n,
-          'seed': SEED}
+    def setup_data_generators(self):
+        print('Starting data generators')
+        train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
+        train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
+        test_df = self.in_data[~self.in_data.img_name.isin(train_valid_df.img_name)]
+
+        datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
+                                     validation_split=self.net_args['validation_split'])
+
+        self.train_gen = datagen.flow_from_dataframe(train_valid_df, 
+                                                x_col="img_name", 
+                                                y_col="comp",
+                                                target_size=(224, 224),
+                                                class_mode="binary",
+                                                batch_size=self.net_args['batch_size'], 
+                                                subset='training')
+
+        self.validation_gen = datagen.flow_from_dataframe(train_valid_df,
+                                                    x_col="img_name", 
+                                                    y_col="comp",
+                                                    target_size=(224, 224),
+                                                    class_mode="binary",
+                                                    batch_size=self.net_args['batch_size'], 
+                                                    subset='validation')
+
+        self.test_gen = datagen.flow_from_dataframe(test_df,
+                                               x_col="img_name", 
+                                               y_col="comp",
+                                               target_size=(224, 224),
+                                               class_mode="binary",
+                                               batch_size=self.net_args['batch_size'])
+
+        print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
 
 
-print('Creating experiment')
-neptune.create_experiment(name='train_mobilenetv2',
-                          params=PARAMS,
-                          properties={'dl_names': str([dl_name.value for dl_name in dl_names]),
-                                      'dl_aligned': True,
-                                      'icao_req': req.value,
-                                      'tagger_model': m.get_model_name().value},
-                          description='Trying to reproduce results of IC-19',
-                          tags=['mobilenetv2'],
-                          upload_source_files=['train_mobilenetv2.py'])
+    def create_experiment(self):
+        print('Creating experiment')
+        
+        params = self.net_args
+        params['n_train'] = self.train_gen.n
+        params['n_validation'] = self.validation_gen.n
+        params['n_test'] = self.test_gen.n
+        
+        neptune.create_experiment(name=self.exp_args['name'],
+                                  params=params,
+                                  properties={'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
+                                              'dl_aligned': self.prop_args['aligned'],
+                                              'icao_req': self.prop_args['req'].value,
+                                              'tagger_model': self.prop_args['tagger_model'].get_model_name().value},
+                                  description=self.exp_args['description'],
+                                  tags=self.exp_args['tags'] ,
+                                  upload_source_files=self.exp_args['src_files'])
+
+        
+    def train_model(self):
+        print('Training network')
+
+        baseModel = MobileNetV2(weights="imagenet", include_top=False,
+            input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
+
+        headModel = baseModel.output
+        headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+        headModel = Flatten(name="flatten")(headModel)
+        headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
+        headModel = Dropout(self.net_args['dropout'])(headModel)
+        headModel = Dense(2, activation="softmax")(headModel)
+
+        self.model = Model(inputs=baseModel.input, outputs=headModel)
+
+        for layer in baseModel.layers:
+            layer.trainable = False
+
+        # compile our model
+        #opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
+        self.model.compile(loss="binary_crossentropy", optimizer=Adam(), metrics=["accuracy"])
+
+        # Log model summary
+        self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
+
+        # train the head of the network
+        H = self.model.fit(
+                self.train_gen,
+                steps_per_epoch=self.train_gen.n // self.net_args['batch_size'],
+                validation_data=self.validation_gen,
+                validation_steps=self.validation_gen.n // self.net_args['batch_size'],
+                epochs=self.net_args['n_epochs'],
+                callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
+        #                    EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
+                           LearningRateScheduler(self.__lr_scheduler)
+                          ])
+
+    def save_model(self):
+        # print('Saving model')
+        # # Log model weights
+        # with tempfile.TemporaryDirectory(dir='.') as d:
+        #     prefix = os.path.join(d, 'model_weights')
+        #     model.save_weights(os.path.join(prefix, 'model'))
+        #     for item in os.listdir(prefix):
+        #         neptune.log_artifact(os.path.join(prefix, item),
+        #                              os.path.join('model_weights', item))
+        pass
 
 
-print('Training network')
+    def test_model(self):
+        # ### Testing Trained Model
 
-baseModel = MobileNetV2(weights="imagenet", include_top=False,
-	input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
+        # make predictions on the testing set
+        # predIdxs = model.predict(test_gen, batch_size=BS)
+        # predIdxs = np.argmax(predIdxs, axis=1)
+        # print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
+        pass
 
-headModel = baseModel.output
-headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
-headModel = Flatten(name="flatten")(headModel)
-headModel = Dense(PARAMS['dense_units'], activation="relu")(headModel)
-headModel = Dropout(PARAMS['dropout'])(headModel)
-headModel = Dense(2, activation="softmax")(headModel)
-
-model = Model(inputs=baseModel.input, outputs=headModel)
-
-for layer in baseModel.layers:
-	layer.trainable = False
-
-# compile our model
-opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
-model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
-
-# Log model summary
-model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
-
-# train the head of the network
-H = model.fit(
-        train_gen,
-        steps_per_epoch=train_gen.n // BS,
-        validation_data=validation_gen,
-        validation_steps=validation_gen.n // BS,
-        epochs=EPOCHS,
-        callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: log_data(logs)),
-#                    EarlyStopping(patience=PARAMS['early_stopping'], monitor='accuracy', restore_best_weights=True),
-#                    LearningRateScheduler(lr_scheduler)
-                  ])
+    
+    def evaluate_model(self):
+        print('Evaluating model')
+        eval_metrics = self.model.evaluate(self.test_gen, verbose=0)
+        for j, metric in enumerate(eval_metrics):
+            neptune.log_metric('eval_' + self.model.metrics_names[j], metric)
 
 
-# print('Saving model')
-# # Log model weights
-# with tempfile.TemporaryDirectory(dir='.') as d:
-#     prefix = os.path.join(d, 'model_weights')
-#     model.save_weights(os.path.join(prefix, 'model'))
-#     for item in os.listdir(prefix):
-#         neptune.log_artifact(os.path.join(prefix, item),
-#                              os.path.join('model_weights', item))
+    def finish_experiment(self):
+        print('Finishing Neptune')
+        neptune.stop()
 
-
-# ### Testing Trained Model
-
-# make predictions on the testing set
-# predIdxs = model.predict(test_gen, batch_size=BS)
-# predIdxs = np.argmax(predIdxs, axis=1)
-# print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
-
-print('Evaluating model')
-eval_metrics = model.evaluate(test_gen, verbose=0)
-for j, metric in enumerate(eval_metrics):
-    neptune.log_metric('eval_' + model.metrics_names[j], metric)
-
-
-print('Finishing Neptune')
-neptune.stop()
-
-
+        
+    def run(self):
+        self.setup_data_generators()
+        try:
+            self.start_neptune()
+            self.create_experiment()
+            self.train_model()
+            self.save_model()
+            self.test_model()
+            self.evaluate_model()
+        except Exception as e:
+            print(f'ERROR: {e}')
+        finally:
+            self.finish_experiment()
+        
