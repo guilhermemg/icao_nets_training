@@ -190,7 +190,7 @@ class NetworkTrainer:
                 epochs=self.net_args['n_epochs'],
                 callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
         #                    EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
-                           LearningRateScheduler(self.__lr_scheduler)
+#                            LearningRateScheduler(self.__lr_scheduler)
                           ])
 
     def save_model(self):
