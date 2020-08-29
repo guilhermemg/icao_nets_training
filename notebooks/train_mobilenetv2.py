@@ -81,7 +81,7 @@ def lr_scheduler(epoch):
 
 m = OpenfaceMouth()
 req = cts.ICAO_REQ.MOUTH
-dl_names = [x for x in DLName]
+dl_names = [DLName.FVC_PYBOSSA]
 print(f'DL names: {dl_names}')
 
 print('Loading data')
@@ -90,8 +90,6 @@ in_data = netDataLoader.load_data()
 print('Data loaded')
 
 
-# # Network Training
-
 TRAIN_PROP = 0.8
 VALID_PROP = 0.1
 TEST_PROP = 0.1
@@ -99,13 +97,11 @@ SEED = 42
 
 print(f'N: {len(in_data)}')
 
-# ## Training MobileNetV2
-
 INIT_LR = 1e-3
 EPOCHS = 100
 BS = 32
 SHUFFLE = True
-DROPOUT = 0.3
+DROPOUT = 0.5
 # EARLY_STOPPING = 10
 OPTIMIZER = 'Adam'
 DENSE_UNITS = 128
@@ -170,7 +166,7 @@ neptune.create_experiment(name='train_mobilenetv2',
                                       'dl_aligned': True,
                                       'icao_req': req.value,
                                       'tagger_model': m.get_model_name().value},
-                          description='Shuffling input data, increasing learning rate and decreasing dropout rate.',
+                          description='Trying to reproduce results of IC-19',
                           tags=['mobilenetv2'],
                           upload_source_files=['train_mobilenetv2.py'])
 
@@ -178,7 +174,7 @@ neptune.create_experiment(name='train_mobilenetv2',
 print('Training network')
 
 baseModel = MobileNetV2(weights="imagenet", include_top=False,
-	input_tensor=Input(shape=(224, 224, 3)))
+	input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
 
 headModel = baseModel.output
 headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
@@ -212,14 +208,14 @@ H = model.fit(
                   ])
 
 
-print('Saving model')
-# Log model weights
-with tempfile.TemporaryDirectory(dir='.') as d:
-    prefix = os.path.join(d, 'model_weights')
-    model.save_weights(os.path.join(prefix, 'model'))
-    for item in os.listdir(prefix):
-        neptune.log_artifact(os.path.join(prefix, item),
-                             os.path.join('model_weights', item))
+# print('Saving model')
+# # Log model weights
+# with tempfile.TemporaryDirectory(dir='.') as d:
+#     prefix = os.path.join(d, 'model_weights')
+#     model.save_weights(os.path.join(prefix, 'model'))
+#     for item in os.listdir(prefix):
+#         neptune.log_artifact(os.path.join(prefix, item),
+#                              os.path.join('model_weights', item))
 
 
 # ### Testing Trained Model
@@ -237,3 +233,5 @@ for j, metric in enumerate(eval_metrics):
 
 print('Finishing Neptune')
 neptune.stop()
+
+
