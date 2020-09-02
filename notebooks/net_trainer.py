@@ -13,6 +13,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
+from tensorflow.keras.preprocessing.image import img_to_array
+from tensorflow.keras.preprocessing.image import load_img
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
@@ -21,9 +24,6 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
-from tensorflow.keras.preprocessing.image import img_to_array
-from tensorflow.keras.preprocessing.image import load_img
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 
 from sklearn.model_selection import train_test_split
@@ -90,13 +90,13 @@ class NetworkTrainer:
     def __lr_scheduler(self, epoch):
         if epoch <= 10:
             new_lr = self.net_args['learning_rate']
-        elif epoch <= 20:
-            new_lr = self.net_args['learning_rate'] * 1e-1
-        elif epoch <= 40:
-            new_lr = self.net_args['learning_rate'] * 1e-2
+#         elif epoch <= 20:
+#             new_lr = self.net_args['learning_rate'] * 1e-1
+#         elif epoch <= 40:
+#             new_lr = self.net_args['learning_rate'] * 1e-2
         else:
-#             new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//50)*50 - epoch))
-            new_lr = self.net_args['learning_rate'] * 1e-3
+            new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//100)*100 - epoch))
+#             new_lr = self.net_args['learning_rate'] * 1e-3
 
         neptune.log_metric('learning_rate', new_lr)
         return new_lr
@@ -157,7 +157,7 @@ class NetworkTrainer:
 
         
     def train_model(self):
-        print('Training network')
+        print('Training mobilenetv2 network')
 
         baseModel = MobileNetV2(weights="imagenet", include_top=False,
             input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
@@ -190,8 +190,9 @@ class NetworkTrainer:
                 epochs=self.net_args['n_epochs'],
                 callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
         #                    EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
-#                            LearningRateScheduler(self.__lr_scheduler)
+                           LearningRateScheduler(self.__lr_scheduler)
                           ])
+    
 
     def save_model(self):
         # print('Saving model')
