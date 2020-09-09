@@ -166,8 +166,8 @@ class NetworkTrainer:
         headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
         headModel = Flatten(name="flatten")(headModel)
         headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
-        headModel = Dropout(self.net_args['dropout'])(headModel)
-        headModel = Dense(2, activation="softmax")(headModel)
+#         headModel = Dropout(self.net_args['dropout'])(headModel)
+        headModel = Dense(1, activation="softmax")(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
 
@@ -189,31 +189,31 @@ class NetworkTrainer:
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
                 callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
-        #                    EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
+                           EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
                            LearningRateScheduler(self.__lr_scheduler)
                           ])
     
 
     def save_model(self):
-        # print('Saving model')
-        # # Log model weights
-        # with tempfile.TemporaryDirectory(dir='.') as d:
-        #     prefix = os.path.join(d, 'model_weights')
-        #     model.save_weights(os.path.join(prefix, 'model'))
-        #     for item in os.listdir(prefix):
-        #         neptune.log_artifact(os.path.join(prefix, item),
-        #                              os.path.join('model_weights', item))
-        pass
+        print('Saving model')
+        # Log model weights
+        with tempfile.TemporaryDirectory(dir='.') as d:
+            prefix = os.path.join(d, 'model_weights')
+            self.model.save_weights(os.path.join(prefix, 'model.h5'))
+            for item in os.listdir(prefix):
+                neptune.log_artifact(os.path.join(prefix, item),
+                                     os.path.join('model_weights', item))
+#         pass
 
 
     def test_model(self):
         # ### Testing Trained Model
 
         # make predictions on the testing set
-        # predIdxs = model.predict(test_gen, batch_size=BS)
-        # predIdxs = np.argmax(predIdxs, axis=1)
-        # print(classification_report(test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
-        pass
+        predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
+        predIdxs = np.argmax(predIdxs, axis=1)
+        print(classification_report(self.test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
+#         pass
 
     
     def evaluate_model(self):
