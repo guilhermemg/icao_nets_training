@@ -56,7 +56,8 @@ except:
 
 
 class NetworkTrainer:
-    def __init__(self, **kwargs):
+    def __init__(self, use_neptune=False, **kwargs):
+        self.use_neptune = use_neptune
         
         print('===================')
         print('Args: ')
@@ -67,6 +68,8 @@ class NetworkTrainer:
         self.prop_args = kwargs['properties']
         self.net_args = kwargs['net_train_params']
 
+    
+    def load_training_data(self):
         print('Loading data')
         netDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
                                       self.prop_args['dl_names'], self.prop_args['aligned'])
@@ -154,11 +157,8 @@ class NetworkTrainer:
                                   description=self.exp_args['description'],
                                   tags=self.exp_args['tags'] ,
                                   upload_source_files=self.exp_args['src_files'])
-
         
-    def train_model(self):
-        print('Training mobilenetv2 network')
-
+    def __create_model(self):
         baseModel = MobileNetV2(weights="imagenet", include_top=False,
             input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
 
@@ -170,17 +170,25 @@ class NetworkTrainer:
         headModel = Dense(1, activation="softmax")(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
-
+        
         for layer in baseModel.layers:
             layer.trainable = False
-
-        # compile our model
+           
         #opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
         self.model.compile(loss="binary_crossentropy", optimizer=Adam(), metrics=["accuracy"])
+        
+        
+    def train_model(self):
+        print('Training mobilenetv2 network')
+
+        self.__create_model()
 
         # Log model summary
         self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
-
+        
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath="output/training/cp-{epoch:04d}.ckpt", verbose=1, 
+                                                         save_weights_only=True, period=1)
+        
         # train the head of the network
         H = self.model.fit(
                 self.train_gen,
@@ -190,37 +198,49 @@ class NetworkTrainer:
                 epochs=self.net_args['n_epochs'],
                 callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
                            EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
-                           LearningRateScheduler(self.__lr_scheduler)
+                           LearningRateScheduler(self.__lr_scheduler),
+                           cp_callback
                           ])
+    
+    
+    def load_checkpoint(self, chkp_name):
+        self.__create_model()
+        self.model.load_weights(chkp_name)
     
 
     def save_model(self):
         print('Saving model')
-        # Log model weights
         with tempfile.TemporaryDirectory(dir='.') as d:
             prefix = os.path.join(d, 'model_weights')
             self.model.save_weights(os.path.join(prefix, 'model.h5'))
             for item in os.listdir(prefix):
                 neptune.log_artifact(os.path.join(prefix, item),
                                      os.path.join('model_weights', item))
-#         pass
 
 
     def test_model(self):
-        # ### Testing Trained Model
-
-        # make predictions on the testing set
+        print('Testing model')
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
         predIdxs = np.argmax(predIdxs, axis=1)
         print(classification_report(self.test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
-#         pass
 
     
-    def evaluate_model(self):
+    def evaluate_model(self, data_src='test'):
         print('Evaluating model')
-        eval_metrics = self.model.evaluate(self.test_gen, verbose=0)
-        for j, metric in enumerate(eval_metrics):
-            neptune.log_metric('eval_' + self.model.metrics_names[j], metric)
+        data = None
+        if data_src == 'validation':
+            data = self.validation_gen
+        elif data_src == 'test':
+            data = self.test_gen
+            
+        eval_metrics = self.model.evaluate(data, verbose=0)
+        
+        print(f'{data_src.upper()} loss: ', eval_metrics[0])
+        print(f'{data_src.upper()} accuracy: ', eval_metrics[1])
+        
+        if self.use_neptune:
+            for j, metric in enumerate(eval_metrics):
+                neptune.log_metric('eval_' + self.model.metrics_names[j], metric)
 
 
     def finish_experiment(self):
@@ -229,6 +249,7 @@ class NetworkTrainer:
 
         
     def run(self):
+        self.load_training_data()
         self.setup_data_generators()
         try:
             self.start_neptune()
