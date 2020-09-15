@@ -160,13 +160,13 @@ class NetworkTrainer:
         
     def __create_model(self):
         baseModel = MobileNetV2(weights="imagenet", include_top=False,
-            input_tensor=Input(shape=(224, 224, 3)), input_shape=(224,224,3))
+            input_tensor=Input(shape=(224,224,3)), input_shape=(224,224,3))
 
         headModel = baseModel.output
         headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
         headModel = Flatten(name="flatten")(headModel)
         headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
-#         headModel = Dropout(self.net_args['dropout'])(headModel)
+        headModel = Dropout(self.net_args['dropout'])(headModel)
         headModel = Dense(1, activation="softmax")(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
@@ -174,8 +174,8 @@ class NetworkTrainer:
         for layer in baseModel.layers:
             layer.trainable = False
            
-        #opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
-        self.model.compile(loss="binary_crossentropy", optimizer=Adam(), metrics=["accuracy"])
+        opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
+        self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
         
         
     def train_model(self):
@@ -186,9 +186,6 @@ class NetworkTrainer:
         # Log model summary
         self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
         
-        cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath="output/training/cp-{epoch:04d}.ckpt", verbose=1, 
-                                                         save_weights_only=True, period=1)
-        
         # train the head of the network
         H = self.model.fit(
                 self.train_gen,
@@ -197,9 +194,14 @@ class NetworkTrainer:
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
                 callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
-                           EarlyStopping(patience=self.net_args['early_stopping'], monitor='accuracy', restore_best_weights=True),
+                           EarlyStopping(patience=self.net_args['early_stopping'], 
+                                         monitor='accuracy', 
+                                         restore_best_weights=True),
                            LearningRateScheduler(self.__lr_scheduler),
-                           cp_callback
+                           ModelCheckpoint(filepath="output/training/cp-{epoch:04d}.ckpt", 
+                                           verbose=1, 
+                                           save_weights_only=True,
+                                           period=1)
                           ])
     
     
