@@ -12,6 +12,10 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
+import tensorflow.keras.backend as K
+
+from tensorflow.keras import preprocessing
+from tensorflow.keras import models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.preprocessing.image import img_to_array
@@ -25,10 +29,12 @@ from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 
+from skimage.transform import resize
 
 if '../../../notebooks/' not in sys.path:
     sys.path.append('../../../notebooks/')
@@ -36,10 +42,9 @@ if '../../../notebooks/' not in sys.path:
 import utils.constants as cts
 import utils.draw_utils as dr
 
+from gt_loaders.gen_gt import Eval
 from models.oface_mouth_model import OpenfaceMouth
-
 from data_loaders.data_loader import DLName
-
 from net_data_loaders.net_data_loader import NetDataLoader
 
 
@@ -54,10 +59,13 @@ except:
 
 ## restrict memory growth -------------------    
 
-
 class NetworkTrainer:
     def __init__(self, use_neptune=False, **kwargs):
         self.use_neptune = use_neptune
+        
+        print('-----')
+        print('Use Neptune: ', self.use_neptune)
+        print('-----')
         
         print('===================')
         print('Args: ')
@@ -77,6 +85,29 @@ class NetworkTrainer:
         print(f'Number of Samples: {len(self.in_data)}')
         print('Data loaded')
 
+    def balance_input_data(self):
+        print('Balancing input dataset..')
+        final_df = pd.DataFrame()
+
+        df_comp = self.in_data[self.in_data.comp == Eval.COMPLIANT.value]
+        df_non_comp = self.in_data[self.in_data.comp == Eval.NON_COMPLIANT.value]
+
+        print(f'df_comp.shape: {df_comp.shape}, df_non_comp.shape: {df_non_comp.shape}')
+
+        n_imgs = df_non_comp.shape[0]
+
+        df_comp = df_comp[:n_imgs].copy()
+
+        final_df = final_df.append(df_comp)
+        final_df = final_df.append(df_non_comp)
+
+        print('final_df.shape: ', final_df.shape)
+        print('n_comp: ', final_df[final_df.comp == Eval.COMPLIANT.value].shape[0])
+        print('n_non_comp: ', final_df[final_df.comp == Eval.NON_COMPLIANT.value].shape[0])
+        
+        self.in_data = final_df
+        print('Input dataset balanced')
+        
     
     def start_neptune(self):
         print('Starting Neptune')
@@ -91,51 +122,58 @@ class NetworkTrainer:
 
 
     def __lr_scheduler(self, epoch):
-        if epoch <= 10:
-            new_lr = self.net_args['learning_rate']
+#         if epoch <= 10:
+#             new_lr = self.net_args['learning_rate']
 #         elif epoch <= 20:
 #             new_lr = self.net_args['learning_rate'] * 1e-1
 #         elif epoch <= 40:
 #             new_lr = self.net_args['learning_rate'] * 1e-2
-        else:
-            new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//100)*100 - epoch))
+#         else:
+        new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
 #             new_lr = self.net_args['learning_rate'] * 1e-3
 
-        neptune.log_metric('learning_rate', new_lr)
+        if self.use_neptune:
+            neptune.log_metric('learning_rate', new_lr)
+            
         return new_lr
 
 
     def setup_data_generators(self):
         print('Starting data generators')
         train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
-        train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
-        test_df = self.in_data[~self.in_data.img_name.isin(train_valid_df.img_name)]
+        self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
+        self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
 
         datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
                                      validation_split=self.net_args['validation_split'])
 
-        self.train_gen = datagen.flow_from_dataframe(train_valid_df, 
+        self.train_gen = datagen.flow_from_dataframe(self.train_valid_df, 
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=(224, 224),
-                                                class_mode="binary",
+                                                class_mode="raw",
                                                 batch_size=self.net_args['batch_size'], 
-                                                subset='training')
+                                                subset='training',
+                                                shuffle=self.net_args['shuffle'],
+                                                seed=self.net_args['seed'])
 
-        self.validation_gen = datagen.flow_from_dataframe(train_valid_df,
+        self.validation_gen = datagen.flow_from_dataframe(self.train_valid_df,
                                                     x_col="img_name", 
                                                     y_col="comp",
                                                     target_size=(224, 224),
-                                                    class_mode="binary",
-                                                    batch_size=self.net_args['batch_size'], 
-                                                    subset='validation')
+                                                    class_mode="raw",                                                                           batch_size=self.net_args['batch_size'], 
+                                                    subset='validation',
+                                                    shuffle=self.net_args['shuffle'],
+                                                    seed=self.net_args['seed'])
 
-        self.test_gen = datagen.flow_from_dataframe(test_df,
+        self.test_gen = datagen.flow_from_dataframe(self.test_df,
                                                x_col="img_name", 
                                                y_col="comp",
                                                target_size=(224, 224),
-                                               class_mode="binary",
-                                               batch_size=self.net_args['batch_size'])
+                                               class_mode="raw",
+                                               batch_size=self.net_args['batch_size'],
+                                               shuffle=self.net_args['shuffle'],
+                                               seed=self.net_args['seed'])
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
 
@@ -167,7 +205,7 @@ class NetworkTrainer:
         headModel = Flatten(name="flatten")(headModel)
         headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
         headModel = Dropout(self.net_args['dropout'])(headModel)
-        headModel = Dense(1, activation="softmax")(headModel)
+        headModel = Dense(2, activation="softmax")(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
         
@@ -177,32 +215,72 @@ class NetworkTrainer:
         opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
         self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
         
-        
+    
+    def __get_tensorboard_callback(self):
+        log_dir = "tensorboard_out/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
+        return tensorboard_callback
+    
+    def __get_model_checkpoint_callback(self):
+        checkpoint_filepath = '/output/checkpoint_epoch_{}'
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_filepath, save_freq='epoch')
+        return model_checkpoint_callback
+    
+    def __get_log_data_callback(self):
+        return LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs))
+    
+    def __get_lr_scheduler_callback(self):
+        return LearningRateScheduler(self.__lr_scheduler)
+    
+    def __get_early_stopping_callback(self):
+        return EarlyStopping(patience=self.net_args['early_stopping'], 
+                                         monitor='accuracy', 
+                                         restore_best_weights=True)
+    
     def train_model(self):
         print('Training mobilenetv2 network')
 
         self.__create_model()
 
         # Log model summary
-        self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
+        if self.use_neptune:
+            self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
+        
+        callbacks_list = []
+        if self.use_neptune:
+            callbacks_list.append(self.__get_log_data_callback())
+        callbacks_list.append(self.__get_lr_scheduler_callback())
+        callbacks_list.append(self.__get_early_stopping_callback())
         
         # train the head of the network
-        H = self.model.fit(
+        self.H = self.model.fit(
                 self.train_gen,
                 steps_per_epoch=self.train_gen.n // self.net_args['batch_size'],
                 validation_data=self.validation_gen,
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
-                callbacks=[LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs)),
-                           EarlyStopping(patience=self.net_args['early_stopping'], 
-                                         monitor='accuracy', 
-                                         restore_best_weights=True),
-                           LearningRateScheduler(self.__lr_scheduler),
-                           ModelCheckpoint(filepath="output/training/cp-{epoch:04d}.ckpt", 
-                                           verbose=1, 
-                                           save_weights_only=True,
-                                           period=1)
-                          ])
+                callbacks=callbacks_list)
+    
+    
+    def draw_training_history(self):
+        f,ax = plt.subplots(1,2, figsize=(10,5))
+
+        ax[0].plot(self.H.history['accuracy'])
+        ax[0].plot(self.H.history['val_accuracy'])
+        ax[0].set_title('Model Accuracy')
+        ax[0].set_ylabel('accuracy')
+        ax[0].set_xlabel('epoch')
+        ax[0].legend(['train', 'test'])
+
+        ax[1].plot(self.H.history['loss'])
+        ax[1].plot(self.H.history['val_loss'])
+        ax[1].set_title('Model Loss')
+        ax[1].set_ylabel('loss')
+        ax[1].set_xlabel('epoch')
+        ax[1].legend(['train', 'test'])
+
+        plt.show()
     
     
     def load_checkpoint(self, chkp_name):
@@ -221,10 +299,11 @@ class NetworkTrainer:
 
 
     def test_model(self):
-        print('Testing model')
+        print("Testing Trained Model")
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
-        predIdxs = np.argmax(predIdxs, axis=1)
-        print(classification_report(self.test_gen.labels, predIdxs, target_names=['NON_COMP','COMP']))        
+        y_hat = np.argmax(predIdxs, axis=1)
+        print(classification_report(self.test_gen.labels, y_hat, target_names=['NON_COMP','COMP']))
+        print(f'Model Accuracy: {round(accuracy_score(self.test_gen.labels, y_hat), 4)}')      
 
     
     def evaluate_model(self, data_src='test'):
@@ -237,13 +316,73 @@ class NetworkTrainer:
             
         eval_metrics = self.model.evaluate(data, verbose=0)
         
-        print(f'{data_src.upper()} loss: ', eval_metrics[0])
-        print(f'{data_src.upper()} accuracy: ', eval_metrics[1])
+        print(f'{data_src.upper()} loss: ', round(eval_metrics[0], 4))
+        print(f'{data_src.upper()} accuracy: ', round(eval_metrics[1], 4))
         
         if self.use_neptune:
             for j, metric in enumerate(eval_metrics):
                 neptune.log_metric('eval_' + self.model.metrics_names[j], metric)
 
+                
+    # Calculates heatmaps of GradCAM algorithm based on the following implementations:
+    ## https://stackoverflow.com/questions/58322147/how-to-generate-cnn-heatmaps-using-built-in-keras-in-tf2-0-tf-keras 
+    ## https://towardsdatascience.com/demystifying-convolutional-neural-networks-using-gradcam-554a85dd4e48
+    def __calc_heatmap(self, img_name, width, height):
+        image = load_img(img_name, target_size=(width, height))
+        img_tensor = img_to_array(image)
+        img_tensor = np.expand_dims(img_tensor, axis=0)
+        img_tensor = prep_input_mobilenetv2(img_tensor)
+
+        last_conv_layer_name = [l.name for l in self.model.layers if isinstance(l, tf.python.keras.layers.convolutional.Conv2D)][-1]
+
+        conv_layer = self.model.get_layer(last_conv_layer_name)
+        heatmap_model = models.Model([self.model.inputs], [conv_layer.output, self.model.output])
+
+        # Get gradient of the winner class w.r.t. the output of the (last) conv. layer
+        with tf.GradientTape() as gtape:
+            conv_output, predictions = heatmap_model(img_tensor)
+            loss = predictions[:, np.argmax(predictions[0])]
+            grads = gtape.gradient(loss, conv_output)
+            pooled_grads = K.mean(grads, axis=(0, 1, 2))
+
+        # Channel-wise mean of resulting feature-map is the heatmap of class activation
+        heatmap = tf.reduce_mean(tf.multiply(pooled_grads, conv_output), axis=-1)
+        heatmap = np.maximum(heatmap, 0)
+        max_heat = np.max(heatmap)
+        if max_heat == 0:
+            max_heat = 1e-10
+        heatmap /= max_heat
+
+        # Render heatmap via pyplot
+        # plt.imshow(heatmap[0])
+        # plt.show()
+
+        upsample = cv2.resize(heatmap[0], (width,height))
+        return upsample
+    
+    # sort 50 samples from test_df, calculates GradCAM heatmaps
+    # and log the resulting images in a grid to neptune
+    def vizualize_predictions(self):
+        preds = np.argmax(self.model.predict(self.test_gen), axis=1)
+        cnt = 0
+        for idx,_ in self.test_df.iterrows():
+            self.test_df.at[idx, 'pred'] = preds[cnt]
+            cnt += 1
+        
+        tmp_df = self.test_df.sample(n = 50, random_state=42)
+
+        def get_img_name(img_path):
+            return img_path.split("/")[-1].split(".")[0]
+
+        labels = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
+        preds = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
+        heatmaps = [self.__calc_heatmap(im_name, 224,224) for im_name in tmp_df.img_name.values]
+
+        f = dr.draw_imgs([cv2.imread(img) for img in tmp_df.img_name.values], labels=labels, predictions=preds, heatmaps=heatmaps)
+        
+        if self.use_neptune:
+            neptune.send_image('predictions_with_heatmaps.png',f)
+    
 
     def finish_experiment(self):
         print('Finishing Neptune')
@@ -252,14 +391,17 @@ class NetworkTrainer:
         
     def run(self):
         self.load_training_data()
+        self.balance_input_data()
         self.setup_data_generators()
         try:
             self.start_neptune()
             self.create_experiment()
             self.train_model()
+            self.draw_training_history()
             self.save_model()
             self.test_model()
             self.evaluate_model()
+            self.vizualize_predictions()
         except Exception as e:
             print(f'ERROR: {e}')
         finally:
