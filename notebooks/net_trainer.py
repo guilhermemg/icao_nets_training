@@ -18,9 +18,15 @@ from tensorflow.keras import preprocessing
 from tensorflow.keras import models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
+from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
+from tensorflow.keras.applications.vgg19 import preprocess_input as prep_input_vgg19
+from tensorflow.keras.applications.resnet_v2 import preprocess_input as prep_input_resnet50v2
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
 from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications import InceptionV3
+from tensorflow.keras.applications import ResNet50V2
+from tensorflow.keras.applications import VGG19
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
@@ -34,7 +40,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
 
-from skimage.transform import resize
+from enum import Enum
 
 if '../../../notebooks/' not in sys.path:
     sys.path.append('../../../notebooks/')
@@ -59,12 +65,20 @@ except:
 
 ## restrict memory growth -------------------    
 
+class BaseModel(Enum):
+    MOBILENET_V2 = { 'target_size' : (224,224), 'prep_function': prep_input_mobilenetv2 }
+    INCEPTION_V3 = { 'target_size' : (299,299), 'prep_function': prep_input_inceptionv3 }
+    VGG19 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg19 }
+    RESNET50_V2 =  { 'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
+
 class NetworkTrainer:
-    def __init__(self, use_neptune=False, **kwargs):
+    def __init__(self, base_model, use_neptune=False, **kwargs):
         self.use_neptune = use_neptune
+        self.base_model = base_model
         
         print('-----')
         print('Use Neptune: ', self.use_neptune)
+        print('Base Model Name: ', self.base_model)
         print('-----')
         
         print('===================')
@@ -137,20 +151,20 @@ class NetworkTrainer:
             
         return new_lr
 
-
+    
     def setup_data_generators(self):
         print('Starting data generators')
         train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
         self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
         self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
 
-        datagen = ImageDataGenerator(preprocessing_function=prep_input_mobilenetv2, 
-                                     validation_split=self.net_args['validation_split'])
+        datagen = datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
+                                     validation_split=self.net_args['validation_split'])       
 
         self.train_gen = datagen.flow_from_dataframe(self.train_valid_df, 
                                                 x_col="img_name", 
                                                 y_col="comp",
-                                                target_size=(224, 224),
+                                                target_size=self.base_model.value['target_size'],
                                                 class_mode="raw",
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='training',
@@ -158,18 +172,19 @@ class NetworkTrainer:
                                                 seed=self.net_args['seed'])
 
         self.validation_gen = datagen.flow_from_dataframe(self.train_valid_df,
-                                                    x_col="img_name", 
-                                                    y_col="comp",
-                                                    target_size=(224, 224),
-                                                    class_mode="raw",                                                                           batch_size=self.net_args['batch_size'], 
-                                                    subset='validation',
-                                                    shuffle=self.net_args['shuffle'],
-                                                    seed=self.net_args['seed'])
+                                                x_col="img_name", 
+                                                y_col="comp",
+                                                target_size=self.base_model.value['target_size'],
+                                                class_mode="raw",
+                                                batch_size=self.net_args['batch_size'], 
+                                                subset='validation',
+                                                shuffle=self.net_args['shuffle'],
+                                                seed=self.net_args['seed'])
 
         self.test_gen = datagen.flow_from_dataframe(self.test_df,
                                                x_col="img_name", 
                                                y_col="comp",
-                                               target_size=(224, 224),
+                                               target_size=self.base_model.value['target_size'],
                                                class_mode="raw",
                                                batch_size=self.net_args['batch_size'],
                                                shuffle=self.net_args['shuffle'],
@@ -197,11 +212,23 @@ class NetworkTrainer:
                                   upload_source_files=self.exp_args['src_files'])
         
     def __create_model(self):
-        baseModel = MobileNetV2(weights="imagenet", include_top=False,
-            input_tensor=Input(shape=(224,224,3)), input_shape=(224,224,3))
-
-        headModel = baseModel.output
-        headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+        baseModel, headModel = None, None
+        
+        W,H = self.base_model.value['target_size']
+        if self.base_model.name != BaseModel.INCEPTION_V3.name:
+            if self.base_model.name == BaseModel.MOBILENET_V2.name:
+                baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+            elif self.base_model.name == BaseModel.VGG19.name:
+                baseModel = VGG19(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+            elif self.base_model.name == BaseModel.RESNET50_V2.name:
+                baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+            headModel = baseModel.output
+            headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+        elif self.base_model.name == BaseModel.INCEPTION_V3.name:
+            baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+            headModel = baseModel.output
+            headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
+            
         headModel = Flatten(name="flatten")(headModel)
         headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
         headModel = Dropout(self.net_args['dropout'])(headModel)
@@ -239,7 +266,7 @@ class NetworkTrainer:
                                          restore_best_weights=True)
     
     def train_model(self):
-        print('Training mobilenetv2 network')
+        print(f'Training {self.base_model.name} network')
 
         self.__create_model()
 
@@ -265,6 +292,7 @@ class NetworkTrainer:
     
     def draw_training_history(self):
         f,ax = plt.subplots(1,2, figsize=(10,5))
+        f.suptitle(f'-----{self.base_model.name}-----')
 
         ax[0].plot(self.H.history['accuracy'])
         ax[0].plot(self.H.history['val_accuracy'])
@@ -327,11 +355,11 @@ class NetworkTrainer:
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:
     ## https://stackoverflow.com/questions/58322147/how-to-generate-cnn-heatmaps-using-built-in-keras-in-tf2-0-tf-keras 
     ## https://towardsdatascience.com/demystifying-convolutional-neural-networks-using-gradcam-554a85dd4e48
-    def __calc_heatmap(self, img_name, width, height):
-        image = load_img(img_name, target_size=(width, height))
+    def __calc_heatmap(self, img_name):
+        image = load_img(img_name, target_size=self.base_model.value['target_size'])
         img_tensor = img_to_array(image)
         img_tensor = np.expand_dims(img_tensor, axis=0)
-        img_tensor = prep_input_mobilenetv2(img_tensor)
+        img_tensor = self.base_model.value['prep_function'](img_tensor)
 
         last_conv_layer_name = [l.name for l in self.model.layers if isinstance(l, tf.python.keras.layers.convolutional.Conv2D)][-1]
 
@@ -357,7 +385,7 @@ class NetworkTrainer:
         # plt.imshow(heatmap[0])
         # plt.show()
 
-        upsample = cv2.resize(heatmap[0], (width,height))
+        upsample = cv2.resize(heatmap[0], self.base_model.value['target_size'])
         return upsample
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
@@ -366,7 +394,7 @@ class NetworkTrainer:
         preds = np.argmax(self.model.predict(self.test_gen), axis=1)
         cnt = 0
         for idx,_ in self.test_df.iterrows():
-            self.test_df.at[idx, 'pred'] = preds[cnt]
+            self.test_df.loc[idx, 'pred'] = preds[cnt]
             cnt += 1
         
         tmp_df = self.test_df.sample(n = 50, random_state=42)
@@ -376,7 +404,7 @@ class NetworkTrainer:
 
         labels = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         preds = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
-        heatmaps = [self.__calc_heatmap(im_name, 224,224) for im_name in tmp_df.img_name.values]
+        heatmaps = [self.__calc_heatmap(im_name) for im_name in tmp_df.img_name.values]
 
         f = dr.draw_imgs([cv2.imread(img) for img in tmp_df.img_name.values], labels=labels, predictions=preds, heatmaps=heatmaps)
         
