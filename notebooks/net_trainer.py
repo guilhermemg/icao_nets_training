@@ -27,7 +27,9 @@ from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.applications import InceptionV3
 from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import VGG19
+from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import AveragePooling2D
+from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
@@ -127,31 +129,7 @@ class NetworkTrainer:
         print('Starting Neptune')
         neptune.init('guilhermemg/icao-nets-training')    
     
-    
-    def __log_data(self, logs):
-        neptune.log_metric('epoch_accuracy', logs['accuracy'])
-        neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
-        neptune.log_metric('epoch_loss', logs['loss'])    
-        neptune.log_metric('epoch_val_loss', logs['val_loss'])    
-
-
-    def __lr_scheduler(self, epoch):
-#         if epoch <= 10:
-#             new_lr = self.net_args['learning_rate']
-#         elif epoch <= 20:
-#             new_lr = self.net_args['learning_rate'] * 1e-1
-#         elif epoch <= 40:
-#             new_lr = self.net_args['learning_rate'] * 1e-2
-#         else:
-        new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
-#             new_lr = self.net_args['learning_rate'] * 1e-3
-
-        if self.use_neptune:
-            neptune.log_metric('learning_rate', new_lr)
-            
-        return new_lr
-
-    
+       
     def setup_data_generators(self):
         print('Starting data generators')
         train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
@@ -159,7 +137,8 @@ class NetworkTrainer:
         self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
 
         datagen = datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
-                                     validation_split=self.net_args['validation_split'])       
+                                     validation_split=self.net_args['validation_split'],
+                                     horizontal_flip=True)
 
         self.train_gen = datagen.flow_from_dataframe(self.train_valid_df, 
                                                 x_col="img_name", 
@@ -187,10 +166,64 @@ class NetworkTrainer:
                                                target_size=self.base_model.value['target_size'],
                                                class_mode="raw",
                                                batch_size=self.net_args['batch_size'],
-                                               shuffle=self.net_args['shuffle'],
-                                               seed=self.net_args['seed'])
+                                               shuffle=False)
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
+
+#         train_data, test_data, train_labels, test_labels = train_test_split(self.in_data.img_name, 
+#                                                                               self.in_data.comp, 
+#                                                                               random_state=self.net_args['seed'],
+#                                                                               test_size=0.15)
+        
+#         train_data, valid_data, train_labels, valid_labels = train_test_split(train_data, 
+#                                                                               train_labels,
+#                                                                               random_state=self.net_args['seed'],
+#                                                                               test_size=0.15)
+
+#         self.train_data, self.train_labels = [],[]
+#         for imagePath,label in zip(train_data, train_labels):
+#             image = load_img(imagePath, target_size=(224, 224))
+#             image = img_to_array(image)
+#             image = self.base_model.value['prep_function'](image)
+            
+#             self.train_data.append(image)
+#             self.train_labels.append(label)
+        
+#         self.valid_data, self.valid_labels = [],[]
+#         for imagePath,label in zip(valid_data, valid_labels):
+#             image = load_img(imagePath, target_size=(224, 224))
+#             image = img_to_array(image)
+#             image = self.base_model.value['prep_function'](image)
+            
+#             self.valid_data.append(image)
+#             self.valid_labels.append(label)
+        
+#         self.test_data, self.test_labels = [],[]
+#         for imagePath,label in zip(test_data, test_labels):
+#             image = load_img(imagePath, target_size=(224, 224))
+#             image = img_to_array(image)
+#             image = self.base_model.value['prep_function'](image)
+            
+#             self.test_data.append(image)
+#             self.test_labels.append(label)
+        
+#         self.train_data = np.array(self.train_data, dtype="float32")
+#         self.train_labels = np.array(self.train_labels)
+        
+#         self.valid_data = np.array(self.valid_data, dtype="float32")
+#         self.valid_labels = np.array(self.valid_labels)
+        
+#         self.test_data = np.array(self.test_data, dtype="float32")
+#         self.test_labels = np.array(self.test_labels)
+        
+#         print(f'TrainData.shape: {self.train_data.shape}')
+#         print(f'TrainLabels.shape: {self.train_labels.shape}')
+        
+#         print(f'ValidData.shape: {self.valid_data.shape}')
+#         print(f'ValidLabels.shape: {self.valid_labels.shape}')
+        
+#         print(f'TestData.shape: {self.test_data.shape}')
+#         print(f'TestLabels.shape: {self.test_labels.shape}')
 
 
     def create_experiment(self):
@@ -200,6 +233,9 @@ class NetworkTrainer:
         params['n_train'] = self.train_gen.n
         params['n_validation'] = self.validation_gen.n
         params['n_test'] = self.test_gen.n
+#         params['n_train'] = self.train_data.shape[0]
+#         params['n_validation'] = self.valid_data.shape[0]
+#         params['n_test'] = self.test_data.shape[0]
         
         neptune.create_experiment(name=self.exp_args['name'],
                                   params=params,
@@ -223,7 +259,15 @@ class NetworkTrainer:
             elif self.base_model.name == BaseModel.RESNET50_V2.name:
                 baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             headModel = baseModel.output
-            headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+            headModel = BatchNormalization()(headModel)
+            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+            headModel = BatchNormalization()(headModel)
+            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+            headModel = BatchNormalization()(headModel)
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             headModel = baseModel.output
@@ -241,7 +285,29 @@ class NetworkTrainer:
            
         opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
         self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
-        
+    
+    
+    def __log_data(self, logs):
+        neptune.log_metric('epoch_accuracy', logs['accuracy'])
+        neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
+        neptune.log_metric('epoch_loss', logs['loss'])    
+        neptune.log_metric('epoch_val_loss', logs['val_loss'])    
+
+    def __lr_scheduler(self, epoch):
+#         if epoch <= 10:
+#             new_lr = self.net_args['learning_rate']
+#         elif epoch <= 20:
+#             new_lr = self.net_args['learning_rate'] * 1e-1
+#         elif epoch <= 40:
+#             new_lr = self.net_args['learning_rate'] * 1e-2
+#         else:
+        new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
+#             new_lr = self.net_args['learning_rate'] * 1e-3
+
+        if self.use_neptune:
+            neptune.log_metric('learning_rate', new_lr)
+            
+        return new_lr
     
     def __get_tensorboard_callback(self):
         log_dir = "tensorboard_out/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -264,7 +330,35 @@ class NetworkTrainer:
         return EarlyStopping(patience=self.net_args['early_stopping'], 
                                          monitor='accuracy', 
                                          restore_best_weights=True)
-    
+   
+    def __get_my_callback(self):
+        class MyCallback(tf.keras.callbacks.Callback): 
+            def __init__(self, val_gen):
+                self.val_gen = val_gen
+                self.out_file_path = 'output/out.csv'
+
+            def __clean_out_file(self):
+                if os.path.exists(self.out_file_path):
+                    os.remove(self.out_file_path)
+
+            def on_epoch_end(self, epoch, logs={}): 
+                if epoch == 0:
+                    self.__clean_out_file()
+
+        #         print(f'Validation Accuracy: {self.model.evaluate(self.val_gen, batch_size=BS)}')
+
+                with open(self.out_file_path,'a') as f:
+                    predIxs = self.model.predict(self.val_gen, batch_size=BS)
+                    Y = self.val_gen.labels
+                    Y_hat = np.argmax(predIxs, axis=1)
+                    for idx,(y,y_h) in enumerate(zip(Y,Y_hat)):
+                        if epoch == 0 and idx == 0:
+                            f.writelines('epoch,idx,y,y_hat\n')
+                        f.writelines(f'{epoch+1},{idx},{y},{y_h}\n')   
+        
+        return MyCallback(self.validation_gen)
+
+
     def train_model(self):
         print(f'Training {self.base_model.name} network')
 
@@ -288,6 +382,24 @@ class NetworkTrainer:
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
                 callbacks=callbacks_list)
+
+#         aug = ImageDataGenerator(
+#                 rotation_range=20,
+#                 zoom_range=0.15,
+#                 width_shift_range=0.2,
+#                 height_shift_range=0.2,
+#                 shear_range=0.15,
+#                 horizontal_flip=True,
+#                 fill_mode="nearest")
+
+
+#         self.H = self.model.fit(
+#                 aug.flow(self.train_data, self.train_labels, batch_size=self.net_args['batch_size']),
+#                 steps_per_epoch=self.train_data.shape[0] // self.net_args['batch_size'],
+#                 validation_data=(self.valid_data, self.valid_labels),
+#                 validation_steps=self.valid_data.shape[0] // self.net_args['batch_size'],
+#                 epochs=self.net_args['n_epochs'],
+#                 callbacks=callbacks_list)
     
     
     def draw_training_history(self):
@@ -394,7 +506,7 @@ class NetworkTrainer:
         preds = np.argmax(self.model.predict(self.test_gen), axis=1)
         cnt = 0
         for idx,_ in self.test_df.iterrows():
-            self.test_df.loc[idx, 'pred'] = preds[cnt]
+            self.test_df.at[idx, 'pred'] = preds[cnt]
             cnt += 1
         
         tmp_df = self.test_df.sample(n = 50, random_state=42)
