@@ -54,6 +54,7 @@ from gt_loaders.gen_gt import Eval
 from models.oface_mouth_model import OpenfaceMouth
 from data_loaders.data_loader import DLName
 from net_data_loaders.net_data_loader import NetDataLoader
+from net_data_loaders.net_gt_loader import NetGTLoader
 
 
 ## restrict memory growth -------------------
@@ -74,13 +75,10 @@ class BaseModel(Enum):
     RESNET50_V2 =  { 'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
 
 class NetworkTrainer:
-    def __init__(self, base_model, use_neptune=False, **kwargs):
-        self.use_neptune = use_neptune
-        self.base_model = base_model
-        
+    def __init__(self, **kwargs):
+        self.use_neptune = kwargs['use_neptune']
         print('-----')
         print('Use Neptune: ', self.use_neptune)
-        print('Base Model Name: ', self.base_model)
         print('-----')
         
         print('===================')
@@ -91,13 +89,25 @@ class NetworkTrainer:
         self.exp_args = kwargs['exp_params']
         self.prop_args = kwargs['properties']
         self.net_args = kwargs['net_train_params']
+        
+        self.base_model = self.net_args['base_model']
+        print('----')
+        print('Base Model Name: ', self.base_model)
+        print('----')
 
     
     def load_training_data(self):
         print('Loading data')
-        netDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
-                                      self.prop_args['dl_names'], self.prop_args['aligned'])
-        self.in_data = netDataLoader.load_data()
+        
+        self.inda_data = None
+        if self.prop_args['use_gt_data']:
+            netGtDataLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['req'], self.prop_args['gt_names'])
+            self.in_data = netGtDataLoader.load_gt_data()
+        else:
+            netDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
+                                          self.prop_args['dl_names'], self.prop_args['aligned'])
+            self.in_data = netDataLoader.load_data()
+            
         print(f'Number of Samples: {len(self.in_data)}')
         print('Data loaded')
 
@@ -236,16 +246,26 @@ class NetworkTrainer:
 #         params['n_train'] = self.train_data.shape[0]
 #         params['n_validation'] = self.valid_data.shape[0]
 #         params['n_test'] = self.test_data.shape[0]
+    
+        props = {}
+        if self.prop_args['use_gt_data']:
+            props = {'gt_names': str([gt_n.value for gt_n in self.prop_args['gt_names']])}
+        else:
+            props = {
+                'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
+                'tagger_model': self.prop_args['tagger_model'].get_model_name().value
+            }
         
+        props['aligned'] = self.prop_args['aligned']
+        props['icao_req'] = self.prop_args['req'].value
+    
         neptune.create_experiment(name=self.exp_args['name'],
                                   params=params,
-                                  properties={'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
-                                              'dl_aligned': self.prop_args['aligned'],
-                                              'icao_req': self.prop_args['req'].value,
-                                              'tagger_model': self.prop_args['tagger_model'].get_model_name().value},
+                                  properties=props,
                                   description=self.exp_args['description'],
                                   tags=self.exp_args['tags'] ,
                                   upload_source_files=self.exp_args['src_files'])
+        
         
     def __create_model(self):
         baseModel, headModel = None, None
@@ -506,7 +526,7 @@ class NetworkTrainer:
         preds = np.argmax(self.model.predict(self.test_gen), axis=1)
         cnt = 0
         for idx,_ in self.test_df.iterrows():
-            self.test_df.at[idx, 'pred'] = preds[cnt]
+            self.test_df.loc[idx, 'pred'] = preds[cnt]
             cnt += 1
         
         tmp_df = self.test_df.sample(n = 50, random_state=42)
