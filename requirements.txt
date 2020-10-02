@@ -42,7 +42,9 @@ jupyter-core==4.6.3
 jupyterlab==2.2.0
 jupyterlab-server==1.2.0
 Keras==2.4.3
+Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.2
+keras-vggface @ git+https://github.com/rcmalli/keras-vggface.git@719ad75625fe51436b9a9479114b3d136847e11a
 kiwisolver==1.2.0
 Markdown==3.2.2
 MarkupSafe==1.1.1
@@ -51,6 +53,7 @@ mistune==0.8.4
 monotonic==1.5
 msgpack==1.0.0
 msgpack-python==0.5.6
+mtcnn==0.1.0
 nbconvert==5.6.1
 nbformat @ file:///home/conda/feedstock_root/build_artifacts/nbformat_1594060262917/work
 neptune-client==0.4.119

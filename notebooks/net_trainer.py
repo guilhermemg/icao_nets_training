@@ -20,6 +20,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.applications.vgg19 import preprocess_input as prep_input_vgg19
+from tensorflow.keras.applications.vgg16 import preprocess_input as prep_input_vgg16
 from tensorflow.keras.applications.resnet_v2 import preprocess_input as prep_input_resnet50v2
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
@@ -27,6 +28,7 @@ from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.applications import InceptionV3
 from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import VGG19
+from tensorflow.keras.applications import VGG16
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import BatchNormalization
@@ -72,6 +74,7 @@ class BaseModel(Enum):
     MOBILENET_V2 = { 'target_size' : (224,224), 'prep_function': prep_input_mobilenetv2 }
     INCEPTION_V3 = { 'target_size' : (299,299), 'prep_function': prep_input_inceptionv3 }
     VGG19 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg19 }
+    VGG16 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg16 }
     RESNET50_V2 =  { 'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
 
 class NetworkTrainer:
@@ -276,18 +279,20 @@ class NetworkTrainer:
                 baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             elif self.base_model.name == BaseModel.VGG19.name:
                 baseModel = VGG19(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+            elif self.base_model.name == BaseModel.VGG16.name:
+                baseModel = VGG16(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             elif self.base_model.name == BaseModel.RESNET50_V2.name:
                 baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             headModel = baseModel.output
-            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-            headModel = BatchNormalization()(headModel)
-            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-            headModel = BatchNormalization()(headModel)
-            headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-            headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-            headModel = BatchNormalization()(headModel)
+#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+#             headModel = BatchNormalization()(headModel)
+#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+#             headModel = BatchNormalization()(headModel)
+#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
+#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
+#             headModel = BatchNormalization()(headModel)
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             headModel = baseModel.output
@@ -401,7 +406,8 @@ class NetworkTrainer:
                 validation_data=self.validation_gen,
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
-                callbacks=callbacks_list)
+                callbacks=callbacks_list
+        )
 
 #         aug = ImageDataGenerator(
 #                 rotation_range=20,
