@@ -24,3 +24,5 @@ notebooks/train.png
 notebooks/figs
 notebooks/models
 notebooks/tensorboard_out
+
+notebooks/model_weights/

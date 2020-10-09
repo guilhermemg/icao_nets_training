@@ -40,6 +40,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
+from tensorflow.keras.initializers import RandomNormal
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
@@ -77,6 +78,16 @@ class BaseModel(Enum):
     VGG16 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg16 }
     RESNET50_V2 =  { 'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
 
+class Optimizer(Enum):
+    ADAM = 'Adam'
+    ADAM_CUST = 'AdamCustomized'
+    SGD = 'SGD'
+    SGD_CUST = 'SGDCustomized'
+    ADAMAX = 'Adamax'
+    ADAMAX_CUST = 'AdamaxCustomized'
+    ADAGRAD = 'Adagrad'
+    ADAGRAD_CUST = 'AdagradCustomized'
+    
 class NetworkTrainer:
     def __init__(self, **kwargs):
         self.use_neptune = kwargs['use_neptune']
@@ -102,7 +113,7 @@ class NetworkTrainer:
     def load_training_data(self):
         print('Loading data')
         
-        self.inda_data = None
+        self.in_data = None
         if self.prop_args['use_gt_data']:
             netGtDataLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['req'], self.prop_args['gt_names'])
             self.in_data = netGtDataLoader.load_gt_data()
@@ -115,27 +126,30 @@ class NetworkTrainer:
         print('Data loaded')
 
     def balance_input_data(self):
-        print('Balancing input dataset..')
-        final_df = pd.DataFrame()
+        if self.prop_args['balance_input_data']:
+            print('Balancing input dataset..')
+            final_df = pd.DataFrame()
 
-        df_comp = self.in_data[self.in_data.comp == Eval.COMPLIANT.value]
-        df_non_comp = self.in_data[self.in_data.comp == Eval.NON_COMPLIANT.value]
+            df_comp = self.in_data[self.in_data.comp == Eval.COMPLIANT.value]
+            df_non_comp = self.in_data[self.in_data.comp == Eval.NON_COMPLIANT.value]
 
-        print(f'df_comp.shape: {df_comp.shape}, df_non_comp.shape: {df_non_comp.shape}')
+            print(f'df_comp.shape: {df_comp.shape}, df_non_comp.shape: {df_non_comp.shape}')
 
-        n_imgs = df_non_comp.shape[0]
+            n_imgs = df_non_comp.shape[0]
 
-        df_comp = df_comp[:n_imgs].copy()
+            df_comp = df_comp[:n_imgs].copy()
 
-        final_df = final_df.append(df_comp)
-        final_df = final_df.append(df_non_comp)
+            final_df = final_df.append(df_comp)
+            final_df = final_df.append(df_non_comp)
 
-        print('final_df.shape: ', final_df.shape)
-        print('n_comp: ', final_df[final_df.comp == Eval.COMPLIANT.value].shape[0])
-        print('n_non_comp: ', final_df[final_df.comp == Eval.NON_COMPLIANT.value].shape[0])
-        
-        self.in_data = final_df
-        print('Input dataset balanced')
+            print('final_df.shape: ', final_df.shape)
+            print('n_comp: ', final_df[final_df.comp == Eval.COMPLIANT.value].shape[0])
+            print('n_non_comp: ', final_df[final_df.comp == Eval.NON_COMPLIANT.value].shape[0])
+
+            self.in_data = final_df
+            print('Input dataset balanced')
+        else:
+            print('Not balancing input_data')
         
     
     def start_neptune(self):
@@ -151,13 +165,19 @@ class NetworkTrainer:
 
         datagen = datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
                                      validation_split=self.net_args['validation_split'],
-                                     horizontal_flip=True)
+                                     horizontal_flip=True,
+                                     rotation_range=20,
+                                     zoom_range=0.15,
+                                     width_shift_range=0.2,
+                                     height_shift_range=0.2,
+                                     shear_range=0.15,
+                                     fill_mode="nearest")
 
         self.train_gen = datagen.flow_from_dataframe(self.train_valid_df, 
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
-                                                class_mode="raw",
+                                                class_mode="categorical",
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='training',
                                                 shuffle=self.net_args['shuffle'],
@@ -167,7 +187,7 @@ class NetworkTrainer:
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
-                                                class_mode="raw",
+                                                class_mode="categorical",
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='validation',
                                                 shuffle=self.net_args['shuffle'],
@@ -177,12 +197,14 @@ class NetworkTrainer:
                                                x_col="img_name", 
                                                y_col="comp",
                                                target_size=self.base_model.value['target_size'],
-                                               class_mode="raw",
+                                               class_mode="categorical",
                                                batch_size=self.net_args['batch_size'],
                                                shuffle=False)
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
-
+        
+    
+    def setup_data(self):
 #         train_data, test_data, train_labels, test_labels = train_test_split(self.in_data.img_name, 
 #                                                                               self.in_data.comp, 
 #                                                                               random_state=self.net_args['seed'],
@@ -237,6 +259,7 @@ class NetworkTrainer:
         
 #         print(f'TestData.shape: {self.test_data.shape}')
 #         print(f'TestLabels.shape: {self.test_labels.shape}')
+        return
 
 
     def create_experiment(self):
@@ -261,6 +284,7 @@ class NetworkTrainer:
         
         props['aligned'] = self.prop_args['aligned']
         props['icao_req'] = self.prop_args['req'].value
+        props['balance_input_data'] = self.prop_args['balance_input_data']
     
         neptune.create_experiment(name=self.exp_args['name'],
                                   params=params,
@@ -297,18 +321,25 @@ class NetworkTrainer:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             headModel = baseModel.output
             headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
-            
+
+        initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
+        
         headModel = Flatten(name="flatten")(headModel)
-        headModel = Dense(self.net_args['dense_units'], activation="relu")(headModel)
+        headModel = Dense(self.net_args['dense_units'], activation="relu", kernel_initializer=initializer)(headModel)
         headModel = Dropout(self.net_args['dropout'])(headModel)
-        headModel = Dense(2, activation="softmax")(headModel)
+        headModel = Dense(2, activation="softmax", kernel_initializer=initializer)(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
         
         for layer in baseModel.layers:
             layer.trainable = False
-           
-        opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
+
+        opt = None
+        if self.net_args['optimizer'].name == Optimizer.ADAM.name:
+            opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
+        elif self.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
+            opt = Adam(lr=self.net_args['learning_rate'])
+
         self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
     
     
@@ -319,15 +350,14 @@ class NetworkTrainer:
         neptune.log_metric('epoch_val_loss', logs['val_loss'])    
 
     def __lr_scheduler(self, epoch):
-#         if epoch <= 10:
-#             new_lr = self.net_args['learning_rate']
-#         elif epoch <= 20:
-#             new_lr = self.net_args['learning_rate'] * 1e-1
-#         elif epoch <= 40:
-#             new_lr = self.net_args['learning_rate'] * 1e-2
-#         else:
-        new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
-#             new_lr = self.net_args['learning_rate'] * 1e-3
+        if epoch <= 10:
+            new_lr = self.net_args['learning_rate']
+        elif epoch <= 20:
+            new_lr = self.net_args['learning_rate'] * 0.5
+        elif epoch <= 40:
+            new_lr = self.net_args['learning_rate'] * 0.5
+        else:
+            new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
 
         if self.use_neptune:
             neptune.log_metric('learning_rate', new_lr)
@@ -418,7 +448,6 @@ class NetworkTrainer:
 #                 horizontal_flip=True,
 #                 fill_mode="nearest")
 
-
 #         self.H = self.model.fit(
 #                 aug.flow(self.train_data, self.train_labels, batch_size=self.net_args['batch_size']),
 #                 steps_per_epoch=self.train_data.shape[0] // self.net_args['batch_size'],
@@ -447,6 +476,9 @@ class NetworkTrainer:
         ax[1].legend(['train', 'test'])
 
         plt.show()
+        
+        if self.use_neptune:
+            neptune.send_image('training_curves.png',f)
     
     
     def load_checkpoint(self, chkp_name):
@@ -456,12 +488,11 @@ class NetworkTrainer:
 
     def save_model(self):
         print('Saving model')
-        with tempfile.TemporaryDirectory(dir='.') as d:
-            prefix = os.path.join(d, 'model_weights')
-            self.model.save_weights(os.path.join(prefix, 'model.h5'))
-            for item in os.listdir(prefix):
-                neptune.log_artifact(os.path.join(prefix, item),
-                                     os.path.join('model_weights', item))
+        #with tempfile.TemporaryDirectory(dir='.') as d:
+        path = os.path.join('model_weights', 'model.h5')
+        self.model.save_weights(path)
+        for item in os.listdir('model_weights'):
+            neptune.log_artifact(os.path.join('model_weights', item))
 
 
     def test_model(self):
@@ -529,22 +560,26 @@ class NetworkTrainer:
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
     def vizualize_predictions(self):
-        preds = np.argmax(self.model.predict(self.test_gen), axis=1)
-        cnt = 0
-        for idx,_ in self.test_df.iterrows():
-            self.test_df.loc[idx, 'pred'] = preds[cnt]
-            cnt += 1
+        predIdxs = self.model.predict(self.test_gen)
+        preds = np.argmax(predIdxs, axis=1)  # NO SHUFFLE
         
-        tmp_df = self.test_df.sample(n = 50, random_state=42)
-
+        tmp_df = pd.DataFrame()
+        tmp_df['img_name'] = self.test_gen.filepaths
+        tmp_df['comp'] = self.test_gen.labels
+        tmp_df['pred'] = preds
+        
+        tmp_df = tmp_df.sample(n = 50, random_state=42)
+        
         def get_img_name(img_path):
             return img_path.split("/")[-1].split(".")[0]
 
         labels = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         preds = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
         heatmaps = [self.__calc_heatmap(im_name) for im_name in tmp_df.img_name.values]
-
-        f = dr.draw_imgs([cv2.imread(img) for img in tmp_df.img_name.values], labels=labels, predictions=preds, heatmaps=heatmaps)
+        
+        imgs = [cv2.resize(cv2.imread(img),self.base_model.value['target_size']) for img in tmp_df.img_name.values]
+        
+        f = dr.draw_imgs(imgs, labels=labels, predictions=preds, heatmaps=heatmaps)
         
         if self.use_neptune:
             neptune.send_image('predictions_with_heatmaps.png',f)
@@ -553,6 +588,7 @@ class NetworkTrainer:
     def finish_experiment(self):
         print('Finishing Neptune')
         neptune.stop()
+        self.use_neptune = False
 
         
     def run(self):
