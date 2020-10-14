@@ -117,12 +117,18 @@ class NetworkTrainer:
         if self.prop_args['use_gt_data']:
             netGtDataLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['req'], self.prop_args['gt_names'])
             self.in_data = netGtDataLoader.load_gt_data()
+            print(f'Number of Samples: {len(self.in_data)}')
         else:
-            netDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
+            netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
                                           self.prop_args['dl_names'], self.prop_args['aligned'])
-            self.in_data = netDataLoader.load_data()
+            self.train_data = netTrainDataLoader.load_data()
+            print(f'TrainData.shape: {self.train_data.shape}')
             
-        print(f'Number of Samples: {len(self.in_data)}')
+            netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
+                                          [DLName.COLOR_FERET], self.prop_args['aligned'])
+            self.test_data = netTestDataLoader.load_data()
+            print(f'TestData.shape: {self.test_data.shape}')
+        
         print('Data loaded')
 
     def balance_input_data(self):
@@ -159,9 +165,9 @@ class NetworkTrainer:
        
     def setup_data_generators(self):
         print('Starting data generators')
-        train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
-        self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
-        self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
+#         train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
+#         self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
+#         self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
 
         datagen = datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
                                      validation_split=self.net_args['validation_split'],
@@ -173,7 +179,7 @@ class NetworkTrainer:
                                      shear_range=0.15,
                                      fill_mode="nearest")
 
-        self.train_gen = datagen.flow_from_dataframe(self.train_valid_df, 
+        self.train_gen = datagen.flow_from_dataframe(self.train_data, 
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
@@ -183,7 +189,7 @@ class NetworkTrainer:
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.validation_gen = datagen.flow_from_dataframe(self.train_valid_df,
+        self.validation_gen = datagen.flow_from_dataframe(self.train_data,
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
@@ -193,7 +199,7 @@ class NetworkTrainer:
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.test_gen = datagen.flow_from_dataframe(self.test_df,
+        self.test_gen = datagen.flow_from_dataframe(self.test_data,
                                                x_col="img_name", 
                                                y_col="comp",
                                                target_size=self.base_model.value['target_size'],
