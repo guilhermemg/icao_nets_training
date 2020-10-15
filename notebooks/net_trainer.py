@@ -499,6 +499,7 @@ class NetworkTrainer:
         self.model.save_weights(path)
         for item in os.listdir('model_weights'):
             neptune.log_artifact(os.path.join('model_weights', item))
+        print('Model saved')
 
 
     def test_model(self):
