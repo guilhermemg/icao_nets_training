@@ -37,7 +37,7 @@ from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.initializers import RandomNormal
@@ -83,6 +83,7 @@ class Optimizer(Enum):
     ADAM_CUST = 'AdamCustomized'
     SGD = 'SGD'
     SGD_CUST = 'SGDCustomized'
+    SGD_NESTEROV = 'SGDNesterov'
     ADAMAX = 'Adamax'
     ADAMAX_CUST = 'AdamaxCustomized'
     ADAGRAD = 'Adagrad'
@@ -113,7 +114,6 @@ class NetworkTrainer:
     def load_training_data(self):
         print('Loading data')
         
-        self.in_data = None
         if self.prop_args['use_gt_data']:
             netGtDataLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['req'], self.prop_args['gt_names'])
             self.in_data = netGtDataLoader.load_gt_data()
@@ -124,9 +124,11 @@ class NetworkTrainer:
             self.train_data = netTrainDataLoader.load_data()
             print(f'TrainData.shape: {self.train_data.shape}')
             
+            test_dataset = DLName.COLOR_FERET
             netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
-                                          [DLName.COLOR_FERET], self.prop_args['aligned'])
+                                          [test_dataset], self.prop_args['aligned'])
             self.test_data = netTestDataLoader.load_data()
+            print(f'Test Dataset: {test_dataset.name.upper()}')
             print(f'TestData.shape: {self.test_data.shape}')
         
         print('Data loaded')
@@ -165,11 +167,22 @@ class NetworkTrainer:
        
     def setup_data_generators(self):
         print('Starting data generators')
-#         train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
-#         self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
-#         self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
+        
+        data_train, data_test = None, None
+        
+        if self.prop_args['use_gt_data']:
+            train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
+            self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
+            self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
+            
+            data_train = self.train_valid_df
+            data_test = self.test_df
+        else:
+            data_train = self.train_data
+            data_test = self.test_data
 
-        datagen = datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
+            
+        datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
                                      validation_split=self.net_args['validation_split'],
                                      horizontal_flip=True,
                                      rotation_range=20,
@@ -178,8 +191,8 @@ class NetworkTrainer:
                                      height_shift_range=0.2,
                                      shear_range=0.15,
                                      fill_mode="nearest")
-
-        self.train_gen = datagen.flow_from_dataframe(self.train_data, 
+        
+        self.train_gen = datagen.flow_from_dataframe(data_train, 
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
@@ -189,7 +202,7 @@ class NetworkTrainer:
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.validation_gen = datagen.flow_from_dataframe(self.train_data,
+        self.validation_gen = datagen.flow_from_dataframe(data_train,
                                                 x_col="img_name", 
                                                 y_col="comp",
                                                 target_size=self.base_model.value['target_size'],
@@ -199,7 +212,7 @@ class NetworkTrainer:
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.test_gen = datagen.flow_from_dataframe(self.test_data,
+        self.test_gen = datagen.flow_from_dataframe(data_test,
                                                x_col="img_name", 
                                                y_col="comp",
                                                target_size=self.base_model.value['target_size'],
@@ -345,6 +358,14 @@ class NetworkTrainer:
             opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
         elif self.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
             opt = Adam(lr=self.net_args['learning_rate'])
+        elif self.net_args['optimizer'].name == Optimizer.SGD.name:
+            opt = SGD(lr=self.net_args['learning_rate'])
+        elif self.net_args['optimizer'].name == Optimizer.SGD_NESTEROV.name:
+            opt = SGD(lr=self.net_args['learning_rate'], nesterov=True)
+        elif self.net_args['optimizer'].name == Optimizer.ADAGRAD.name:
+            opt = Adagrad(lr=self.net_args['learning_rate'])
+        elif self.net_args['optimizer'].name == Optimizer.ADAMAX.name:
+            opt = Adamax(lr=self.net_args['learning_rate'])
 
         self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
     
@@ -430,10 +451,16 @@ class NetworkTrainer:
             self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
         
         callbacks_list = []
+        
         if self.use_neptune:
             callbacks_list.append(self.__get_log_data_callback())
-        callbacks_list.append(self.__get_lr_scheduler_callback())
-        callbacks_list.append(self.__get_early_stopping_callback())
+
+        if self.net_args['optimizer'].name in [Optimizer.ADAMAX_CUST.name, Optimizer.ADAGRAD_CUST.name,
+                                               Optimizer.ADAM_CUST.name, Optimizer.SGD_CUST.name]:
+            callbacks_list.append(self.__get_lr_scheduler_callback())
+        
+        if self.net_args['early_stopping'] is not None:
+            callbacks_list.append(self.__get_early_stopping_callback())
         
         # train the head of the network
         self.H = self.model.fit(
