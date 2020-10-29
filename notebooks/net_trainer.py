@@ -221,64 +221,6 @@ class NetworkTrainer:
                                                shuffle=False)
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
-        
-    
-    def setup_data(self):
-#         train_data, test_data, train_labels, test_labels = train_test_split(self.in_data.img_name, 
-#                                                                               self.in_data.comp, 
-#                                                                               random_state=self.net_args['seed'],
-#                                                                               test_size=0.15)
-        
-#         train_data, valid_data, train_labels, valid_labels = train_test_split(train_data, 
-#                                                                               train_labels,
-#                                                                               random_state=self.net_args['seed'],
-#                                                                               test_size=0.15)
-
-#         self.train_data, self.train_labels = [],[]
-#         for imagePath,label in zip(train_data, train_labels):
-#             image = load_img(imagePath, target_size=(224, 224))
-#             image = img_to_array(image)
-#             image = self.base_model.value['prep_function'](image)
-            
-#             self.train_data.append(image)
-#             self.train_labels.append(label)
-        
-#         self.valid_data, self.valid_labels = [],[]
-#         for imagePath,label in zip(valid_data, valid_labels):
-#             image = load_img(imagePath, target_size=(224, 224))
-#             image = img_to_array(image)
-#             image = self.base_model.value['prep_function'](image)
-            
-#             self.valid_data.append(image)
-#             self.valid_labels.append(label)
-        
-#         self.test_data, self.test_labels = [],[]
-#         for imagePath,label in zip(test_data, test_labels):
-#             image = load_img(imagePath, target_size=(224, 224))
-#             image = img_to_array(image)
-#             image = self.base_model.value['prep_function'](image)
-            
-#             self.test_data.append(image)
-#             self.test_labels.append(label)
-        
-#         self.train_data = np.array(self.train_data, dtype="float32")
-#         self.train_labels = np.array(self.train_labels)
-        
-#         self.valid_data = np.array(self.valid_data, dtype="float32")
-#         self.valid_labels = np.array(self.valid_labels)
-        
-#         self.test_data = np.array(self.test_data, dtype="float32")
-#         self.test_labels = np.array(self.test_labels)
-        
-#         print(f'TrainData.shape: {self.train_data.shape}')
-#         print(f'TrainLabels.shape: {self.train_labels.shape}')
-        
-#         print(f'ValidData.shape: {self.valid_data.shape}')
-#         print(f'ValidLabels.shape: {self.valid_labels.shape}')
-        
-#         print(f'TestData.shape: {self.test_data.shape}')
-#         print(f'TestLabels.shape: {self.test_labels.shape}')
-        return
 
 
     def create_experiment(self):
@@ -288,9 +230,6 @@ class NetworkTrainer:
         params['n_train'] = self.train_gen.n
         params['n_validation'] = self.validation_gen.n
         params['n_test'] = self.test_gen.n
-#         params['n_train'] = self.train_data.shape[0]
-#         params['n_validation'] = self.valid_data.shape[0]
-#         params['n_test'] = self.test_data.shape[0]
     
         props = {}
         if self.prop_args['use_gt_data']:
