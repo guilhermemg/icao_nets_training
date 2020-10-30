@@ -202,6 +202,8 @@ class NetworkTrainer:
                                      shear_range=0.15,
                                      fill_mode="nearest")
         
+        test_datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'])
+        
         self.train_gen = datagen.flow_from_dataframe(data_train, 
                                                 x_col="img_name", 
                                                 y_col="comp",
@@ -222,7 +224,7 @@ class NetworkTrainer:
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.test_gen = datagen.flow_from_dataframe(data_test,
+        self.test_gen = test_datagen.flow_from_dataframe(data_test,
                                                x_col="img_name", 
                                                y_col="comp",
                                                target_size=self.base_model.value['target_size'],
@@ -467,14 +469,14 @@ class NetworkTrainer:
         ax[0].set_title('Model Accuracy')
         ax[0].set_ylabel('accuracy')
         ax[0].set_xlabel('epoch')
-        ax[0].legend(['train', 'test'])
+        ax[0].legend(['train', 'validation'])
 
         ax[1].plot(self.H.history['loss'])
         ax[1].plot(self.H.history['val_loss'])
         ax[1].set_title('Model Loss')
         ax[1].set_ylabel('loss')
         ax[1].set_xlabel('epoch')
-        ax[1].legend(['train', 'test'])
+        ax[1].legend(['train', 'validation'])
 
         plt.show()
         
@@ -506,11 +508,15 @@ class NetworkTrainer:
             print('..Saving model to neptune..')
             for item in os.listdir('trained_models'):
                 neptune.log_artifact(os.path.join('trained_models', item))
+                
+        self.model.training = False
+        
         print('Model saved')
 
 
     def test_model(self):
         print("Testing Trained Model")
+        self.test_gen.reset()
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
         y_hat = np.argmax(predIdxs, axis=1)
         print(classification_report(y_true=self.test_gen.labels, y_pred=y_hat, target_names=['NON_COMP','COMP']))
@@ -523,6 +529,7 @@ class NetworkTrainer:
         if data_src == 'validation':
             data = self.validation_gen
         elif data_src == 'test':
+            self.test_gen.reset()
             data = self.test_gen
             
         eval_metrics = self.model.evaluate(data, verbose=0)
