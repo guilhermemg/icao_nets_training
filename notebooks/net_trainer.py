@@ -513,8 +513,8 @@ class NetworkTrainer:
         print("Testing Trained Model")
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
         y_hat = np.argmax(predIdxs, axis=1)
-        print(classification_report(self.test_gen.labels, y_hat, target_names=['NON_COMP','COMP']))
-        print(f'Model Accuracy: {round(accuracy_score(self.test_gen.labels, y_hat), 4)}')      
+        print(classification_report(y_true=self.test_gen.labels, y_pred=y_hat, target_names=['NON_COMP','COMP']))
+        print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels, y_pred=y_hat), 4)}')      
 
     
     def evaluate_model(self, data_src='test'):
