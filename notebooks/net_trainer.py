@@ -109,7 +109,14 @@ class NetworkTrainer:
         print('----')
         print('Base Model Name: ', self.base_model)
         print('----')
+        
+        self.CHECKPOINT_PATH = "training_ckpt/best_model.hdf5"
+        self.__clear_checkpoints()
 
+        
+    def __clear_checkpoints(self):
+        os.remove(self.CHECKPOINT_PATH)
+        
     
     def load_training_data(self):
         print('Loading data')
@@ -161,8 +168,11 @@ class NetworkTrainer:
         
     
     def start_neptune(self):
-        print('Starting Neptune')
-        neptune.init('guilhermemg/icao-nets-training')    
+        if self.use_neptune:
+            print('Starting Neptune')
+            neptune.init('guilhermemg/icao-nets-training')    
+        else:
+            print('Not using Neptune')
     
        
     def setup_data_generators(self):
@@ -222,34 +232,53 @@ class NetworkTrainer:
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
 
+    
+    def summary_labels_dist(self):
+        total_train_valid = self.train_valid_df.shape[0]
+        n_train_valid_comp = self.train_valid_df[self.train_valid_df.comp == str(Eval.COMPLIANT.value)].shape[0]
+        n_train_valid_not_comp = self.train_valid_df[self.train_valid_df.comp == str(Eval.NON_COMPLIANT.value)].shape[0]
+
+        total_test = self.test_df.shape[0]
+        n_test_comp = self.test_df[self.test_df.comp == str(Eval.COMPLIANT.value)].shape[0]
+        n_test_not_comp = self.test_df[self.test_df.comp == str(Eval.NON_COMPLIANT.value)].shape[0]
+
+        print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({round(n_train_valid_comp/total_train_valid*100,2)}%)')
+        print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({round(n_train_valid_not_comp/total_train_valid*100,2)}%)')
+
+        print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
+        print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({round(n_test_not_comp/total_test*100,2)}%)')
+    
 
     def create_experiment(self):
-        print('Creating experiment')
-        
-        params = self.net_args
-        params['n_train'] = self.train_gen.n
-        params['n_validation'] = self.validation_gen.n
-        params['n_test'] = self.test_gen.n
-    
-        props = {}
-        if self.prop_args['use_gt_data']:
-            props = {'gt_names': str([gt_n.value for gt_n in self.prop_args['gt_names']])}
+        if self.use_neptune:
+            print('Creating experiment')
+
+            params = self.net_args
+            params['n_train'] = self.train_gen.n
+            params['n_validation'] = self.validation_gen.n
+            params['n_test'] = self.test_gen.n
+
+            props = {}
+            if self.prop_args['use_gt_data']:
+                props = {'gt_names': str([gt_n.value for gt_n in self.prop_args['gt_names']])}
+            else:
+                props = {
+                    'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
+                    'tagger_model': self.prop_args['tagger_model'].get_model_name().value
+                }
+
+            props['aligned'] = self.prop_args['aligned']
+            props['icao_req'] = self.prop_args['req'].value
+            props['balance_input_data'] = self.prop_args['balance_input_data']
+
+            neptune.create_experiment(name=self.exp_args['name'],
+                                      params=params,
+                                      properties=props,
+                                      description=self.exp_args['description'],
+                                      tags=self.exp_args['tags'] ,
+                                      upload_source_files=self.exp_args['src_files'])
         else:
-            props = {
-                'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
-                'tagger_model': self.prop_args['tagger_model'].get_model_name().value
-            }
-        
-        props['aligned'] = self.prop_args['aligned']
-        props['icao_req'] = self.prop_args['req'].value
-        props['balance_input_data'] = self.prop_args['balance_input_data']
-    
-        neptune.create_experiment(name=self.exp_args['name'],
-                                  params=params,
-                                  properties=props,
-                                  description=self.exp_args['description'],
-                                  tags=self.exp_args['tags'] ,
-                                  upload_source_files=self.exp_args['src_files'])
+            print('Not using Neptune')
         
         
     def __create_model(self):
@@ -335,12 +364,6 @@ class NetworkTrainer:
         tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
         return tensorboard_callback
     
-    def __get_model_checkpoint_callback(self):
-        checkpoint_filepath = '/output/checkpoint_epoch_{}'
-        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath=checkpoint_filepath, save_freq='epoch')
-        return model_checkpoint_callback
-    
     def __get_log_data_callback(self):
         return LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs))
     
@@ -351,7 +374,11 @@ class NetworkTrainer:
         return EarlyStopping(patience=self.net_args['early_stopping'], 
                                          monitor='accuracy', 
                                          restore_best_weights=True)
-   
+    
+    def __get_model_checkpoint_callback(self):
+        return ModelCheckpoint("training_ckpt/best_model.hdf5", monitor='val_accuracy', save_best_only=True, 
+                               mode='max', save_freq=1)
+    
     def __get_my_callback(self):
         class MyCallback(tf.keras.callbacks.Callback): 
             def __init__(self, val_gen):
@@ -400,6 +427,8 @@ class NetworkTrainer:
         
         if self.net_args['early_stopping'] is not None:
             callbacks_list.append(self.__get_early_stopping_callback())
+        
+#         callbacks_list.append(self.__get_model_checkpoint_callback())
         
         # train the head of the network
         self.H = self.model.fit(
@@ -460,11 +489,23 @@ class NetworkTrainer:
 
     def save_model(self):
         print('Saving model')
-        #with tempfile.TemporaryDirectory(dir='.') as d:
-        path = os.path.join('model_weights', 'model.h5')
-        self.model.save_weights(path)
-        for item in os.listdir('model_weights'):
-            neptune.log_artifact(os.path.join('model_weights', item))
+        
+        print('..Loading checkpoint')
+        if os.path.isfile(self.CHECKPOINT_PATH):
+            self.model.load_weights(self.CHECKPOINT_PATH)
+            print('..Checkpoint weights loaded')
+        else:
+            print('Checkpoint not found')
+        
+        print('..Saving tf model')
+        path = os.path.join('trained_models', 'model')
+        self.model.save(path)
+        print('..TF model saved')
+        
+        if self.use_neptune:
+            print('..Saving model to neptune..')
+            for item in os.listdir('trained_models'):
+                neptune.log_artifact(os.path.join('trained_models', item))
         print('Model saved')
 
 
@@ -559,9 +600,12 @@ class NetworkTrainer:
     
 
     def finish_experiment(self):
-        print('Finishing Neptune')
-        neptune.stop()
-        self.use_neptune = False
+        if self.use_neptune:
+            print('Finishing Neptune')
+            neptune.stop()
+            self.use_neptune = False
+        else:
+            print('Not using Neptune')
 
         
     def run(self):

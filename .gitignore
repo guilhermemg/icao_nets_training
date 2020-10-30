@@ -26,3 +26,5 @@ notebooks/models
 notebooks/tensorboard_out
 
 notebooks/model_weights/
+
+notebooks/trained_models/
