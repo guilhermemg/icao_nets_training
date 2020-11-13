@@ -12,6 +12,8 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
+from keras.utils.vis_utils import plot_model
+
 import tensorflow.keras.backend as K
 
 from tensorflow.keras import preprocessing
@@ -31,13 +33,14 @@ from tensorflow.keras.applications import VGG19
 from tensorflow.keras.applications import VGG16
 from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import AveragePooling2D
+from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax
+from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.initializers import RandomNormal
@@ -88,6 +91,7 @@ class Optimizer(Enum):
     ADAMAX_CUST = 'AdamaxCustomized'
     ADAGRAD = 'Adagrad'
     ADAGRAD_CUST = 'AdagradCustomized'
+    ADADELTA = 'Adadelta'
     
 class NetworkTrainer:
     def __init__(self, **kwargs):
@@ -110,30 +114,52 @@ class NetworkTrainer:
         print('Base Model Name: ', self.base_model)
         print('----')
         
+        print('----')
+        self.is_mtl_model = len(self.prop_args['reqs']) > 1
+        print(f'MTL Model: {self.is_mtl_model}')
+        print('----')
+        
         self.CHECKPOINT_PATH = "training_ckpt/best_model.hdf5"
         self.__clear_checkpoints()
 
         
     def __clear_checkpoints(self):
-        os.remove(self.CHECKPOINT_PATH)
+        if os.path.exists(self.CHECKPOINT_PATH):
+            os.remove(self.CHECKPOINT_PATH)
         
     
     def load_training_data(self):
         print('Loading data')
         
         if self.prop_args['use_gt_data']:
-            netGtDataLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['req'], self.prop_args['gt_names'])
-            self.in_data = netGtDataLoader.load_gt_data()
-            print(f'Number of Samples: {len(self.in_data)}')
+            if len(self.prop_args['gt_names']['train_validation_test']) == 0:
+                trainNetGtLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['reqs'], 
+                                               self.prop_args['gt_names']['train_validation'], self.is_mtl_model)
+                self.train_data = trainNetGtLoader.load_gt_data()
+                print(f'TrainData.shape: {self.train_data.shape}')
+
+                testNetGtLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['reqs'], 
+                                               self.prop_args['gt_names']['test'], self.is_mtl_model)
+                self.test_data = testNetGtLoader.load_gt_data()
+                print(f'TestData.shape: {self.test_data.shape}')
+                
+            else:
+                netGtLoader = NetGTLoader(self.prop_args['aligned'], self.prop_args['reqs'], 
+                                          self.prop_args['gt_names']['train_validation_test'], self.is_mtl_model)
+                in_data = netGtLoader.load_gt_data()
+                
+                self.train_data = in_data.sample(frac=self.net_args['train_prop']+self.net_args['validation_prop'],
+                                                 random_state=self.net_args['seed'])
+                self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
         else:
-            netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
-                                          self.prop_args['dl_names'], self.prop_args['aligned'])
+            netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['reqs'], 
+                                          self.prop_args['dl_names'], self.prop_args['aligned'], self.is_mtl_model)
             self.train_data = netTrainDataLoader.load_data()
             print(f'TrainData.shape: {self.train_data.shape}')
             
             test_dataset = DLName.COLOR_FERET
-            netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['req'], 
-                                          [test_dataset], self.prop_args['aligned'])
+            netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['reqs'], 
+                                          [test_dataset], self.prop_args['aligned'], self.is_mtl_model)
             self.test_data = netTestDataLoader.load_data()
             print(f'Test Dataset: {test_dataset.name.upper()}')
             print(f'TestData.shape: {self.test_data.shape}')
@@ -178,20 +204,6 @@ class NetworkTrainer:
     def setup_data_generators(self):
         print('Starting data generators')
         
-        data_train, data_test = None, None
-        
-        if self.prop_args['use_gt_data']:
-            train_prop,valid_prop = self.net_args['train_prop'], self.net_args['validation_prop']
-            self.train_valid_df = self.in_data.sample(frac=train_prop+valid_prop, random_state=self.net_args['seed'])
-            self.test_df = self.in_data[~self.in_data.img_name.isin(self.train_valid_df.img_name)]
-            
-            data_train = self.train_valid_df
-            data_test = self.test_df
-        else:
-            data_train = self.train_data
-            data_test = self.test_data
-
-            
         datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'], 
                                      validation_split=self.net_args['validation_split'],
                                      horizontal_flip=True,
@@ -204,31 +216,39 @@ class NetworkTrainer:
         
         test_datagen = ImageDataGenerator(preprocessing_function=self.base_model.value['prep_function'])
         
-        self.train_gen = datagen.flow_from_dataframe(data_train, 
+        _class_mode, _y_col = None, None
+        if self.is_mtl_model:  
+            _y_col = [req.value for req in self.prop_args['reqs']]
+            _class_mode = 'multi_output'
+        else:    
+            _y_col = self.prop_args['reqs'][0].value
+            _class_mode = 'categorical'
+        
+        self.train_gen = datagen.flow_from_dataframe(self.train_data, 
                                                 x_col="img_name", 
-                                                y_col="comp",
+                                                y_col=_y_col,
                                                 target_size=self.base_model.value['target_size'],
-                                                class_mode="categorical",
+                                                class_mode=_class_mode,
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='training',
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.validation_gen = datagen.flow_from_dataframe(data_train,
+        self.validation_gen = datagen.flow_from_dataframe(self.train_data,
                                                 x_col="img_name", 
-                                                y_col="comp",
+                                                y_col=_y_col,
                                                 target_size=self.base_model.value['target_size'],
-                                                class_mode="categorical",
+                                                class_mode=_class_mode,
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='validation',
                                                 shuffle=self.net_args['shuffle'],
                                                 seed=self.net_args['seed'])
 
-        self.test_gen = test_datagen.flow_from_dataframe(data_test,
+        self.test_gen = test_datagen.flow_from_dataframe(self.test_data,
                                                x_col="img_name", 
-                                               y_col="comp",
+                                               y_col=_y_col,
                                                target_size=self.base_model.value['target_size'],
-                                               class_mode="categorical",
+                                               class_mode=_class_mode,
                                                batch_size=self.net_args['batch_size'],
                                                shuffle=False)
 
@@ -236,19 +256,26 @@ class NetworkTrainer:
 
     
     def summary_labels_dist(self):
-        total_train_valid = self.train_valid_df.shape[0]
-        n_train_valid_comp = self.train_valid_df[self.train_valid_df.comp == str(Eval.COMPLIANT.value)].shape[0]
-        n_train_valid_not_comp = self.train_valid_df[self.train_valid_df.comp == str(Eval.NON_COMPLIANT.value)].shape[0]
+        comp_val = Eval.COMPLIANT.value if self.is_mtl_model else str(Eval.COMPLIANT.value)
+        non_comp_val = Eval.NON_COMPLIANT.value if self.is_mtl_model else str(Eval.NON_COMPLIANT.value)
+        for req in self.prop_args['reqs']:
+            print(f'Requisite: {req.value.upper()}')
+            
+            total_train_valid = self.train_data.shape[0]
+            n_train_valid_comp = self.train_data[self.train_data[req.value] == comp_val].shape[0]
+            n_train_valid_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
 
-        total_test = self.test_df.shape[0]
-        n_test_comp = self.test_df[self.test_df.comp == str(Eval.COMPLIANT.value)].shape[0]
-        n_test_not_comp = self.test_df[self.test_df.comp == str(Eval.NON_COMPLIANT.value)].shape[0]
+            total_test = self.test_data.shape[0]
+            n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
+            n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
 
-        print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({round(n_train_valid_comp/total_train_valid*100,2)}%)')
-        print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({round(n_train_valid_not_comp/total_train_valid*100,2)}%)')
+            print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({round(n_train_valid_comp/total_train_valid*100,2)}%)')
+            print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({round(n_train_valid_not_comp/total_train_valid*100,2)}%)')
 
-        print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
-        print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({round(n_test_not_comp/total_test*100,2)}%)')
+            print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
+            print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({round(n_test_not_comp/total_test*100,2)}%)')
+            
+            print('----')
     
 
     def create_experiment(self):
@@ -262,7 +289,7 @@ class NetworkTrainer:
 
             props = {}
             if self.prop_args['use_gt_data']:
-                props = {'gt_names': str([gt_n.value for gt_n in self.prop_args['gt_names']])}
+                props = {'gt_names': str(self.prop_args['gt_names'])}
             else:
                 props = {
                     'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
@@ -270,8 +297,10 @@ class NetworkTrainer:
                 }
 
             props['aligned'] = self.prop_args['aligned']
-            props['icao_req'] = self.prop_args['req'].value
+            props['icao_reqs'] = [r.value for r in self.prop_args['reqs']]
             props['balance_input_data'] = self.prop_args['balance_input_data']
+            props['save_trained_model'] = self.prop_args['save_trained_model']
+            props['is_mtl_model'] = self.is_mtl_model
 
             neptune.create_experiment(name=self.exp_args['name'],
                                       params=params,
@@ -281,11 +310,10 @@ class NetworkTrainer:
                                       upload_source_files=self.exp_args['src_files'])
         else:
             print('Not using Neptune')
-        
-        
-    def __create_model(self):
-        baseModel, headModel = None, None
-        
+    
+    
+    def __create_base_model(self):
+        baseModel = None
         W,H = self.base_model.value['target_size']
         if self.base_model.name != BaseModel.INCEPTION_V3.name:
             if self.base_model.name == BaseModel.MOBILENET_V2.name:
@@ -296,18 +324,17 @@ class NetworkTrainer:
                 baseModel = VGG16(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
             elif self.base_model.name == BaseModel.RESNET50_V2.name:
                 baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-            headModel = baseModel.output
-#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-#             headModel = BatchNormalization()(headModel)
-#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-#             headModel = BatchNormalization()(headModel)
-#             headModel = Conv2D(7, (7, 7), activation='relu', padding='same')(headModel)
-#             headModel = AveragePooling2D(pool_size=(7, 7), padding='same')(headModel)
-#             headModel = BatchNormalization()(headModel)
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        return baseModel
+    
+        
+    def __create_model(self):
+        baseModel = self.__create_base_model()
+        headModel = None
+        if self.base_model.name != BaseModel.INCEPTION_V3.name:
+            headModel = baseModel.output
+        elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             headModel = baseModel.output
             headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
 
@@ -323,6 +350,76 @@ class NetworkTrainer:
         for layer in baseModel.layers:
             layer.trainable = False
 
+        opt = self.__get_optimizer()
+
+        self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+    
+    
+    def __create_mtl_model(self):
+        baseModel = self.__create_base_model()
+        
+        for layer in baseModel.layers:
+            layer.trainable = False
+        
+        initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
+        
+        x = baseModel.output
+        x = GlobalAveragePooling2D()(x)
+        #x = Flatten()(x)
+        
+        x = Dense(256, activation='relu')(x)
+#         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dropout(self.net_args['dropout'])(x)
+        x = Dense(256, activation='relu')(x)
+#         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dropout(self.net_args['dropout'])(x)
+        
+        y1 = Dense(128, activation='relu')(x)
+#         y1 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
+        y1 = Dropout(self.net_args['dropout'])(y1)
+#         y1 = Dense(64, activation='relu')(y1)
+#         y1 = Dense(64, activation='relu', kernel_initializer=initializer)(y1)
+        y1 = Dropout(self.net_args['dropout'])(y1)
+        
+        y2 = Dense(128, activation='relu')(x)
+#         y2 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
+        y2 = Dropout(self.net_args['dropout'])(y2)
+        y2 = Dense(64, activation='relu')(y2)
+#         y2 = Dense(64, activation='relu', kernel_initializer=initializer)(y2)
+        y2 = Dropout(self.net_args['dropout'])(y2)
+        
+        y1 = Dense(2, activation='softmax', name='mouth')(y1)
+#         y1 = Dense(2, activation='softmax', name='mouth', kernel_initializer=initializer)(y1)
+        y2 = Dense(2, activation='softmax', name='veil')(y2)
+#         y2 = Dense(2, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
+        
+        self.model = Model(inputs=baseModel.input, outputs=[y1,y2])
+        
+        opt = self.__get_optimizer()
+        loss_list = ['binary_crossentropy','binary_crossentropy']
+        metrics_list = ['accuracy']
+
+        self.model.compile(loss=loss_list, optimizer=opt, metrics=metrics_list)
+    
+    
+    def create_model(self):
+        print('Creating model...')
+        if not self.is_mtl_model:
+            self.__create_model()
+        else:
+            self.__create_mtl_model()
+
+        if self.use_neptune:
+            self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
+        
+        print('Model created')
+    
+    
+    def vizualize_model(self):
+        display(plot_model(self.model, show_shapes=True, to_file='figs/model.png'))
+    
+    
+    def __get_optimizer(self):
         opt = None
         if self.net_args['optimizer'].name == Optimizer.ADAM.name:
             opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
@@ -336,8 +433,9 @@ class NetworkTrainer:
             opt = Adagrad(lr=self.net_args['learning_rate'])
         elif self.net_args['optimizer'].name == Optimizer.ADAMAX.name:
             opt = Adamax(lr=self.net_args['learning_rate'])
-
-        self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+        elif self.net_args['optimizer'].name == Optimizer.ADADELTA.name:
+            opt = Adadelta(lr=self.net_args['learning_rate'])
+        return opt
     
     
     def __log_data(self, logs):
@@ -378,8 +476,7 @@ class NetworkTrainer:
                                          restore_best_weights=True)
     
     def __get_model_checkpoint_callback(self):
-        return ModelCheckpoint("training_ckpt/best_model.hdf5", monitor='val_accuracy', save_best_only=True, 
-                               mode='max', save_freq=1)
+        return ModelCheckpoint("training_ckpt/best_model.hdf5", monitor='val_loss', save_best_only=True, mode='min')
     
     def __get_my_callback(self):
         class MyCallback(tf.keras.callbacks.Callback): 
@@ -412,12 +509,6 @@ class NetworkTrainer:
     def train_model(self):
         print(f'Training {self.base_model.name} network')
 
-        self.__create_model()
-
-        # Log model summary
-        if self.use_neptune:
-            self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
-        
         callbacks_list = []
         
         if self.use_neptune:
@@ -430,9 +521,8 @@ class NetworkTrainer:
         if self.net_args['early_stopping'] is not None:
             callbacks_list.append(self.__get_early_stopping_callback())
         
-#         callbacks_list.append(self.__get_model_checkpoint_callback())
+        callbacks_list.append(self.__get_model_checkpoint_callback())
         
-        # train the head of the network
         self.H = self.model.fit(
                 self.train_gen,
                 steps_per_epoch=self.train_gen.n // self.net_args['batch_size'],
@@ -441,23 +531,6 @@ class NetworkTrainer:
                 epochs=self.net_args['n_epochs'],
                 callbacks=callbacks_list
         )
-
-#         aug = ImageDataGenerator(
-#                 rotation_range=20,
-#                 zoom_range=0.15,
-#                 width_shift_range=0.2,
-#                 height_shift_range=0.2,
-#                 shear_range=0.15,
-#                 horizontal_flip=True,
-#                 fill_mode="nearest")
-
-#         self.H = self.model.fit(
-#                 aug.flow(self.train_data, self.train_labels, batch_size=self.net_args['batch_size']),
-#                 steps_per_epoch=self.train_data.shape[0] // self.net_args['batch_size'],
-#                 validation_data=(self.valid_data, self.valid_labels),
-#                 validation_steps=self.valid_data.shape[0] // self.net_args['batch_size'],
-#                 epochs=self.net_args['n_epochs'],
-#                 callbacks=callbacks_list)
     
     
     def draw_training_history(self):
@@ -489,29 +562,34 @@ class NetworkTrainer:
         self.model.load_weights(chkp_name)
     
 
-    def save_model(self):
-        print('Saving model')
-        
+    def load_best_model(self):
         print('..Loading checkpoint')
         if os.path.isfile(self.CHECKPOINT_PATH):
             self.model.load_weights(self.CHECKPOINT_PATH)
             print('..Checkpoint weights loaded')
         else:
             print('Checkpoint not found')
+    
+    
+    def save_model(self):
+        if self.prop_args['save_trained_model']:
+            print('Saving model')
+
+            print('..Saving tf model')
+            path = os.path.join('trained_models', 'model')
+            self.model.save(path)
+            print('..TF model saved')
+
+            if self.use_neptune:
+                print('..Saving model to neptune..')
+                for item in os.listdir('trained_models'):
+                    neptune.log_artifact(os.path.join('trained_models', item))
+
+            self.model.training = False
         
-        print('..Saving tf model')
-        path = os.path.join('trained_models', 'model')
-        self.model.save(path)
-        print('..TF model saved')
-        
-        if self.use_neptune:
-            print('..Saving model to neptune..')
-            for item in os.listdir('trained_models'):
-                neptune.log_artifact(os.path.join('trained_models', item))
-                
-        self.model.training = False
-        
-        print('Model saved')
+            print('Model saved')
+        else:
+            print('Model not saved')
 
 
     def test_model(self):
