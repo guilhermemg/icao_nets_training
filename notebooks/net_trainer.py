@@ -258,22 +258,27 @@ class NetworkTrainer:
     def summary_labels_dist(self):
         comp_val = Eval.COMPLIANT.value if self.is_mtl_model else str(Eval.COMPLIANT.value)
         non_comp_val = Eval.NON_COMPLIANT.value if self.is_mtl_model else str(Eval.NON_COMPLIANT.value)
+        dummy_val = Eval.DUMMY.value if self.is_mtl_model else str(Eval.DUMMY.value)
         for req in self.prop_args['reqs']:
             print(f'Requisite: {req.value.upper()}')
             
             total_train_valid = self.train_data.shape[0]
             n_train_valid_comp = self.train_data[self.train_data[req.value] == comp_val].shape[0]
             n_train_valid_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
+            n_train_valid_dummy = self.train_data[self.train_data[req.value] == dummy_val].shape[0]
 
             total_test = self.test_data.shape[0]
             n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
             n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
+            n_test_dummy = self.test_data[self.test_data[req.value] == dummy_val].shape[0]
 
             print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({round(n_train_valid_comp/total_train_valid*100,2)}%)')
             print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({round(n_train_valid_not_comp/total_train_valid*100,2)}%)')
+            print(f'N_TRAIN_VALID_DUMMY: {n_train_valid_dummy} ({round(n_train_valid_dummy/total_train_valid*100,2)}%)')
 
             print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
             print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({round(n_test_not_comp/total_test*100,2)}%)')
+            print(f'N_TEST_DUMMY: {n_test_dummy} ({round(n_test_dummy/total_test*100,2)}%)')
             
             print('----')
     
@@ -341,9 +346,9 @@ class NetworkTrainer:
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
         
         headModel = Flatten(name="flatten")(headModel)
-        headModel = Dense(self.net_args['dense_units'], activation="relu", kernel_initializer=initializer)(headModel)
-        headModel = Dropout(self.net_args['dropout'])(headModel)
-        headModel = Dense(2, activation="softmax", kernel_initializer=initializer)(headModel)
+        headModel = Dense(128, activation="relu", kernel_initializer=initializer)(headModel)
+        headModel = Dropout(0.5)(headModel)
+        headModel = Dense(3, activation="softmax", kernel_initializer=initializer)(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
         
@@ -352,7 +357,7 @@ class NetworkTrainer:
 
         opt = self.__get_optimizer()
 
-        self.model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+        self.model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
     
     
     def __create_mtl_model(self):
@@ -367,38 +372,31 @@ class NetworkTrainer:
         x = GlobalAveragePooling2D()(x)
         #x = Flatten()(x)
         
-        x = Dense(256, activation='relu')(x)
-#         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
-        x = Dense(256, activation='relu')(x)
-#         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
         
-        y1 = Dense(128, activation='relu')(x)
-#         y1 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
+        y1 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
         y1 = Dropout(self.net_args['dropout'])(y1)
-#         y1 = Dense(64, activation='relu')(y1)
-#         y1 = Dense(64, activation='relu', kernel_initializer=initializer)(y1)
+        y1 = Dense(64, activation='relu', kernel_initializer=initializer)(y1)
         y1 = Dropout(self.net_args['dropout'])(y1)
         
-        y2 = Dense(128, activation='relu')(x)
-#         y2 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
+        y2 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
         y2 = Dropout(self.net_args['dropout'])(y2)
-        y2 = Dense(64, activation='relu')(y2)
-#         y2 = Dense(64, activation='relu', kernel_initializer=initializer)(y2)
+        y2 = Dense(64, activation='relu', kernel_initializer=initializer)(y2)
         y2 = Dropout(self.net_args['dropout'])(y2)
         
-        y1 = Dense(2, activation='softmax', name='mouth')(y1)
-#         y1 = Dense(2, activation='softmax', name='mouth', kernel_initializer=initializer)(y1)
-        y2 = Dense(2, activation='softmax', name='veil')(y2)
-#         y2 = Dense(2, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
+        y1 = Dense(3, activation='softmax', name='mouth', kernel_initializer=initializer)(y1)
+        y2 = Dense(3, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
         
         self.model = Model(inputs=baseModel.input, outputs=[y1,y2])
         
         opt = self.__get_optimizer()
-        loss_list = ['binary_crossentropy','binary_crossentropy']
+        loss_list = ['sparse_categorical_crossentropy','sparse_categorical_crossentropy']
         metrics_list = ['accuracy']
-
+        loss_weights = [.7,.2]
+ 
         self.model.compile(loss=loss_list, optimizer=opt, metrics=metrics_list)
     
     
@@ -472,7 +470,7 @@ class NetworkTrainer:
     
     def __get_early_stopping_callback(self):
         return EarlyStopping(patience=self.net_args['early_stopping'], 
-                                         monitor='accuracy', 
+                                         monitor='val_loss', 
                                          restore_best_weights=True)
     
     def __get_model_checkpoint_callback(self):

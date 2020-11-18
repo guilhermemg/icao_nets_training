@@ -139,8 +139,10 @@ dependencies:
     - py3nvml==0.2.6
     - pyasn1==0.4.8
     - pyasn1-modules==0.2.8
+    - pydot==1.4.1
     - pyjwt==1.7.1
     - pylint==2.6.0
+    - python-graphviz==0.14.2
     - pytz==2020.1
     - pywavelets==1.1.1
     - pyyaml==5.3.1
