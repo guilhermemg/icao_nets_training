@@ -28,3 +28,5 @@ notebooks/tensorboard_out
 notebooks/model_weights/
 
 notebooks/trained_models/
+
+notebooks/training_ckpt/

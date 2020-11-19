@@ -258,7 +258,8 @@ class NetworkTrainer:
     def summary_labels_dist(self):
         comp_val = Eval.COMPLIANT.value if self.is_mtl_model else str(Eval.COMPLIANT.value)
         non_comp_val = Eval.NON_COMPLIANT.value if self.is_mtl_model else str(Eval.NON_COMPLIANT.value)
-        dummy_val = Eval.DUMMY.value if self.is_mtl_model else str(Eval.DUMMY.value)
+        #dummy_val = Eval.DUMMY.value if self.is_mtl_model else str(Eval.DUMMY.value)
+        dummy_val = 2
         for req in self.prop_args['reqs']:
             print(f'Requisite: {req.value.upper()}')
             
@@ -320,15 +321,14 @@ class NetworkTrainer:
     def __create_base_model(self):
         baseModel = None
         W,H = self.base_model.value['target_size']
-        if self.base_model.name != BaseModel.INCEPTION_V3.name:
-            if self.base_model.name == BaseModel.MOBILENET_V2.name:
-                baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-            elif self.base_model.name == BaseModel.VGG19.name:
-                baseModel = VGG19(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-            elif self.base_model.name == BaseModel.VGG16.name:
-                baseModel = VGG16(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-            elif self.base_model.name == BaseModel.RESNET50_V2.name:
-                baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        if self.base_model.name == BaseModel.MOBILENET_V2.name:
+            baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        elif self.base_model.name == BaseModel.VGG19.name:
+            baseModel = VGG19(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        elif self.base_model.name == BaseModel.VGG16.name:
+            baseModel = VGG16(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        elif self.base_model.name == BaseModel.RESNET50_V2.name:
+            baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
         return baseModel
@@ -345,10 +345,12 @@ class NetworkTrainer:
 
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
         
+        N_CLASSES = len(self.train_gen.class_indices.values())
+        
         headModel = Flatten(name="flatten")(headModel)
         headModel = Dense(128, activation="relu", kernel_initializer=initializer)(headModel)
         headModel = Dropout(0.5)(headModel)
-        headModel = Dense(3, activation="softmax", kernel_initializer=initializer)(headModel)
+        headModel = Dense(N_CLASSES, activation="softmax", kernel_initializer=initializer)(headModel)
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
         
@@ -388,16 +390,16 @@ class NetworkTrainer:
         y2 = Dropout(self.net_args['dropout'])(y2)
         
         y1 = Dense(3, activation='softmax', name='mouth', kernel_initializer=initializer)(y1)
-        y2 = Dense(3, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
+        y2 = Dense(2, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
         
         self.model = Model(inputs=baseModel.input, outputs=[y1,y2])
         
         opt = self.__get_optimizer()
         loss_list = ['sparse_categorical_crossentropy','sparse_categorical_crossentropy']
         metrics_list = ['accuracy']
-        loss_weights = [.7,.2]
+        loss_weights = [.3,.1]
  
-        self.model.compile(loss=loss_list, optimizer=opt, metrics=metrics_list)
+        self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
     
     
     def create_model(self):
@@ -594,9 +596,17 @@ class NetworkTrainer:
         print("Testing Trained Model")
         self.test_gen.reset()
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
-        y_hat = np.argmax(predIdxs, axis=1)
-        print(classification_report(y_true=self.test_gen.labels, y_pred=y_hat, target_names=['NON_COMP','COMP']))
-        print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels, y_pred=y_hat), 4)}')      
+        if self.is_mtl_model:
+            for idx,req in enumerate(self.prop_args['reqs']):
+                print(f'Requisite: {req.value.upper()}')
+                y_hat = np.argmax(predIdxs[idx], axis=1)
+                print(classification_report(y_true=self.test_gen.labels[idx], y_pred=y_hat, target_names=['NON_COMP','COMP']))
+                print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels[idx], y_pred=y_hat), 4)}') 
+        else:
+            print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
+            y_hat = np.argmax(predIdxs, axis=1)
+            print(classification_report(y_true=self.test_gen.labels, y_pred=y_hat, target_names=['NON_COMP','COMP']))
+            print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels, y_pred=y_hat), 4)}') 
 
     
     def evaluate_model(self, data_src='test'):
