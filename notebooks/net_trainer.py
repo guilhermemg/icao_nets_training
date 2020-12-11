@@ -47,6 +47,11 @@ from tensorflow.keras.initializers import RandomNormal
 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import roc_curve
+
+from scipy.optimize import brentq
+from scipy.interpolate import interp1d
+
 
 from enum import Enum
 
@@ -592,6 +597,30 @@ class NetworkTrainer:
             print('Model not saved')
 
 
+    def __calculate_eer(self, y_true, y_pred, req):
+        fpr, tpr, ths = roc_curve(y_true, y_pred)
+
+        eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
+        th = interp1d(fpr, ths)(eer)
+
+        fig = plt.figure(1)
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.plot(fpr, tpr, label=req.value)
+        plt.xlabel('False positive rate')
+        plt.ylabel('True positive rate')
+        plt.title('ROC curve - ' + 'Req: {} | EER: {:.4f} | Thresh: {:.4f}'.format(req.value.upper(), eer, th))
+        #plt.legend(loc='best')
+        plt.show()
+        
+        if self.use_neptune:
+            neptune.log_metric('eer', eer)
+            neptune.send_image('eer_and_roc_curve.png', fig)
+    
+    
+    def __calculate_rr(self, y_true, y_pred):
+        pass
+            
+            
     def test_model(self):
         print("Testing Trained Model")
         self.test_gen.reset()
@@ -600,13 +629,17 @@ class NetworkTrainer:
             for idx,req in enumerate(self.prop_args['reqs']):
                 print(f'Requisite: {req.value.upper()}')
                 y_hat = np.argmax(predIdxs[idx], axis=1)
-                print(classification_report(y_true=self.test_gen.labels[idx], y_pred=y_hat, target_names=['NON_COMP','COMP']))
-                print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels[idx], y_pred=y_hat), 4)}') 
+                y_true=self.test_gen.labels[idx]
+                print(classification_report(y_true=y_true, y_pred=y_hat, target_names=['NON_COMP','COMP']))
+                print(f'Model Accuracy: {round(accuracy_score(y_true=y_true, y_pred=y_hat), 4)}') 
+                self.__calculate_eer(y_true, y_hat, req)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             y_hat = np.argmax(predIdxs, axis=1)
-            print(classification_report(y_true=self.test_gen.labels, y_pred=y_hat, target_names=['NON_COMP','COMP']))
+            y_true=self.test_gen.labels
+            print(classification_report(y_true=y_true, y_pred=y_hat, target_names=['NON_COMP','COMP']))
             print(f'Model Accuracy: {round(accuracy_score(y_true=self.test_gen.labels, y_pred=y_hat), 4)}') 
+            self.__calculate_eer(y_true, y_hat, self.prop_args['reqs'][0])
 
     
     def evaluate_model(self, data_src='test'):
