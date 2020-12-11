@@ -121,7 +121,7 @@ class NetworkTrainer:
         
         self.CHECKPOINT_PATH = "training_ckpt/best_model.hdf5"
         self.__clear_checkpoints()
-
+        
         
     def __clear_checkpoints(self):
         if os.path.exists(self.CHECKPOINT_PATH):
@@ -292,7 +292,7 @@ class NetworkTrainer:
             params['n_train'] = self.train_gen.n
             params['n_validation'] = self.validation_gen.n
             params['n_test'] = self.test_gen.n
-
+            
             props = {}
             if self.prop_args['use_gt_data']:
                 props = {'gt_names': str(self.prop_args['gt_names'])}
@@ -303,17 +303,17 @@ class NetworkTrainer:
                 }
 
             props['aligned'] = self.prop_args['aligned']
-            props['icao_reqs'] = [r.value for r in self.prop_args['reqs']]
+            props['icao_reqs'] = str([r.value for r in self.prop_args['reqs']])
             props['balance_input_data'] = self.prop_args['balance_input_data']
             props['save_trained_model'] = self.prop_args['save_trained_model']
             props['is_mtl_model'] = self.is_mtl_model
-
-            neptune.create_experiment(name=self.exp_args['name'],
-                                      params=params,
-                                      properties=props,
-                                      description=self.exp_args['description'],
-                                      tags=self.exp_args['tags'] ,
-                                      upload_source_files=self.exp_args['src_files'])
+            
+            neptune.create_experiment( name=self.exp_args['name'],
+                                       params=params,
+                                       properties=props,
+                                       description=self.exp_args['description'],
+                                       tags=self.exp_args['tags'],
+                                       upload_source_files=self.exp_args['src_files'])
         else:
             print('Not using Neptune')
     
