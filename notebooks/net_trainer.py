@@ -287,6 +287,35 @@ class NetworkTrainer:
             print(f'N_TEST_DUMMY: {n_test_dummy} ({round(n_test_dummy/total_test*100,2)}%)')
             
             print('----')
+
+    
+    def summary_gen_labels_dist(self):
+        total_train = self.train_gen.n
+        n_train_comp = len([x for x in self.train_gen.labels if x == 0])
+        n_train_non_comp = len([x for x in self.train_gen.labels if x == 1])
+        n_train_dummy = len([x for x in self.train_gen.labels if x == 2])
+
+        total_valid = self.validation_gen.n
+        n_valid_comp = len([x for x in self.validation_gen.labels if x == 0])
+        n_valid_non_comp = len([x for x in self.validation_gen.labels if x == 1])
+        n_valid_dummy = len([x for x in self.validation_gen.labels if x == 2])
+        
+        total_test = self.test_gen.n
+        n_test_comp= len([x for x in self.test_gen.labels if x == 0])
+        n_test_non_comp = len([x for x in self.test_gen.labels if x == 1])
+        n_test_dummy = len([x for x in self.test_gen.labels if x == 2])
+
+        print(f'N_TRAIN_COMP: {n_train_comp} ({round(n_train_comp/total_train*100,2)}%)')
+        print(f'N_TRAIN_NON_COMP: {n_train_comp} ({round(n_train_non_comp/total_train*100,2)}%)')
+        print(f'N_TRAIN_DUMMY: {n_train_dummy} ({round(n_train_dummy/total_train*100,2)}%)')
+        
+        print(f'N_VALID_COMP: {n_valid_comp} ({round(n_valid_comp/total_valid*100,2)}%)')
+        print(f'N_VALID_NON_COMP: {n_valid_non_comp} ({round(n_valid_non_comp/total_valid*100,2)}%)')
+        print(f'N_VALID_DUMMY: {n_valid_dummy} ({round(n_valid_dummy/total_valid*100,2)}%)')
+
+        print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
+        print(f'N_TEST_NON_COMP: {n_test_non_comp} ({round(n_test_non_comp/total_test*100,2)}%)')
+        print(f'N_TEST_DUMMY: {n_test_dummy} ({round(n_test_dummy/total_test*100,2)}%)')
     
 
     def create_experiment(self):
