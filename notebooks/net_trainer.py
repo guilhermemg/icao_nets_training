@@ -397,6 +397,12 @@ class NetworkTrainer:
     
     
     def __create_mtl_model(self):
+        def __create_branch(shared_branch, req_name, n_out):
+            y = Dense(64, activation='relu', kernel_initializer=initializer)(shared_branch)
+            y = Dropout(self.net_args['dropout'])(y)
+            y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
+            return y
+        
         baseModel = self.__create_base_model()
         
         for layer in baseModel.layers:
@@ -410,29 +416,20 @@ class NetworkTrainer:
         
         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
-        x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
         
-        y1 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
-        y1 = Dropout(self.net_args['dropout'])(y1)
-        y1 = Dense(64, activation='relu', kernel_initializer=initializer)(y1)
-        y1 = Dropout(self.net_args['dropout'])(y1)
+        branches_list = [__create_branch(x, req.value, 2) for req in self.prop_args['reqs']]
         
-        y2 = Dense(128, activation='relu', kernel_initializer=initializer)(x)
-        y2 = Dropout(self.net_args['dropout'])(y2)
-        y2 = Dense(64, activation='relu', kernel_initializer=initializer)(y2)
-        y2 = Dropout(self.net_args['dropout'])(y2)
-        
-        y1 = Dense(3, activation='softmax', name='mouth', kernel_initializer=initializer)(y1)
-        y2 = Dense(2, activation='softmax', name='veil', kernel_initializer=initializer)(y2)
-        
-        self.model = Model(inputs=baseModel.input, outputs=[y1,y2])
+        self.model = Model(inputs=baseModel.input, outputs=branches_list)
         
         opt = self.__get_optimizer()
-        loss_list = ['sparse_categorical_crossentropy','sparse_categorical_crossentropy']
+        n_reqs = len(self.prop_args['reqs'])
+        loss_list = ['sparse_categorical_crossentropy' for x in range(n_reqs)]
         metrics_list = ['accuracy']
-        loss_weights = [.3,.1]
+        loss_weights = [.1 for x in range(n_reqs)]
  
+        #self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
         self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
     
     
@@ -473,10 +470,18 @@ class NetworkTrainer:
     
     
     def __log_data(self, logs):
-        neptune.log_metric('epoch_accuracy', logs['accuracy'])
-        neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
-        neptune.log_metric('epoch_loss', logs['loss'])    
-        neptune.log_metric('epoch_val_loss', logs['val_loss'])    
+        if not self.is_mtl_model:
+            neptune.log_metric('epoch_accuracy', logs['accuracy'])
+            neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
+            neptune.log_metric('epoch_loss', logs['loss'])    
+            neptune.log_metric('epoch_val_loss', logs['val_loss'])
+        else:
+            for req in self.prop_args['reqs']:
+                neptune.log_metric(f'epoch_accuracy_{req.value}', logs[f'{req.value}_accuracy'])
+                neptune.log_metric(f'epoch_val_{req.value}_accuracy', logs[f'val_{req.value}_accuracy'])
+                neptune.log_metric(f'epoch_loss_{req.value}', logs[f'{req.value}_loss'])
+                neptune.log_metric(f'epoch_val_{req.value}_loss', logs[f'val_{req.value}_loss'])
+                neptune.log_metric(f'total_loss', logs['loss'])
 
     def __lr_scheduler(self, epoch):
         if epoch <= 10:
@@ -563,28 +568,70 @@ class NetworkTrainer:
                 validation_data=self.validation_gen,
                 validation_steps=self.validation_gen.n // self.net_args['batch_size'],
                 epochs=self.net_args['n_epochs'],
-                callbacks=callbacks_list
-        )
+                callbacks=callbacks_list)
     
     
     def draw_training_history(self):
-        f,ax = plt.subplots(1,2, figsize=(10,5))
-        f.suptitle(f'-----{self.base_model.name}-----')
-
-        ax[0].plot(self.H.history['accuracy'])
-        ax[0].plot(self.H.history['val_accuracy'])
-        ax[0].set_title('Model Accuracy')
-        ax[0].set_ylabel('accuracy')
-        ax[0].set_xlabel('epoch')
-        ax[0].legend(['train', 'validation'])
-
-        ax[1].plot(self.H.history['loss'])
-        ax[1].plot(self.H.history['val_loss'])
-        ax[1].set_title('Model Loss')
-        ax[1].set_ylabel('loss')
-        ax[1].set_xlabel('epoch')
-        ax[1].legend(['train', 'validation'])
-
+        if not self.is_mtl_model:
+            f,ax = plt.subplots(1,2, figsize=(10,5))
+            f.suptitle(f'-----{self.base_model.name}-----')
+            
+            ax[0].plot(self.H.history['accuracy'])
+            ax[0].plot(self.H.history['val_accuracy'])
+            ax[0].set_title('Model Accuracy')
+            ax[0].set_ylabel('accuracy')
+            ax[0].set_xlabel('epoch')
+            ax[0].legend(['train', 'validation'])
+            
+            ax[1].plot(self.H.history['loss'])
+            ax[1].plot(self.H.history['val_loss'])
+            ax[1].set_title('Model Loss')
+            ax[1].set_ylabel('loss')
+            ax[1].set_xlabel('epoch')
+            ax[1].legend(['train', 'validation'])
+            
+        else:
+            f,ax = plt.subplots(2,2, figsize=(20,25))
+            f.suptitle(f'-----{self.base_model.name}-----')
+            
+            for idx,req in enumerate(self.prop_args['reqs']):
+                ax[0][0].plot(self.H.history[f'{req.value}_accuracy'])
+                ax[0][1].plot(self.H.history[f'val_{req.value}_accuracy'])
+                
+                ax[1][0].plot(self.H.history[f'{req.value}_loss'])
+                ax[1][1].plot(self.H.history[f'val_{req.value}_loss'])
+            
+            ax[1][1].plot(self.H.history['loss'], color='red', linewidth=2.0) # total loss
+            
+            ax[0][0].set_title('Model Accuracy - Train')
+            ax[0][1].set_title('Model Accuracy - Validation')
+            
+            ax[0][0].set_ylabel('accuracy')
+            ax[0][1].set_ylabel('accuracy')
+            ax[0][0].set_xlabel('epoch')
+            ax[0][1].set_xlabel('epoch')
+            
+            ax[0][0].set_ylim([0,1.1])
+            ax[0][1].set_ylim([0,1.1])
+            
+            ax[1][0].set_title('Model Loss - Train')
+            ax[1][1].set_title('Model Loss - Validation')
+            
+            ax[1][0].set_ylabel('loss')
+            ax[1][1].set_ylabel('loss')
+            
+            ax[1][0].set_xlabel('epoch')
+            ax[1][1].set_xlabel('epoch')
+            
+            ax[1][0].set_ylim([0,1.5])
+            ax[1][1].set_ylim([0,1.5])
+            
+            legends = [r.value for r in self.prop_args['reqs']]
+            ax[0][0].legend(legends, ncol=4)
+            ax[0][1].legend(legends, ncol=4)
+            ax[1][0].legend(legends, ncol=4)
+            ax[1][1].legend(legends, ncol=4)
+            
         plt.show()
         
         if self.use_neptune:
