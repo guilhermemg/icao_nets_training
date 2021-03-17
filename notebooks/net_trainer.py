@@ -476,12 +476,22 @@ class NetworkTrainer:
             neptune.log_metric('epoch_loss', logs['loss'])    
             neptune.log_metric('epoch_val_loss', logs['val_loss'])
         else:
+            train_acc_list = []
+            val_acc_list = []
             for req in self.prop_args['reqs']:
                 neptune.log_metric(f'epoch_accuracy_{req.value}', logs[f'{req.value}_accuracy'])
                 neptune.log_metric(f'epoch_val_{req.value}_accuracy', logs[f'val_{req.value}_accuracy'])
                 neptune.log_metric(f'epoch_loss_{req.value}', logs[f'{req.value}_loss'])
                 neptune.log_metric(f'epoch_val_{req.value}_loss', logs[f'val_{req.value}_loss'])
                 neptune.log_metric(f'total_loss', logs['loss'])
+                
+                train_acc_list.append(logs[f'{req.value}_accuracy'])
+                val_acc_list.append(logs[f'val_{req.value}_accuracy'])
+            
+            total_acc, total_val_acc = np.mean(train_acc_list), np.mean(val_acc_list)
+            neptune.log_metric('epoch_total_accuracy', total_acc)
+            neptune.log_metric('epoch_total_val_accuracy', total_val_acc)
+            
 
     def __lr_scheduler(self, epoch):
         if epoch <= 10:
@@ -515,7 +525,7 @@ class NetworkTrainer:
                                          restore_best_weights=True)
     
     def __get_model_checkpoint_callback(self):
-        return ModelCheckpoint("training_ckpt/best_model.hdf5", monitor='val_loss', save_best_only=True, mode='min')
+        return ModelCheckpoint(self.CHECKPOINT_PATH, monitor='val_loss', save_best_only=True, mode='min')
     
     def __get_my_callback(self):
         class MyCallback(tf.keras.callbacks.Callback): 
@@ -703,6 +713,8 @@ class NetworkTrainer:
         predIdxs = self.model.predict(self.test_gen, batch_size=self.net_args['batch_size'])
         if self.is_mtl_model:
             for idx,req in enumerate(self.prop_args['reqs']):
+                if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
+                    continue
                 print(f'Requisite: {req.value.upper()}')
                 y_hat = np.argmax(predIdxs[idx], axis=1)
                 y_true=self.test_gen.labels[idx]
