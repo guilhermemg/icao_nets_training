@@ -168,7 +168,7 @@ class NetworkTrainer:
 
     
     def test_model(self):
-        self.model_evaluator.test_model(self.model, self.test_gen, self.is_mtl_model)
+        self.model_evaluator.test_model(self.test_gen, self.model, self.is_mtl_model)
 
     
     def evaluate_model(self, data_src='test'):
@@ -180,7 +180,8 @@ class NetworkTrainer:
     
     
     def vizualize_predictions(self):
-        self.model_evaluator.vizualize_predictions(seed=self.SEED, base_model=self.base_model)
+        self.model_evaluator.vizualize_predictions(seed=self.SEED, base_model=self.base_model,
+                                                   model=self.model, test_gen=self.test_gen)
     
 
     def finish_experiment(self):

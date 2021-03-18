@@ -129,8 +129,8 @@ class ModelEvaluator:
         return TN,FP,FN,TP
 
     
-    def __log_test_metrics(self, req_name):
-        self.get_classification_report(self.test_gen, self.y_test_true, self.y_test_hat_discrete)
+    def __log_test_metrics(self, req_name, test_gen):
+        self.get_classification_report(test_gen, self.y_test_true, self.y_test_hat_discrete)
         acc = self.calculate_accuracy(self.y_test_true, self.y_test_hat_discrete)
 
         eer,best_th,roc_curve_fig, far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name)
@@ -166,7 +166,7 @@ class ModelEvaluator:
                 self.y_test_hat_discrete = np.argmax(predIdxs[idx], axis=1)
                 self.y_test_true = test_gen.labels[idx]
                 
-                self.__log_test_metrics(req)
+                self.__log_test_metrics(req, test_gen)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             
@@ -174,7 +174,7 @@ class ModelEvaluator:
             self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
             self.y_test_true = np.array(test_gen.labels)
             
-            self.__log_test_metrics(self.prop_args['reqs'][0])
+            self.__log_test_metrics(self.prop_args['reqs'][0], test_gen)
     
     
     def evaluate_model(self, data_gen, model):
@@ -192,16 +192,16 @@ class ModelEvaluator:
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:
     ## https://stackoverflow.com/questions/58322147/how-to-generate-cnn-heatmaps-using-built-in-keras-in-tf2-0-tf-keras 
     ## https://towardsdatascience.com/demystifying-convolutional-neural-networks-using-gradcam-554a85dd4e48
-    def __calc_heatmap(self, img_name, base_model):
+    def __calc_heatmap(self, img_name, base_model, model):
         image = load_img(img_name, target_size=base_model.value['target_size'])
         img_tensor = img_to_array(image)
         img_tensor = np.expand_dims(img_tensor, axis=0)
         img_tensor = base_model.value['prep_function'](img_tensor)
 
-        last_conv_layer_name = [l.name for l in self.model.layers if isinstance(l, tf.python.keras.layers.convolutional.Conv2D)][-1]
+        last_conv_layer_name = [l.name for l in model.layers if isinstance(l, tf.python.keras.layers.convolutional.Conv2D)][-1]
 
-        conv_layer = self.model.get_layer(last_conv_layer_name)
-        heatmap_model = models.Model([self.model.inputs], [conv_layer.output, self.model.output])
+        conv_layer = model.get_layer(last_conv_layer_name)
+        heatmap_model = models.Model([model.inputs], [conv_layer.output, model.output])
 
         # Get gradient of the winner class w.r.t. the output of the (last) conv. layer
         with tf.GradientTape() as gtape:
@@ -228,13 +228,13 @@ class ModelEvaluator:
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, seed, base_model, n_imgs=50):
-        predIdxs = self.model.predict(self.test_gen)
+    def vizualize_predictions(self, seed, base_model, model, test_gen, n_imgs=50):
+        predIdxs = model.predict(test_gen)
         preds = np.argmax(predIdxs, axis=1)  # NO SHUFFLE
         
         tmp_df = pd.DataFrame()
-        tmp_df['img_name'] = self.test_gen.filepaths
-        tmp_df['comp'] = self.test_gen.labels
+        tmp_df['img_name'] = test_gen.filepaths
+        tmp_df['comp'] = test_gen.labels
         tmp_df['pred'] = preds
         
         tmp_df = tmp_df.sample(n = n_imgs, random_state=seed)
@@ -244,7 +244,7 @@ class ModelEvaluator:
 
         labels = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         preds = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
-        heatmaps = [self.__calc_heatmap(im_name, base_model) for im_name in tmp_df.img_name.values]
+        heatmaps = [self.__calc_heatmap(im_name, base_model, model) for im_name in tmp_df.img_name.values]
         
         imgs = [cv2.resize(cv2.imread(img), base_model.value['target_size']) for img in tmp_df.img_name.values]
         
