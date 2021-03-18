@@ -98,7 +98,7 @@ class ModelEvaluator:
         best_th = interp1d(fpr, ths)(eer)
 
         roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th)
-        far_frr_curve_fig = self.__draw_far_frr_curve(th_range, far, frr, eer)
+        far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer)
 
         eer = round(eer*100, 4)
         print(f'Requisite: {req} - EER: {eer}% - Best Threshold: {best_th}')
