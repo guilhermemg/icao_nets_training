@@ -25,6 +25,7 @@ from gt_loaders.gen_gt import Eval
 import utils.constants as cts
 import utils.draw_utils as dr
 
+from utils.constants import SEED
 
 class ModelEvaluator:
     def __init__(self, net_args, prop_args, use_neptune):
@@ -228,7 +229,7 @@ class ModelEvaluator:
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, seed, base_model, model, test_gen, n_imgs=50):
+    def vizualize_predictions(self, base_model, model, test_gen, n_imgs=50):
         predIdxs = model.predict(test_gen)
         preds = np.argmax(predIdxs, axis=1)  # NO SHUFFLE
         
@@ -237,7 +238,7 @@ class ModelEvaluator:
         tmp_df['comp'] = test_gen.labels
         tmp_df['pred'] = preds
         
-        tmp_df = tmp_df.sample(n = n_imgs, random_state=seed)
+        tmp_df = tmp_df.sample(n = n_imgs, random_state=SEED)
         
         def get_img_name(img_path):
             return img_path.split("/")[-1].split(".")[0]

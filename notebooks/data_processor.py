@@ -7,6 +7,8 @@ from data_loaders.data_loader import DLName
 from net_data_loaders.net_data_loader import NetDataLoader
 from net_data_loaders.net_gt_loader import NetGTLoader
 
+from utils.constants import SEED
+
 
 class DataProcessor:
     def __init__(self, prop_args, net_args, is_mtl_model):
@@ -37,7 +39,7 @@ class DataProcessor:
                 in_data = netGtLoader.load_gt_data()
                 
                 self.train_data = in_data.sample(frac=self.net_args['train_prop']+self.net_args['validation_prop'],
-                                                 random_state=self.net_args['seed'])
+                                                 random_state=SEED)
                 self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
         else:
             netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], self.prop_args['reqs'], 
@@ -55,11 +57,11 @@ class DataProcessor:
         print('Data loaded')
 
     
-    def sample_training_data(self, sample_prop, seed):
+    def sample_training_data(self, sample_prop):
         print('Applying subsampling in training data')
         total_train_valid = self.train_data.shape[0]
         print(f"..Sampling proportion: {sample_prop} ({int(sample_prop * total_train_valid)}/{total_train_valid})")
-        self.train_data = self.train_data.sample(frac=self.prop_args['sample_prop'], random_state=seed)
+        self.train_data = self.train_data.sample(frac=self.prop_args['sample_prop'], random_state=SEED)
         print(self.train_data.shape)
     
     
@@ -80,12 +82,12 @@ class DataProcessor:
         tmp_df = pd.DataFrame()
         if n_imgs_non_comp >= n_imgs_comp:
             print('n_imgs_non_comp >= n_imgs_comp')
-            tmp_df = df_non_comp.sample(n_imgs_comp, random_state=self.net_args['seed'])
+            tmp_df = df_non_comp.sample(n_imgs_comp, random_state=SEED)
             final_df = final_df.append(df_comp)
             final_df = final_df.append(tmp_df)
         else:
             print('n_imgs_non_comp < n_imgs_comp')
-            tmp_df = df_comp.sample(n_imgs_non_comp, random_state=self.net_args['seed'])
+            tmp_df = df_comp.sample(n_imgs_non_comp, random_state=SEED)
             final_df = final_df.append(df_non_comp)
             final_df = final_df.append(tmp_df) 
 
@@ -128,8 +130,8 @@ class DataProcessor:
                                                 class_mode=_class_mode,
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='training',
-                                                shuffle=self.net_args['shuffle'],
-                                                seed=self.net_args['seed'])
+                                                shuffle=True,
+                                                seed=SEED)
 
         self.validation_gen = datagen.flow_from_dataframe(self.train_data,
                                                 x_col="img_name", 
@@ -138,8 +140,8 @@ class DataProcessor:
                                                 class_mode=_class_mode,
                                                 batch_size=self.net_args['batch_size'], 
                                                 subset='validation',
-                                                shuffle=self.net_args['shuffle'],
-                                                seed=self.net_args['seed'])
+                                                shuffle=True,
+                                                seed=SEED)
 
         self.test_gen = test_datagen.flow_from_dataframe(self.test_data,
                                                x_col="img_name", 

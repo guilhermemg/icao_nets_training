@@ -31,9 +31,9 @@ from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRa
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.initializers import RandomNormal
 
-
-
 from enum import Enum
+
+from utils.constants import SEED
 
 
 class BaseModel(Enum):
@@ -104,7 +104,7 @@ class ModelTrainer:
             headModel = baseModel.output
             headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
 
-        initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
+        initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
         
         N_CLASSES = len(train_gen.class_indices.values())
         
@@ -135,7 +135,7 @@ class ModelTrainer:
         for layer in baseModel.layers:
             layer.trainable = False
         
-        initializer = RandomNormal(mean=0., stddev=1e-4, seed=self.net_args['seed'])
+        initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
         
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)

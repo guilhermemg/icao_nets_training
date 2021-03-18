@@ -8,6 +8,8 @@ from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator
 
+from utils.constants import SEED
+
 ## restrict memory growth -------------------
 
 import tensorflow as tf
@@ -20,7 +22,7 @@ except:
 ## restrict memory growth -------------------    
 
     
-class NetworkTrainer:
+class ExperimentRunner:
     def __init__(self, **kwargs):
         self.use_neptune = kwargs['use_neptune']
         print('-----')
@@ -50,8 +52,6 @@ class NetworkTrainer:
         self.model_trainer = ModelTrainer(self.net_args, self.base_model, self.is_mtl_model, self.use_neptune)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.use_neptune)
         
-        self.SEED = 42
-        
         
     def load_training_data(self):
         self.data_processor.load_training_data()
@@ -61,7 +61,7 @@ class NetworkTrainer:
     
     def sample_training_data(self):
         if self.prop_args['sample_training_data']:
-            self.data_processor.sample_training_data(self.prop_args['sample_prop'], self.SEED)
+            self.data_processor.sample_training_data(self.prop_args['sample_prop'])
             self.train_data = self.data_processor.train_data
         else:
             print('Not applying subsampling in training data!')
@@ -180,8 +180,7 @@ class NetworkTrainer:
     
     
     def vizualize_predictions(self):
-        self.model_evaluator.vizualize_predictions(seed=self.SEED, base_model=self.base_model,
-                                                   model=self.model, test_gen=self.test_gen)
+        self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen)
     
 
     def finish_experiment(self):
