@@ -199,7 +199,7 @@ class ModelEvaluator:
         img_tensor = np.expand_dims(img_tensor, axis=0)
         img_tensor = base_model.value['prep_function'](img_tensor)
 
-        last_conv_layer_name = [l.name for l in model.layers if isinstance(l, tf.python.keras.layers.convolutional.Conv2D)][-1]
+        last_conv_layer_name = [l.name for l in model.layers if isinstance(l, tf.keras.layers.Conv2D)][-1]
 
         conv_layer = model.get_layer(last_conv_layer_name)
         heatmap_model = models.Model([model.inputs], [conv_layer.output, model.output])

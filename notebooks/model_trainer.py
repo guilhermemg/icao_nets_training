@@ -92,6 +92,10 @@ class ModelTrainer:
             baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        
+        for layer in baseModel.layers:
+            layer.trainable = False
+        
         return baseModel
     
         
@@ -115,9 +119,6 @@ class ModelTrainer:
 
         self.model = Model(inputs=baseModel.input, outputs=headModel)
         
-        for layer in baseModel.layers:
-            layer.trainable = False
-
         opt = self.__get_optimizer()
 
         self.model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
@@ -131,9 +132,6 @@ class ModelTrainer:
             return y
         
         baseModel = self.__create_base_model()
-        
-        for layer in baseModel.layers:
-            layer.trainable = False
         
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
         
@@ -156,7 +154,6 @@ class ModelTrainer:
         metrics_list = ['accuracy']
         loss_weights = [.1 for x in range(n_reqs)]
  
-        #self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
         self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
         
         
