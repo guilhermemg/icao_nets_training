@@ -35,7 +35,26 @@ kwargs = {
 
     # propriedades do experimento
     'properties': {
+        # lista de requisitos
+        'reqs': [cts.ICAO_REQ.MOUTH, cts.ICAO_REQ.L_AWAY],
+        
+        # usar dataset alinhado (True) ou não (False)
+        'aligned': True,
+        
+        # usar dataset de ground truth (True), ao invés de dataset rotulado automaticamente (False)
+        'use_gt_data': True,
+        
+        # nomes dos datasets ground truths que devem ser usados e a respectiva partição no treino
+        #  se apenas um dataset for usado, ele deve ser passado para o campo train_validation_test
+        'gt_names': {
+            'train_validation': [],
+            'test': [],
+            'train_validation_test': [GTName.FVC]
+        },
 
+        # fazer balanceamento de classes (True) ou não (False). Caso sim o balanceamento ocorre a partir da classe menos numerosa no dataset de treino
+        'balance_input_data': True,
+        
         # treinar um novo modelo (True) ou usar o último modelo treinado e salvo localmente (False)
         'train_model': False,
 
@@ -46,18 +65,7 @@ kwargs = {
         'sample_training_data': True,
 
         # proporção de subamostragem, usado caso sample_training_data é True
-        'sample_prop': 1.0,
-
-        # fazer balanceamento de classes (True) ou não (False). Caso sim o balanceamento ocorre a partir da classe menos numerosa no dataset de treino
-        'balance_input_data': True,
-
-        # conjunto de datasets usados para treino. Apenas o split de treino (train) desses datasets são carregados e são tratados como um único dataset de treino ao final
-        # opções: [MSU, NUAA, REPLAY_ATTACK]
-        'train_datasets': [Dataset.NUAA],
-
-        # conjunto de datasets usados para teste. Apenas o split de teste (test) desses datasets são carregados e são tratados como um único dataset de teste ao final
-        # opções: [MSU, NUAA, REPLAY_ATTACK]
-        'test_datasets': [Dataset.NUAA]
+        'sample_prop': 1.0
     },
 
     # parâmetros para treinamento do modelo
@@ -76,9 +84,6 @@ kwargs = {
         # quantidade de epochs para early stopping
         'early_stopping': 10,
 
-        # fazer shuffle de base de treino (True) ou não (False)
-        'shuffle': True,
-
         # quantidade de dense units para treino de cabeça de modelo
         'dense_units': 128,
 
@@ -91,9 +96,6 @@ kwargs = {
 
         # taxa de dropout
         'dropout': 0.3,
-
-        # random seed fixado
-        'seed': 42,
 
         # split para dataset de validação, precisa estar entre 0.0 e 1.0
         'validation_split': 0.15
