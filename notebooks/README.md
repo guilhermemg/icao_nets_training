@@ -1,6 +1,6 @@
 # Documentação de NetTrainer
 
-O script NetTrainer.py é usado para executar experimentos com redes neurais. 
+O script **exp_runner.py** é usado para executar experimentos com redes neurais. 
 Os dados passados por keyword-arguments (kwargs) são usados para configurar as redes,
 os treinamentos e os dados que são documentados em cada experimento realizado.
 
