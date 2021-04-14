@@ -2,13 +2,9 @@ import neptune
 import argparse
 import pprint
 
-from keras.utils.vis_utils import plot_model
-
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator
-
-from utils.constants import SEED
 
 ## restrict memory growth -------------------
 
@@ -21,7 +17,6 @@ except:
 
 ## restrict memory growth -------------------    
 
-    
 class ExperimentRunner:
     def __init__(self, **kwargs):
         self.use_neptune = kwargs['use_neptune']
@@ -49,8 +44,8 @@ class ExperimentRunner:
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model)
-        self.model_trainer = ModelTrainer(self.net_args, self.base_model, self.is_mtl_model, self.use_neptune)
-        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.use_neptune)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune)
+        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune)
         
         
     def load_training_data(self):
@@ -138,7 +133,7 @@ class ExperimentRunner:
     
     
     def vizualize_model(self):
-        display(plot_model(self.model, show_shapes=True, to_file='figs/model.png'))
+        self.model_trainer.vizualize_model()
     
     
     def train_model(self):

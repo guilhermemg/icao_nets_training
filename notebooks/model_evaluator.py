@@ -28,9 +28,10 @@ import utils.draw_utils as dr
 from utils.constants import SEED
 
 class ModelEvaluator:
-    def __init__(self, net_args, prop_args, use_neptune):
+    def __init__(self, net_args, prop_args, is_mtl_model, use_neptune):
         self.net_args = net_args
         self.prop_args = prop_args
+        self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
     
     
@@ -107,13 +108,21 @@ class ModelEvaluator:
         return eer, best_th, roc_curve_fig, far_frr_curve_fig
 
 
-    def get_classification_report(self, test_gen, y_true, y_pred):
+    def get_classification_report(self, test_gen, y_true, y_pred, req_name):
         print('Classification report -----------------------------------')
-
+        
+        target_names,labels = None,None
+        if self.is_mtl_model:
+            target_names = [Eval.NON_COMPLIANT.name, Eval.COMPLIANT.name]
+            labels = [Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]
+        else:
+            target_names = list(test_gen.class_indices.keys())
+            labels = list(test_gen.class_indices.values())
+        
         print(classification_report(y_true=y_true, 
                                     y_pred=y_pred, 
-                                    target_names=list(test_gen.class_indices.keys()), 
-                                    labels=list(test_gen.class_indices.values())))
+                                    target_names=target_names, 
+                                    labels=labels))
 
     def calculate_accuracy(self, y_true, y_pred):
         print('Accuracy ------------------------------------------------')
@@ -131,7 +140,11 @@ class ModelEvaluator:
 
     
     def __log_test_metrics(self, req_name, test_gen):
-        self.get_classification_report(test_gen, self.y_test_true, self.y_test_hat_discrete)
+        print(self.y_test_true[:50])
+        print(self.y_test_hat[:50])
+        print(self.y_test_hat_discrete[:50])
+        
+        self.get_classification_report(test_gen, self.y_test_true, self.y_test_hat_discrete, req_name)
         acc = self.calculate_accuracy(self.y_test_true, self.y_test_hat_discrete)
 
         eer,best_th,roc_curve_fig, far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name)
@@ -163,10 +176,10 @@ class ModelEvaluator:
                     continue
                 print(f'Requisite: {req.value.upper()}')
                 
-                self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
                 self.y_test_hat_discrete = np.argmax(predIdxs[idx], axis=1)
-                self.y_test_true = test_gen.labels[idx]
-                
+                self.y_test_hat = np.array([y1 for (_,y1) in predIdxs[idx]])  # COMPLIANT label predictions (class==1.0) (positive class)
+                self.y_test_true = np.array(test_gen.labels[idx])
+
                 self.__log_test_metrics(req, test_gen)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')

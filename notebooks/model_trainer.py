@@ -6,6 +6,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from keras.utils.vis_utils import plot_model
+
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.applications.vgg19 import preprocess_input as prep_input_vgg19
@@ -58,8 +60,9 @@ class Optimizer(Enum):
 
 
 class ModelTrainer:
-    def __init__(self, net_args, base_model, is_mtl_model, use_neptune):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune):
         self.net_args = net_args
+        self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
         self.base_model = base_model
@@ -279,6 +282,10 @@ class ModelTrainer:
 #                         f.writelines(f'{epoch+1},{idx},{y},{y_h}\n')   
         
 #         return MyCallback(self.validation_gen)
+
+
+    def vizualize_model(self):
+        display(plot_model(self.model, show_shapes=True, to_file='figs/model.png'))
 
     
     def train_model(self, train_gen, validation_gen):
