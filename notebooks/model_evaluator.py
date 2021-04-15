@@ -1,4 +1,5 @@
 import cv2
+import neptune
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -35,18 +36,18 @@ class ModelEvaluator:
         self.use_neptune = use_neptune
     
     
-    def __draw_roc_curve(self, fpr, tpr, eer, th):
+    def __draw_roc_curve(self, fpr, tpr, eer, th, req):
         fig = plt.figure(1)
         plt.plot([0, 1], [0, 1], 'k--')
         plt.plot(fpr, tpr)
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('ROC curve - ' + 'EER: {:.4f} | Thresh: {:.4f}'.format(eer, th))
+        plt.title('ROC curve - Req: {} | EER: {:.4f} | Thresh: {:.4f}'.format(req.value.upper(), eer, th))
         plt.show()
         return fig
 
 
-    def __draw_far_frr_curve(self, th_range, frr, far, eer):
+    def __draw_far_frr_curve(self, th_range, frr, far, eer, req_name):
         fig = plt.figure(1)
         plt.plot(th_range, frr,'-r')
         plt.plot(th_range, far,'-b')
@@ -54,7 +55,7 @@ class ModelEvaluator:
         plt.ylabel('FAR/FRR %')
         plt.xlim([0, 1.02])
         plt.ylim([0, 100])
-        plt.title(f'EER = {round(eer,4)}')
+        plt.title(f'Req: {req_name.value.upper()} - EER = {round(eer,4)}')
         plt.legend(['FRR','FAR'], loc='upper center')
         plt.show()
         return fig
@@ -99,8 +100,8 @@ class ModelEvaluator:
         eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         best_th = interp1d(fpr, ths)(eer)
 
-        roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th)
-        far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer)
+        roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th, req)
+        far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer, req_name=req)
 
         eer = round(eer*100, 4)
         print(f'Requisite: {req} - EER: {eer}% - Best Threshold: {best_th}')
@@ -140,10 +141,6 @@ class ModelEvaluator:
 
     
     def __log_test_metrics(self, req_name, test_gen):
-        print(self.y_test_true[:50])
-        print(self.y_test_hat[:50])
-        print(self.y_test_hat_discrete[:50])
-        
         self.get_classification_report(test_gen, self.y_test_true, self.y_test_hat_discrete, req_name)
         acc = self.calculate_accuracy(self.y_test_true, self.y_test_hat_discrete)
 
@@ -195,8 +192,8 @@ class ModelEvaluator:
         print('Evaluating model')
         eval_metrics = model.evaluate(data_gen, verbose=0)
         
-        print(f'Loss: ', round(eval_metrics[0], 4))
-        print(f'Accuracy: ', round(eval_metrics[1], 4))
+        print(f'Loss: {round(eval_metrics[0], 4)}')
+        print(f'Accuracy: {round(eval_metrics[1]*100, 2)}%')
         
         if self.use_neptune:
             for j, metric in enumerate(eval_metrics):

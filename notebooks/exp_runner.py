@@ -5,6 +5,7 @@ import pprint
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator
+from config import NEPTUNE_API_TOKEN
 
 ## restrict memory growth -------------------
 
