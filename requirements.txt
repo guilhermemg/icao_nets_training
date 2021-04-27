@@ -21,6 +21,7 @@ cycler==0.10.0
 Cython @ file:///tmp/build/80754af9/cython_1614014838717/work
 decorator==4.4.2
 defusedxml==0.6.0
+dill==0.3.3
 entrypoints==0.3
 flatbuffers @ file:///tmp/build/80754af9/python-flatbuffers_1614345733764/work
 future==0.18.2
@@ -30,12 +31,14 @@ GitPython==3.1.7
 google-auth @ file:///tmp/build/80754af9/google-auth_1616008050444/work
 google-auth-oauthlib @ file:///tmp/build/80754af9/google-auth-oauthlib_1617120569401/work
 google-pasta==0.2.0
+googleapis-common-protos==1.53.0
 graphviz==0.14.2
 grpcio @ file:///tmp/build/80754af9/grpcio_1614884175859/work
 h5py @ file:///tmp/build/80754af9/h5py_1593454122442/work
 idna @ file:///home/linux1/recipes/ci/idna_1610986105248/work
 imageio==2.9.0
 importlib-metadata @ file:///home/conda/feedstock_root/build_artifacts/importlib-metadata_1593211370946/work
+importlib-resources==5.1.2
 imutils==0.5.3
 ipykernel @ file:///home/conda/feedstock_root/build_artifacts/ipykernel_1595446881062/work/dist/ipykernel-5.3.4-py3-none-any.whl
 ipython @ file:///home/conda/feedstock_root/build_artifacts/ipython_1593235467607/work
@@ -101,6 +104,7 @@ pexpect==4.8.0
 pickleshare==0.7.5
 Pillow==7.2.0
 prometheus-client @ file:///home/conda/feedstock_root/build_artifacts/prometheus_client_1590412252446/work
+promise==2.3
 prompt-toolkit @ file:///home/conda/feedstock_root/build_artifacts/prompt-toolkit_1592500439797/work
 protobuf==3.14.0
 psutil==5.7.2
@@ -140,7 +144,9 @@ swagger-spec-validator==2.7.3
 tensorboard==2.4.1
 tensorboard-plugin-wit==1.7.0
 tensorflow @ file:///home/builder/ktietz/aggregate/tensorflow_recipes/ci_cpu/tensorflow-base_1614543347059/work/tensorflow_pkg/tensorflow-2.4.1-cp38-cp38-linux_x86_64.whl
+tensorflow-datasets==4.2.0
 tensorflow-estimator @ file:///home/builder/ktietz/aggregate/tensorflow_recipes/ci_te/tensorflow-estimator_1614592767119/work/whl_temp/tensorflow_estimator-2.4.0-py2.py3-none-any.whl
+tensorflow-metadata==0.30.0
 termcolor==1.1.0
 terminado==0.8.3
 testpath==0.4.4
