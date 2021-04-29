@@ -36,32 +36,34 @@ class CNN_Keras:
         print(f'cnn_num_filters: {cnn_num_filters}')
         print(f'max_pool_ksize: {max_pool_ksize}')
         
-        self.model = Sequential([
-            Input(shape=(self.batch_size, 28, 28))
-        ])
+        self.model = Sequential()
         
         for idd, filter_size in enumerate(cnn):
-            conv_out = Conv2D(
-                filters=cnn_num_filters[idd],
-                kernel_size=(int(filter_size)),
-                strides=1,
-                padding="SAME",
-                name="conv_out_"+str(idd),
-                activation='relu',
-                kernel_initializer=VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform"),
-                bias_initializer=Zeros()
-            )
+            conv_out = None
+            if idd == 0:
+                conv_out = Conv2D(
+                    filters=64,
+                    kernel_size=(3,3),
+                    name="conv_out_"+str(idd),
+                    activation='relu',
+                    input_shape=(28,28,1)
+                )
+            else:
+                conv_out = Conv2D(
+                    filters=64,
+                    kernel_size=(3,3),
+                    name="conv_out_"+str(idd),
+                    activation='relu'
+                )
             self.model.add(conv_out)
             
             pool_out = MaxPooling2D(
-                pool_size=(int(max_pool_ksize[idd])),
-                strides=1,
-                padding='SAME',
+                pool_size=(2,2),
                 name="max_pool_"+str(idd)
             )
             self.model.add(pool_out)
             
-            drop_out = Dropout(1 - (self.cnn_drop_rate[idd]))
+            drop_out = Dropout(0.85)
             self.model.add(drop_out)
         
         flatten_pred_out = Flatten()
