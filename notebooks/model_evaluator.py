@@ -103,6 +103,7 @@ class ModelEvaluator:
         roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th, req)
         far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer, req_name=req)
 
+        best_th = round(best_th.tolist(), 4)
         eer = round(eer*100, 4)
         print(f'Requisite: {req} - EER: {eer}% - Best Threshold: {best_th}')
 
@@ -136,16 +137,22 @@ class ModelEvaluator:
     def get_confusion_matrix(self, y_true, y_pred):
         print('Confusion matrix ----------------------------------------')
         TN,FP,FN,TP = confusion_matrix(y_true, y_pred, labels=[Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]).ravel()
-        print(f'TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
-        return TN,FP,FN,TP
+        FAR = round(FP/(FP+TN)*100,2)
+        FRR = round(FN/(FN+TP)*100,2)
+        print(f'FAR: {FAR}% | FRR: {FRR}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
+        return FAR,FRR,TN,FP,FN,TP
 
     
-    def __log_test_metrics(self, req_name, test_gen):
+    def __log_test_metrics(self, predIdxs, req_name, test_gen):
+        self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
+        
+        eer,best_th,roc_curve_fig,far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name)
+        
+        self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
+        
         self.get_classification_report(test_gen, self.y_test_true, self.y_test_hat_discrete, req_name)
         acc = self.calculate_accuracy(self.y_test_true, self.y_test_hat_discrete)
-
-        eer,best_th,roc_curve_fig, far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name)
-        TN,FP,FN,TP = self.get_confusion_matrix(self.y_test_true, self.y_test_hat_discrete)
+        FAR,FRR,TN,FP,FN,TP = self.get_confusion_matrix(self.y_test_true, self.y_test_hat_discrete)
 
         if self.use_neptune:
             neptune.send_image('roc_curve.png', roc_curve_fig)
@@ -156,6 +163,8 @@ class ModelEvaluator:
             neptune.log_metric('TN', TN)
             neptune.log_metric('FP', FP)
             neptune.log_metric('FN', FN)
+            neptune.log_metric('FAR', FAR)
+            neptune.log_metric('FRR', FRR)
             neptune.log_metric('eval_acc', acc)
     
     
@@ -173,19 +182,15 @@ class ModelEvaluator:
                     continue
                 print(f'Requisite: {req.value.upper()}')
                 
-                self.y_test_hat_discrete = np.argmax(predIdxs[idx], axis=1)
-                self.y_test_hat = np.array([y1 for (_,y1) in predIdxs[idx]])  # COMPLIANT label predictions (class==1.0) (positive class)
                 self.y_test_true = np.array(test_gen.labels[idx])
-
-                self.__log_test_metrics(req, test_gen)
+                
+                self.__log_test_metrics(predIdxs[idx], req, test_gen)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             
-            self.y_test_hat_discrete = np.argmax(predIdxs, axis=1)
-            self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
             self.y_test_true = np.array(test_gen.labels)
             
-            self.__log_test_metrics(self.prop_args['reqs'][0], test_gen)
+            self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], test_gen)
     
     
     def evaluate_model(self, data_gen, model):
@@ -237,24 +242,50 @@ class ModelEvaluator:
         return upsample
     
     
-    # sort 50 samples from test_df, calculates GradCAM heatmaps
-    # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, base_model, model, test_gen, n_imgs=50):
-        predIdxs = model.predict(test_gen)
-        preds = np.argmax(predIdxs, axis=1)  # NO SHUFFLE
-        
+    def __select_viz_data(self, data_gen, preds, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
         tmp_df = pd.DataFrame()
-        tmp_df['img_name'] = test_gen.filepaths
-        tmp_df['comp'] = test_gen.labels
+        tmp_df['img_name'] = data_gen.filepaths
+        tmp_df['comp'] = data_gen.labels
         tmp_df['pred'] = preds
         
-        tmp_df = tmp_df.sample(n = n_imgs, random_state=SEED)
+        viz_title = None
+        if show_only_fn:
+            tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
+            viz_title = "Only False Negatives images" 
+        elif show_only_fp:
+            tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
+            viz_title = "Only False Positive images" 
+        elif show_only_tp:
+            tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
+            viz_title = "Only True Positive images" 
+        elif show_only_tn:
+            tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
+            viz_title = "Only True Negatives images" 
+        else:
+            viz_title = "Any (TP,FP,TN,FN) images"
         
-        def get_img_name(img_path):
+        n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
+        
+        tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
+        
+        return tmp_df, viz_title
+    
+    
+    def __get_img_name(self, img_path):
             return img_path.split("/")[-1].split(".")[0]
-
-        labels = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
-        preds = [f'COMP\n {get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
+    
+    # sort 50 samples from test_df, calculates GradCAM heatmaps
+    # and log the resulting images in a grid to neptune
+    def vizualize_predictions(self, base_model, model, test_gen, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
+        preds = self.y_test_hat_discrete
+        tmp_df,viz_title = self.__select_viz_data(test_gen, preds, n_imgs, show_only_fp, show_only_fn,
+                                       show_only_tp, show_only_tn)
+        
+        
+        labels = [f'COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
+        
+        preds = [f'COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
+        
         heatmaps = [self.__calc_heatmap(im_name, base_model, model) for im_name in tmp_df.img_name.values]
         
         imgs = [cv2.resize(cv2.imread(img), base_model.value['target_size']) for img in tmp_df.img_name.values]

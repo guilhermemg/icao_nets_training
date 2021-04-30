@@ -67,8 +67,18 @@ class ModelTrainer:
         self.use_neptune = use_neptune
         self.base_model = base_model
         
+        self.is_training_model = self.prop_args['train_model']
+        
         self.CHECKPOINT_PATH = os.path.join('training_ckpt', 'best_model.hdf5')
-        self.TRAINED_MODEL_DIR_PATH = os.path.join('trained_models', 'model')
+        
+        model_name = self.prop_args['model_name']
+        if model_name != '':
+            self.TRAINED_MODEL_DIR_PATH = os.path.join('prev_trained_model', model_name)
+        else:
+            if not self.is_training_model:
+                print('Error! Insert model name in field of kwargs')
+            else:
+                self.TRAINED_MODEL_DIR_PATH = os.path.join('trained_model')
         
         self.__clear_checkpoints()
     
@@ -386,33 +396,38 @@ class ModelTrainer:
         self.model.load_weights(chkp_name)
     
     
-    def load_best_model(self, is_training):
+    def load_best_model(self):
         print('..Loading best model')
         
-        if is_training:
+        if self.is_training_model:
             if os.path.isfile(self.CHECKPOINT_PATH):
                 self.model.load_weights(self.CHECKPOINT_PATH)
                 print('..Checkpoint weights loaded')
             else:
                 print('Checkpoint not found')
         else:
-            self.model = load_model(self.TRAINED_MODEL_DIR_PATH)
+            self.model = load_model(self.TRAINED_MODEL_PATH)
             print('..Model loaded')
+            print(f'...Model path: {self.TRAINED_MODEL_PATH}')
             
     
     def save_trained_model(self):
-        print('Saving model')
+        if self.prop_args['save_trained_model']:
+            print('Saving model')
 
-        print('..Saving tf model')
-        path = os.path.join('trained_models', 'model')
-        self.model.save(path)
-        print('..TF model saved')
+            self.model.save(self.TRAINED_MODEL_DIR_PATH)
+            print('..Model saved')
+            print(f'...Model path: {self.TRAINED_MODEL_DIR_PATH}')
 
-        if self.use_neptune:
-            print('..Saving model to neptune..')
-            for item in os.listdir('trained_models'):
-                neptune.log_artifact(os.path.join('trained_models', item))
+            if self.use_neptune:
+                print('..Saving model to neptune..')
+                for item in os.listdir(self.TRAINED_MODEL_DIR_PATH):
+                    neptune.log_artifact(os.path.join(self.TRAINED_MODEL_DIR_PATH, item))
+                print('Model saved into Neptune')
 
-        self.model.training = False
-        print('Model saved')
+            self.model.training = False
+
+            print('Saving process finished')
+        else:
+            print('Not saving trained model!')
         

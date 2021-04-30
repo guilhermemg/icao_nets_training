@@ -25,6 +25,7 @@ notebooks/figs
 notebooks/models
 notebooks/tensorboard_out
 notebooks/model_weights/
-notebooks/trained_models/
+notebooks/prev_trained_models/
+notebooks/trained_model/
 notebooks/training_ckpt/
 notebooks/config.py

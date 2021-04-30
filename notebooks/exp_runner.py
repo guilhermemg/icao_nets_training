@@ -152,7 +152,7 @@ class ExperimentRunner:
     
 
     def load_best_model(self):
-        self.model_trainer.load_best_model(self.prop_args['train_model'])
+        self.model_trainer.load_best_model()
         self.model = self.model_trainer.model
     
     
@@ -175,8 +175,11 @@ class ExperimentRunner:
             self.model_evaluator.evaluate_model(self.test_gen, self.model)
     
     
-    def vizualize_predictions(self):
-        self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen)
+    def vizualize_predictions(self, n_imgs = 40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
+        self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen,
+                                                  n_imgs=n_imgs, 
+                                                  show_only_fp=show_only_fp, show_only_fn=show_only_fn,
+                                                  show_only_tp=show_only_tp, show_only_tn=show_only_tn)
     
 
     def finish_experiment(self):

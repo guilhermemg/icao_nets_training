@@ -60,6 +60,9 @@ kwargs = {
 
         # salvar modelo treinado localmente e no Neptune
         'save_trained_model': False,
+        
+        # nome do modelo previamente treinado e que deve estar na pasta prev_trained_models
+        'model_name': 'modelo_01',
 
         # fazer subamostragem de dataset de entrada para treinar modelo
         'sample_training_data': True,
