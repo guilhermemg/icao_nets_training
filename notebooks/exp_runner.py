@@ -1,25 +1,16 @@
+import yaml
+import pprint
 import neptune
 import argparse
-import pprint
 
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator
 from config import NEPTUNE_API_TOKEN
 
-## restrict memory growth -------------------
-
-import tensorflow as tf
-physical_devices = tf.config.list_physical_devices('GPU') 
-try: 
-    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
-except: 
-    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
-
-## restrict memory growth -------------------    
 
 class ExperimentRunner:
-    def __init__(self, **kwargs):
+    def __init__(self, yaml_config_file=None, **kwargs):
         self.use_neptune = kwargs['use_neptune']
         print('-----')
         print('Use Neptune: ', self.use_neptune)
@@ -116,7 +107,11 @@ class ExperimentRunner:
             props['aligned'] = self.prop_args['aligned']
             props['icao_reqs'] = str([r.value for r in self.prop_args['reqs']])
             props['balance_input_data'] = self.prop_args['balance_input_data']
+            props['train_model'] = self.prop_args['train_model']
+            props['model_name'] = self.prop_args['model_name']
             props['save_trained_model'] = self.prop_args['save_trained_model']
+            props['sample_training_data'] = self.prop_args['sample_training_data']
+            props['sample_prop'] = self.prop_args['sample_prop']
             props['is_mtl_model'] = self.is_mtl_model
             
             neptune.create_experiment( name=self.exp_args['name'],
@@ -193,17 +188,24 @@ class ExperimentRunner:
         
     def run(self):
         self.load_training_data()
+        self.sample_training_data()
         self.balance_input_data()
         self.setup_data_generators()
         try:
             self.start_neptune()
             self.create_experiment()
+            self.create_model()
             self.train_model()
             self.draw_training_history()
+            self.load_best_model()
             self.save_model()
             self.test_model()
             self.evaluate_model()
-            self.vizualize_predictions()
+            self.vizualize_predictions(n_imgs=50)
+            self.vizualize_predictions(n_imgs=50, show_only_tp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fn=True)
+            self.vizualize_predictions(n_imgs=50, show_only_tn=True)
         except Exception as e:
             print(f'ERROR: {e}')
         finally:

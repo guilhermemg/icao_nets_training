@@ -38,6 +38,18 @@ from enum import Enum
 from utils.constants import SEED
 
 
+## restrict memory growth -------------------
+
+import tensorflow as tf
+physical_devices = tf.config.list_physical_devices('GPU') 
+try: 
+    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
+except: 
+    raise Exception("Invalid device or cannot modify virtual devices once initialized.")
+
+## restrict memory growth ------------------- 
+
+
 class BaseModel(Enum):
     MOBILENET_V2 = { 'target_size' : (224,224), 'prep_function': prep_input_mobilenetv2 }
     INCEPTION_V3 = { 'target_size' : (299,299), 'prep_function': prep_input_inceptionv3 }

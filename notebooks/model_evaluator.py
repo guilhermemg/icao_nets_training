@@ -104,8 +104,8 @@ class ModelEvaluator:
         far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer, req_name=req)
 
         best_th = round(best_th.tolist(), 4)
-        eer = round(eer*100, 4)
-        print(f'Requisite: {req} - EER: {eer}% - Best Threshold: {best_th}')
+        eer = round(eer, 4)
+        print(f'Requisite: {req} - EER: {eer*100}% - Best Threshold: {best_th}')
 
         return eer, best_th, roc_curve_fig, far_frr_curve_fig
 
@@ -128,8 +128,8 @@ class ModelEvaluator:
 
     def calculate_accuracy(self, y_true, y_pred):
         print('Accuracy ------------------------------------------------')
-        acc = round(accuracy_score(y_true, y_pred)*100, 2)
-        print(f'Model Accuracy: {acc}%')
+        acc = round(accuracy_score(y_true, y_pred), 4)
+        print(f'Model Accuracy: {acc*100}%')
         print('---------------------------------------------------------')
         return acc
 
@@ -137,9 +137,9 @@ class ModelEvaluator:
     def get_confusion_matrix(self, y_true, y_pred):
         print('Confusion matrix ----------------------------------------')
         TN,FP,FN,TP = confusion_matrix(y_true, y_pred, labels=[Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]).ravel()
-        FAR = round(FP/(FP+TN)*100,2)
-        FRR = round(FN/(FN+TP)*100,2)
-        print(f'FAR: {FAR}% | FRR: {FRR}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
+        FAR = round(FP/(FP+TN),4)
+        FRR = round(FN/(FN+TP),4)
+        print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         return FAR,FRR,TN,FP,FN,TP
 
     
@@ -173,7 +173,7 @@ class ModelEvaluator:
         
         print('Predicting labels....')
         test_gen.reset()
-        predIdxs = model.predict(test_gen, batch_size=self.net_args['batch_size'])
+        predIdxs = model.predict(test_gen, batch_size=self.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
         if is_mtl_model:
