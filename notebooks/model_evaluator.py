@@ -193,16 +193,16 @@ class ModelEvaluator:
             self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], test_gen)
     
     
-    def evaluate_model(self, data_gen, model):
-        print('Evaluating model')
-        eval_metrics = model.evaluate(data_gen, verbose=0)
+#     def evaluate_model(self, data_gen, model):
+#         print('Evaluating model')
+#         eval_metrics = model.evaluate(data_gen, verbose=0)
         
-        print(f'Loss: {round(eval_metrics[0], 4)}')
-        print(f'Accuracy: {round(eval_metrics[1]*100, 2)}%')
+#         print(f'Loss: {round(eval_metrics[0], 4)}')
+#         print(f'Accuracy: {round(eval_metrics[1]*100, 2)}%')
         
-        if self.use_neptune:
-            for j, metric in enumerate(eval_metrics):
-                neptune.log_metric('eval_' + model.metrics_names[j], metric)
+#         if self.use_neptune:
+#             for j, metric in enumerate(eval_metrics):
+#                 neptune.log_metric('eval_' + model.metrics_names[j], metric)
     
     
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:

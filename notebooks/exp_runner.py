@@ -1,16 +1,28 @@
+import os
+import sys
 import yaml
 import pprint
 import neptune
 import argparse
 
+if '../../../notebooks/' not in sys.path:
+    sys.path.append('../../../notebooks/')
+
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator
-from config import NEPTUNE_API_TOKEN
+
+import config as cfg
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
+os.environ['NEPTUNE_API_TOKEN'] = cfg.NEPTUNE_API_TOKEN
 
 
 class ExperimentRunner:
     def __init__(self, yaml_config_file=None, **kwargs):
+        if yaml_config_file != None:
+            kwargs = self.__load_exp_config(yaml_config_file)
+        
         self.use_neptune = kwargs['use_neptune']
         print('-----')
         print('Use Neptune: ', self.use_neptune)
@@ -39,7 +51,15 @@ class ExperimentRunner:
         self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune)
         
-        
+    
+    def __load_exp_config(self, yaml_config_file):
+        print(f'Loading experiment config from {yaml_config_file}')
+        with open(yaml_config_file, 'r') as f:
+            cnt = yaml.load(f, Loader=yaml.Loader)[0]
+            print('..Experiment configs loaded with success!')
+            return cnt
+    
+    
     def load_training_data(self):
         self.data_processor.load_training_data()
         self.train_data = self.data_processor.train_data
@@ -200,7 +220,6 @@ class ExperimentRunner:
             self.load_best_model()
             self.save_model()
             self.test_model()
-            self.evaluate_model()
             self.vizualize_predictions(n_imgs=50)
             self.vizualize_predictions(n_imgs=50, show_only_tp=True)
             self.vizualize_predictions(n_imgs=50, show_only_fp=True)
@@ -210,4 +229,12 @@ class ExperimentRunner:
             print(f'ERROR: {e}')
         finally:
             self.finish_experiment()
-        
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', '-c', required=True, dest='config_file', help='Path to yaml config file')
+    args = parser.parse_args()
+    
+    runner = ExperimentRunner(args.config_file)
+    runner.run()

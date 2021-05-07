@@ -29,3 +29,5 @@ notebooks/prev_trained_models/
 notebooks/trained_model/
 notebooks/training_ckpt/
 notebooks/config.py
+
+notebooks/exp_config.yaml
