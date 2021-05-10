@@ -1,3 +1,4 @@
+import neptune
 import pandas as pd
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -11,10 +12,11 @@ from utils.constants import SEED
 
 
 class DataProcessor:
-    def __init__(self, prop_args, net_args, is_mtl_model):
+    def __init__(self, prop_args, net_args, is_mtl_model, use_neptune):
         self.prop_args = prop_args
         self.net_args = net_args
         self.is_mtl_model = is_mtl_model
+        self.use_neptune = use_neptune
         self.train_data, self.test_data = None, None
     
     
@@ -167,18 +169,43 @@ class DataProcessor:
             n_train_valid_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
             n_train_valid_dummy = self.train_data[self.train_data[req.value] == dummy_val].shape[0]
 
+            prop_n_train_valid_comp = round(n_train_valid_comp/total_train_valid*100,2)
+            prop_n_train_valid_not_comp = round(n_train_valid_not_comp/total_train_valid*100,2)
+            prop_n_train_valid_dummy = round(n_train_valid_dummy/total_train_valid*100,2)
+            
+            print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({prop_n_train_valid_comp}%)')
+            print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({prop_n_train_valid_not_comp}%)')
+            print(f'N_TRAIN_VALID_DUMMY: {n_train_valid_dummy} ({prop_n_train_valid_dummy}%)')
+            
             total_test = self.test_data.shape[0]
             n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
             n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
             n_test_dummy = self.test_data[self.test_data[req.value] == dummy_val].shape[0]
 
-            print(f'N_TRAIN_VALID_COMP: {n_train_valid_comp} ({round(n_train_valid_comp/total_train_valid*100,2)}%)')
-            print(f'N_TRAIN_VALID_NOT_COMP: {n_train_valid_not_comp} ({round(n_train_valid_not_comp/total_train_valid*100,2)}%)')
-            print(f'N_TRAIN_VALID_DUMMY: {n_train_valid_dummy} ({round(n_train_valid_dummy/total_train_valid*100,2)}%)')
-
-            print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
-            print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({round(n_test_not_comp/total_test*100,2)}%)')
-            print(f'N_TEST_DUMMY: {n_test_dummy} ({round(n_test_dummy/total_test*100,2)}%)')
+            prop_n_test_comp = round(n_test_comp/total_test*100,2)
+            prop_n_test_not_comp = round(n_test_not_comp/total_test*100,2)
+            prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
+            
+            print(f'N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
+            print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({prop_n_test_not_comp}%)')
+            print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
+            
+            if self.use_neptune:
+                neptune.log_metric(req.name + '_total_train_valid', total_train_valid)
+                neptune.log_metric(req.name + '_n_train_valid_comp', n_train_valid_comp)
+                neptune.log_metric(req.name + '_n_train_valid_not_comp', n_train_valid_not_comp)
+                neptune.log_metric(req.name + '_n_train_valid_dummy', n_train_valid_dummy)
+                neptune.log_metric(req.name + '_prop_n_train_valid_comp', prop_n_train_valid_comp)
+                neptune.log_metric(req.name + '_prop_n_train_valid_not_comp', prop_n_train_valid_not_comp)
+                neptune.log_metric(req.name + '_prop_n_train_valid_dummy', prop_n_train_valid_dummy)
+                
+                neptune.log_metric(req.name + '_total_test', total_test)
+                neptune.log_metric(req.name + '_n_test_comp', n_test_comp)
+                neptune.log_metric(req.name + '_n_test_not_comp', n_test_not_comp)
+                neptune.log_metric(req.name + '_n_test_dummy', n_test_dummy)
+                neptune.log_metric(req.name + '_prop_n_test_comp', prop_n_test_comp)
+                neptune.log_metric(req.name + 'prop_n_test_not_comp', prop_n_test_not_comp)
+                neptune.log_metric(req.name + '_prop_n_test_dummy', prop_n_test_dummy)
             
             print('----')
     
@@ -188,25 +215,62 @@ class DataProcessor:
         n_train_comp = len([x for x in self.train_gen.labels if x == 0])
         n_train_non_comp = len([x for x in self.train_gen.labels if x == 1])
         n_train_dummy = len([x for x in self.train_gen.labels if x == 2])
+        
+        prop_n_train_comp = round(n_train_comp/total_train*100,2)
+        prop_n_train_non_comp = round(n_train_non_comp/total_train*100,2)
+        prop_n_train_dummy =  round(n_train_dummy/total_train*100,2)     
 
         total_valid = self.validation_gen.n
         n_valid_comp = len([x for x in self.validation_gen.labels if x == 0])
         n_valid_non_comp = len([x for x in self.validation_gen.labels if x == 1])
         n_valid_dummy = len([x for x in self.validation_gen.labels if x == 2])
         
+        prop_n_valid_comp = round(n_valid_comp/total_valid*100,2)
+        prop_n_valid_non_comp = round(n_valid_non_comp/total_valid*100,2)
+        prop_n_valid_dummy = round(n_valid_dummy/total_valid*100,2)
+        
         total_test = self.test_gen.n
         n_test_comp= len([x for x in self.test_gen.labels if x == 0])
         n_test_non_comp = len([x for x in self.test_gen.labels if x == 1])
         n_test_dummy = len([x for x in self.test_gen.labels if x == 2])
-
-        print(f'N_TRAIN_COMP: {n_train_comp} ({round(n_train_comp/total_train*100,2)}%)')
-        print(f'N_TRAIN_NON_COMP: {n_train_comp} ({round(n_train_non_comp/total_train*100,2)}%)')
-        print(f'N_TRAIN_DUMMY: {n_train_dummy} ({round(n_train_dummy/total_train*100,2)}%)')
         
-        print(f'N_VALID_COMP: {n_valid_comp} ({round(n_valid_comp/total_valid*100,2)}%)')
-        print(f'N_VALID_NON_COMP: {n_valid_non_comp} ({round(n_valid_non_comp/total_valid*100,2)}%)')
-        print(f'N_VALID_DUMMY: {n_valid_dummy} ({round(n_valid_dummy/total_valid*100,2)}%)')
+        prop_n_test_comp = round(n_test_comp/total_test*100,2)
+        prop_n_test_non_comp = round(n_test_non_comp/total_test*100,2)
+        prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
 
-        print(f'N_TEST_COMP: {n_test_comp} ({round(n_test_comp/total_test*100,2)}%)')
-        print(f'N_TEST_NON_COMP: {n_test_non_comp} ({round(n_test_non_comp/total_test*100,2)}%)')
-        print(f'N_TEST_DUMMY: {n_test_dummy} ({round(n_test_dummy/total_test*100,2)}%)')
+        print(f'N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
+        print(f'N_TRAIN_NON_COMP: {n_train_comp} ({prop_n_train_non_comp}%)')
+        print(f'N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
+        
+        print(f'N_VALID_COMP: {n_valid_comp} ({prop_n_valid_comp}%)')
+        print(f'N_VALID_NON_COMP: {n_valid_non_comp} ({prop_n_valid_non_comp}%)')
+        print(f'N_VALID_DUMMY: {n_valid_dummy} ({prop_n_valid_dummy}%)')
+
+        print(f'N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
+        print(f'N_TEST_NON_COMP: {n_test_non_comp} ({prop_n_test_non_comp}%)')
+        print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
+        
+        if self.use_neptune:
+            neptune.log_metric('gen_total_train', total_train)
+            neptune.log_metric('gen_n_train_comp', n_train_comp)
+            neptune.log_metric('gen_n_train_non_comp', n_train_non_comp)
+            neptune.log_metric('gen_prop_n_train_comp', prop_n_train_comp)
+            neptune.log_metric('gen_prop_n_train_non_comp', prop_n_train_non_comp)
+            neptune.log_metric('gen_prop_n_train_dummy', prop_n_train_dummy)
+            
+            neptune.log_metric('gen_total_valid', total_valid)
+            neptune.log_metric('gen_n_valid_comp', n_valid_comp)
+            neptune.log_metric('gen_n_valid_non_comp', n_valid_non_comp)
+            neptune.log_metric('gen_n_valid_dummy', n_valid_dummy)
+            neptune.log_metric('gen_prop_n_valid_comp', prop_n_valid_comp)
+            neptune.log_metric('gen_prop_n_valid_non_comp', prop_n_valid_non_comp)
+            neptune.log_metric('gen_prop_n_valid_dummy', prop_n_valid_dummy)
+            
+            neptune.log_metric('gen_total_test', total_test)
+            neptune.log_metric('gen_n_test_comp', n_test_comp)
+            neptune.log_metric('gen_n_test_non_comp', n_test_non_comp)
+            neptune.log_metric('gen_n_test_dummy', n_test_dummy)
+            neptune.log_metric('gen_prop_n_test_comp', prop_n_test_comp)
+            neptune.log_metric('gen_prop_n_test_non_comp', prop_n_test_non_comp)
+            neptune.log_metric('gen_prop_n_test_dummy', prop_n_test_dummy)
+            

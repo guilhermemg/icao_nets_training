@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+
 from keras.utils.vis_utils import plot_model
 
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
@@ -32,6 +33,7 @@ from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.models import load_model
 
 from enum import Enum
 
@@ -85,7 +87,7 @@ class ModelTrainer:
         
         model_name = self.prop_args['model_name']
         if model_name != '':
-            self.TRAINED_MODEL_DIR_PATH = os.path.join('prev_trained_model', model_name)
+            self.TRAINED_MODEL_DIR_PATH = os.path.join('prev_trained_models', model_name)
         else:
             if not self.is_training_model:
                 print('Error! Insert model name in field of kwargs')
@@ -311,96 +313,102 @@ class ModelTrainer:
 
     
     def train_model(self, train_gen, validation_gen):
-        print(f'Training {self.base_model.name} network')
+        if self.is_training_model:
+            print(f'Training {self.base_model.name} network')
 
-        callbacks_list = []
-        
-        if self.use_neptune:
-            callbacks_list.append(self.__get_log_data_callback())
+            callbacks_list = []
 
-        if self.net_args['optimizer'].name in [Optimizer.ADAMAX_CUST.name, Optimizer.ADAGRAD_CUST.name,
-                                               Optimizer.ADAM_CUST.name, Optimizer.SGD_CUST.name]:
-            callbacks_list.append(self.__get_lr_scheduler_callback())
-        
-        if self.net_args['early_stopping'] is not None:
-            callbacks_list.append(self.__get_early_stopping_callback())
-        
-        callbacks_list.append(self.__get_model_checkpoint_callback())
-        
-        self.H = self.model.fit(
-                train_gen,
-                steps_per_epoch=train_gen.n // self.net_args['batch_size'],
-                validation_data=validation_gen,
-                validation_steps=validation_gen.n // self.net_args['batch_size'],
-                epochs=self.net_args['n_epochs'],
-                callbacks=callbacks_list)
+            if self.use_neptune:
+                callbacks_list.append(self.__get_log_data_callback())
+
+            if self.net_args['optimizer'].name in [Optimizer.ADAMAX_CUST.name, Optimizer.ADAGRAD_CUST.name,
+                                                   Optimizer.ADAM_CUST.name, Optimizer.SGD_CUST.name]:
+                callbacks_list.append(self.__get_lr_scheduler_callback())
+
+            if self.net_args['early_stopping'] is not None:
+                callbacks_list.append(self.__get_early_stopping_callback())
+
+            callbacks_list.append(self.__get_model_checkpoint_callback())
+
+            self.H = self.model.fit(
+                    train_gen,
+                    steps_per_epoch=train_gen.n // self.net_args['batch_size'],
+                    validation_data=validation_gen,
+                    validation_steps=validation_gen.n // self.net_args['batch_size'],
+                    epochs=self.net_args['n_epochs'],
+                    callbacks=callbacks_list)
+        else:
+            print('Not training a model')
 
     
     def draw_training_history(self):
-        if not self.is_mtl_model:
-            f,ax = plt.subplots(1,2, figsize=(10,5))
-            f.suptitle(f'-----{self.base_model.name}-----')
-            
-            ax[0].plot(self.H.history['accuracy'])
-            ax[0].plot(self.H.history['val_accuracy'])
-            ax[0].set_title('Model Accuracy')
-            ax[0].set_ylabel('accuracy')
-            ax[0].set_xlabel('epoch')
-            ax[0].legend(['train', 'validation'])
-            
-            ax[1].plot(self.H.history['loss'])
-            ax[1].plot(self.H.history['val_loss'])
-            ax[1].set_title('Model Loss')
-            ax[1].set_ylabel('loss')
-            ax[1].set_xlabel('epoch')
-            ax[1].legend(['train', 'validation'])
-            
+        if self.is_training_model:
+            if not self.is_mtl_model:
+                f,ax = plt.subplots(1,2, figsize=(10,5))
+                f.suptitle(f'-----{self.base_model.name}-----')
+
+                ax[0].plot(self.H.history['accuracy'])
+                ax[0].plot(self.H.history['val_accuracy'])
+                ax[0].set_title('Model Accuracy')
+                ax[0].set_ylabel('accuracy')
+                ax[0].set_xlabel('epoch')
+                ax[0].legend(['train', 'validation'])
+
+                ax[1].plot(self.H.history['loss'])
+                ax[1].plot(self.H.history['val_loss'])
+                ax[1].set_title('Model Loss')
+                ax[1].set_ylabel('loss')
+                ax[1].set_xlabel('epoch')
+                ax[1].legend(['train', 'validation'])
+
+            else:
+                f,ax = plt.subplots(2,2, figsize=(20,25))
+                f.suptitle(f'-----{self.base_model.name}-----')
+
+                for idx,req in enumerate(self.prop_args['reqs']):
+                    ax[0][0].plot(self.H.history[f'{req.value}_accuracy'])
+                    ax[0][1].plot(self.H.history[f'val_{req.value}_accuracy'])
+
+                    ax[1][0].plot(self.H.history[f'{req.value}_loss'])
+                    ax[1][1].plot(self.H.history[f'val_{req.value}_loss'])
+
+                ax[1][1].plot(self.H.history['loss'], color='red', linewidth=2.0) # total loss
+
+                ax[0][0].set_title('Model Accuracy - Train')
+                ax[0][1].set_title('Model Accuracy - Validation')
+
+                ax[0][0].set_ylabel('accuracy')
+                ax[0][1].set_ylabel('accuracy')
+                ax[0][0].set_xlabel('epoch')
+                ax[0][1].set_xlabel('epoch')
+
+                ax[0][0].set_ylim([0,1.1])
+                ax[0][1].set_ylim([0,1.1])
+
+                ax[1][0].set_title('Model Loss - Train')
+                ax[1][1].set_title('Model Loss - Validation')
+
+                ax[1][0].set_ylabel('loss')
+                ax[1][1].set_ylabel('loss')
+
+                ax[1][0].set_xlabel('epoch')
+                ax[1][1].set_xlabel('epoch')
+
+                ax[1][0].set_ylim([0,1.5])
+                ax[1][1].set_ylim([0,1.5])
+
+                legends = [r.value for r in self.prop_args['reqs']]
+                ax[0][0].legend(legends, ncol=4)
+                ax[0][1].legend(legends, ncol=4)
+                ax[1][0].legend(legends, ncol=4)
+                ax[1][1].legend(legends, ncol=4)
+
+            plt.show()
+
+            if self.use_neptune:
+                neptune.send_image('training_curves.png',f)
         else:
-            f,ax = plt.subplots(2,2, figsize=(20,25))
-            f.suptitle(f'-----{self.base_model.name}-----')
-            
-            for idx,req in enumerate(self.prop_args['reqs']):
-                ax[0][0].plot(self.H.history[f'{req.value}_accuracy'])
-                ax[0][1].plot(self.H.history[f'val_{req.value}_accuracy'])
-                
-                ax[1][0].plot(self.H.history[f'{req.value}_loss'])
-                ax[1][1].plot(self.H.history[f'val_{req.value}_loss'])
-            
-            ax[1][1].plot(self.H.history['loss'], color='red', linewidth=2.0) # total loss
-            
-            ax[0][0].set_title('Model Accuracy - Train')
-            ax[0][1].set_title('Model Accuracy - Validation')
-            
-            ax[0][0].set_ylabel('accuracy')
-            ax[0][1].set_ylabel('accuracy')
-            ax[0][0].set_xlabel('epoch')
-            ax[0][1].set_xlabel('epoch')
-            
-            ax[0][0].set_ylim([0,1.1])
-            ax[0][1].set_ylim([0,1.1])
-            
-            ax[1][0].set_title('Model Loss - Train')
-            ax[1][1].set_title('Model Loss - Validation')
-            
-            ax[1][0].set_ylabel('loss')
-            ax[1][1].set_ylabel('loss')
-            
-            ax[1][0].set_xlabel('epoch')
-            ax[1][1].set_xlabel('epoch')
-            
-            ax[1][0].set_ylim([0,1.5])
-            ax[1][1].set_ylim([0,1.5])
-            
-            legends = [r.value for r in self.prop_args['reqs']]
-            ax[0][0].legend(legends, ncol=4)
-            ax[0][1].legend(legends, ncol=4)
-            ax[1][0].legend(legends, ncol=4)
-            ax[1][1].legend(legends, ncol=4)
-            
-        plt.show()
-        
-        if self.use_neptune:
-            neptune.send_image('training_curves.png',f)
+            print('Not training a model')
     
     
     def load_checkpoint(self, chkp_name):
@@ -418,9 +426,9 @@ class ModelTrainer:
             else:
                 print('Checkpoint not found')
         else:
-            self.model = load_model(self.TRAINED_MODEL_PATH)
+            self.model = load_model(self.TRAINED_MODEL_DIR_PATH)
             print('..Model loaded')
-            print(f'...Model path: {self.TRAINED_MODEL_PATH}')
+            print(f'...Model path: {self.TRAINED_MODEL_DIR_PATH}')
             
     
     def save_trained_model(self):
