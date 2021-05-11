@@ -20,19 +20,30 @@ os.environ['NEPTUNE_API_TOKEN'] = cfg.NEPTUNE_API_TOKEN
 
 class ExperimentRunner:
     def __init__(self, yaml_config_file=None, **kwargs):
-        print(' -- Init ExperimentRunner --')
+        self.__print_method_log_sig( 'Init ExperimentRunner')
+        
         if yaml_config_file != None:
             kwargs = self.__load_exp_config(yaml_config_file)
+        
+        print('---------------------------')
+        print('Parent Process ID:', os.getppid())
+        print('Process ID:', os.getpid())
+        print('---------------------------')
         
         self.use_neptune = kwargs['use_neptune']
         print('-----')
         print('Use Neptune: ', self.use_neptune)
         print('-----')
         
-        print('===================')
+        # the ExperimentRunner is being executed from command line
+        # or as an independent process and shall not show the images/plots
+        self.script_mode = kwargs['script_mode']
+        print(f'Script Mode: {self.script_mode}')
+        
+        print('-------------------')
         print('Args: ')
         pprint.pprint(kwargs)
-        print('===================')
+        print('-------------------')
         
         self.exp_args = kwargs['exp_params']
         self.prop_args = kwargs['properties']
@@ -49,12 +60,16 @@ class ExperimentRunner:
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.use_neptune)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune)
-        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune, self.script_mode)
+        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune, self.script_mode)
         
     
+    def __print_method_log_sig(self, msg):
+        print(f'-------------------- {msg} -------------------')
+    
+    
     def __load_exp_config(self, yaml_config_file):
-        print(' -- load experiment configs --')
+        self.self.__print_method_log_sig('load experiment configs')
         print(f'Loading experiment config from {yaml_config_file}')
         with open(yaml_config_file, 'r') as f:
             cnt = yaml.load(f, Loader=yaml.Loader)[0]
@@ -63,14 +78,14 @@ class ExperimentRunner:
     
     
     def load_training_data(self):
-        print(' -- load training data --')
+        self.__print_method_log_sig( 'load training data')
         self.data_processor.load_training_data()
         self.train_data = self.data_processor.train_data
         self.test_data = self.data_processor.test_data
         
     
     def sample_training_data(self):
-        print(' -- sample training data --')
+        self.__print_method_log_sig( 'sample training data')
         if self.prop_args['sample_training_data']:
             self.data_processor.sample_training_data(self.prop_args['sample_prop'])
             self.train_data = self.data_processor.train_data
@@ -79,7 +94,7 @@ class ExperimentRunner:
     
         
     def balance_input_data(self):
-        print(' -- balance input data --')
+        self.__print_method_log_sig( 'balance input data')
         if self.prop_args['balance_input_data']:
             req_name = self.prop_args['reqs'][0].value
             self.data_processor.balance_input_data(req_name)
@@ -89,7 +104,7 @@ class ExperimentRunner:
         
     
     def setup_data_generators(self):
-        print(' -- setup data generators --')
+        self.__print_method_log_sig( 'setup data generators')
         self.data_processor.setup_data_generators(self.base_model)
         self.train_gen = self.data_processor.train_gen
         self.validation_gen = self.data_processor.validation_gen
@@ -97,7 +112,7 @@ class ExperimentRunner:
 
     
     def start_neptune(self):
-        print(' -- start neptune -- ')
+        self.__print_method_log_sig( 'start neptune')
         if self.use_neptune:
             print('Starting Neptune')
             neptune.init('guilhermemg/icao-nets-training')    
@@ -106,17 +121,17 @@ class ExperimentRunner:
         
     
     def summary_labels_dist(self):
-        print(' -- summary labels dist -- ')
+        self.__print_method_log_sig( 'summary labels dist')
         self.data_processor.summary_labels_dist()
 
     
     def summary_gen_labels_dist(self):
-        print(' -- summary gen labels dist -- ')
+        self.__print_method_log_sig( 'summary gen labels dist')
         self.data_processor.summary_gen_labels_dist()    
     
        
     def create_experiment(self):
-        print(' -- create experiment -- ')
+        self.__print_method_log_sig( 'create experiment')
         if self.use_neptune:
             print('Creating experiment')
 
@@ -155,39 +170,39 @@ class ExperimentRunner:
     
     
     def create_model(self):
-        print(' -- create model -- ')
+        self.__print_method_log_sig( 'create model')
         self.model = self.model_trainer.create_model(self.train_gen)
     
     
     def vizualize_model(self):
-        print(' -- vizualize model -- ')
+        self.__print_method_log_sig( 'vizualize model')
         self.model_trainer.vizualize_model()
     
     
     def train_model(self):
-        print(' -- train model -- ')
+        self.__print_method_log_sig( 'train model')
         self.model_trainer.train_model(self.train_gen, self.validation_gen)
     
     
     def draw_training_history(self):
-        print(' -- draw training history -- ')
+        self.__print_method_log_sig( 'draw training history')
         self.model_trainer.draw_training_history()
     
     
     def load_checkpoint(self, chkp_name):
-        print(' -- load checkpoint -- ')
+        self.__print_method_log_sig( 'load checkpoint')
         self.model_trainer.load_checkpoint(chkp_name)
         self.model = self.model_trainer.model
     
 
     def load_best_model(self):
-        print(' -- load best model -- ')
+        self.__print_method_log_sig( 'load best model')
         self.model_trainer.load_best_model()
         self.model = self.model_trainer.model
     
     
     def save_model(self):
-        print(' -- save model -- ')
+        self.__print_method_log_sig( 'save model')
         if self.prop_args['save_trained_model']:
             self.model_trainer.save_trained_model()
         else:
@@ -195,12 +210,12 @@ class ExperimentRunner:
 
     
     def test_model(self):
-        print(' -- test model -- ')
+        self.__print_method_log_sig( 'test model')
         self.model_evaluator.test_model(self.test_gen, self.model, self.is_mtl_model)
 
     
     def evaluate_model(self, data_src='test'):
-        print(' -- evaluate model -- ')
+        self.__print_method_log_sig( 'evaluate model')
         if data_src == 'validation':
             self.model_evaluator.evaluate_model(self.validation_gen, self.model)
         elif data_src == 'test':
@@ -209,7 +224,7 @@ class ExperimentRunner:
     
     
     def vizualize_predictions(self, n_imgs = 40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
-        print(' -- vizualize predictions -- ')
+        self.__print_method_log_sig( 'vizualize predictions')
         self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen,
                                                   n_imgs=n_imgs, 
                                                   show_only_fp=show_only_fp, show_only_fn=show_only_fn,
@@ -217,7 +232,7 @@ class ExperimentRunner:
     
 
     def finish_experiment(self):
-        print(' -- finish experiment --')
+        self.__print_method_log_sig( 'finish experiment')
         if self.use_neptune:
             print('Finishing Neptune')
             neptune.stop()
@@ -227,7 +242,7 @@ class ExperimentRunner:
 
         
     def run(self):
-        print(' -- run experiment --')
+        self.__print_method_log_sig( 'run experiment')
         self.load_training_data()
         self.sample_training_data()
         self.balance_input_data()

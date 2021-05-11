@@ -29,11 +29,12 @@ import utils.draw_utils as dr
 from utils.constants import SEED
 
 class ModelEvaluator:
-    def __init__(self, net_args, prop_args, is_mtl_model, use_neptune):
+    def __init__(self, net_args, prop_args, is_mtl_model, use_neptune, script_mode):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
+        self.script_mode = script_mode
     
     
     def __draw_roc_curve(self, fpr, tpr, eer, th, req):
@@ -43,7 +44,8 @@ class ModelEvaluator:
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.title('ROC curve - Req: {} | EER: {:.4f} | Thresh: {:.4f}'.format(req.value.upper(), eer, th))
-        plt.show()
+        if not self.script_mode:
+            plt.show()
         return fig
 
 
@@ -57,7 +59,8 @@ class ModelEvaluator:
         plt.ylim([0, 100])
         plt.title(f'Req: {req_name.value.upper()} - EER = {round(eer,4)}')
         plt.legend(['FRR','FAR'], loc='upper center')
-        plt.show()
+        if not self.script_mode:
+            plt.show()
         return fig
 
 
@@ -290,7 +293,7 @@ class ModelEvaluator:
         
         imgs = [cv2.resize(cv2.imread(img), base_model.value['target_size']) for img in tmp_df.img_name.values]
         
-        f = dr.draw_imgs(imgs, labels=labels, predictions=preds, heatmaps=heatmaps)
+        f = dr.draw_imgs(imgs, labels=labels, predictions=preds, heatmaps=heatmaps, script_mode=self.script_mode)
         
         if self.use_neptune:
             neptune.send_image('predictions_with_heatmaps.png',f)

@@ -74,12 +74,13 @@ class Optimizer(Enum):
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune, script_mode):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
         self.base_model = base_model
+        self.script_mode = script_mode
         
         self.is_training_model = self.prop_args['train_model']
         
@@ -95,6 +96,17 @@ class ModelTrainer:
                 self.TRAINED_MODEL_DIR_PATH = os.path.join('trained_model')
         
         self.__clear_checkpoints()
+        self.__check_gpu_availability()
+        
+    
+    def __check_gpu_availability(self):
+        print('------------------------------')
+        print('Checking GPU availability')
+        if len(tf.config.list_physical_devices('GPU')) > 0:
+            print(' ..GPU is available!')
+        else:
+            print(' ..GPU is NOT available!')
+        print('------------------------------')
     
     
     def __clear_checkpoints(self):
@@ -402,8 +414,9 @@ class ModelTrainer:
                 ax[0][1].legend(legends, ncol=4)
                 ax[1][0].legend(legends, ncol=4)
                 ax[1][1].legend(legends, ncol=4)
-
-            plt.show()
+            
+            if not self.script_mode:
+                plt.show()
 
             if self.use_neptune:
                 neptune.send_image('training_curves.png',f)
