@@ -74,13 +74,12 @@ class Optimizer(Enum):
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune, script_mode):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
         self.base_model = base_model
-        self.script_mode = script_mode
         
         self.is_training_model = self.prop_args['train_model']
         
@@ -320,8 +319,8 @@ class ModelTrainer:
 #         return MyCallback(self.validation_gen)
 
 
-    def vizualize_model(self):
-        display(plot_model(self.model, show_shapes=True, to_file='figs/model.png'))
+    def vizualize_model(self, outfile_path=None):
+        display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
 
     
     def train_model(self, train_gen, validation_gen):
@@ -341,7 +340,7 @@ class ModelTrainer:
                 callbacks_list.append(self.__get_early_stopping_callback())
 
             callbacks_list.append(self.__get_model_checkpoint_callback())
-
+            
             self.H = self.model.fit(
                     train_gen,
                     steps_per_epoch=train_gen.n // self.net_args['batch_size'],
@@ -415,8 +414,7 @@ class ModelTrainer:
                 ax[1][0].legend(legends, ncol=4)
                 ax[1][1].legend(legends, ncol=4)
             
-            if not self.script_mode:
-                plt.show()
+            plt.show()
 
             if self.use_neptune:
                 neptune.send_image('training_curves.png',f)

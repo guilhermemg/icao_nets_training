@@ -35,11 +35,6 @@ class ExperimentRunner:
         print('Use Neptune: ', self.use_neptune)
         print('-----')
         
-        # the ExperimentRunner is being executed from command line
-        # or as an independent process and shall not show the images/plots
-        self.script_mode = kwargs['script_mode']
-        print(f'Script Mode: {self.script_mode}')
-        
         print('-------------------')
         print('Args: ')
         pprint.pprint(kwargs)
@@ -60,8 +55,8 @@ class ExperimentRunner:
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.use_neptune)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune, self.script_mode)
-        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune, self.script_mode)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune)
+        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune)
         
     
     def __print_method_log_sig(self, msg):
@@ -174,9 +169,9 @@ class ExperimentRunner:
         self.model = self.model_trainer.create_model(self.train_gen)
     
     
-    def vizualize_model(self):
+    def vizualize_model(self, outfile_path):
         self.__print_method_log_sig( 'vizualize model')
-        self.model_trainer.vizualize_model()
+        self.model_trainer.vizualize_model(outfile_path)
     
     
     def train_model(self):

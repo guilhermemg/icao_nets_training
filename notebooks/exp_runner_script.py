@@ -16,10 +16,9 @@ from model_trainer import BaseModel, Optimizer
 def create_config(req, ds, aligned):
     return { 
                 'use_neptune': True,
-                'script_mode': True,
                 'exp_params' : {
                     'name': 'train_vgg16',
-                    'description': f'Training network for {req.value.upper()} requisite',
+                    'description': f'Training network for {req.value.upper()} requisite.',
                     'tags': ['vgg16', 'ground truths', 'adamax', ds.value.lower(), 'binary_output', req.value.lower()],
                     'src_files': ['exp_runner.py', 'data_processor.py', 'model_trainer.py', 'model_evaluator.py']
                 },
@@ -71,9 +70,9 @@ if __name__ == '__main__':
     #if os.path.exists('exp_logs/single_task_logs.log'):
     #    os.remove('exp_logs/single_task_logs.log')
     
-    reqs_list = list(cts.ICAO_REQ)
-    ds_list = [GTName.FVC, GTName.PYBOSSA]
-    align_list = [True, False]
+    reqs_list = list(cts.ICAO_REQ)[10:]
+    ds_list = [GTName.PYBOSSA]
+    align_list = [False]
     
     lock = mp.Lock()
     for req in reqs_list:
