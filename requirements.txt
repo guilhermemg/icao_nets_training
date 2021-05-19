@@ -83,7 +83,7 @@ mtcnn==0.1.0
 multidict @ file:///tmp/build/80754af9/multidict_1607367757617/work
 nbconvert==5.6.1
 nbformat @ file:///home/conda/feedstock_root/build_artifacts/nbformat_1594060262917/work
-neptune-client==0.4.125
+neptune-client==0.9.1
 neptune-notebooks==0.0.16
 neptune-tensorboard==0.3.13
 networkx==2.4
