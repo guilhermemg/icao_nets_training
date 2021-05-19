@@ -137,7 +137,12 @@ class ExperimentRunner:
             
             props = {}
             if self.prop_args['use_gt_data']:
-                props = {'gt_names': str(self.prop_args['gt_names'])}
+                gt_names_formatted = {
+                    'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
+                    'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
+                    'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
+                }
+                props = {'gt_names': str(gt_names_formatted)}
             else:
                 props = {
                     'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
@@ -149,6 +154,7 @@ class ExperimentRunner:
             props['balance_input_data'] = self.prop_args['balance_input_data']
             props['train_model'] = self.prop_args['train_model']
             props['model_name'] = self.prop_args['model_name']
+            props['orig_model_experiment_id'] = self.prop_args['orig_model_experiment_id']
             props['save_trained_model'] = self.prop_args['save_trained_model']
             props['sample_training_data'] = self.prop_args['sample_training_data']
             props['sample_prop'] = self.prop_args['sample_prop']

@@ -2,8 +2,8 @@ import os
 import sys
 import pprint
 
-if '../../../notebooks/' not in sys.path:
-    sys.path.append('../../../notebooks/')
+if '../../../../notebooks/' not in sys.path:
+    sys.path.append('../../../../notebooks/')
 
 import utils.constants as cts
 
