@@ -40,18 +40,18 @@ class ModelEvaluator:
         self.THRESH_STEP_SIZE = 1e-2
     
     
-    def __draw_roc_curve(self, fpr, tpr, eer, th, req):
+    def __draw_roc_curve(self, fpr, tpr, eer, th, req, data_src):
         fig = plt.figure(1)
         plt.plot([0, 1], [0, 1], 'k--')
         plt.plot(fpr, tpr)
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('ROC curve - Req: {} | EER: {:.4f} | Thresh: {:.4f}'.format(req.value.upper(), eer, th))
+        plt.title('ROC - Req: {} | EER: {:.4f} | Thresh: {:.4f} | {}'.format(req.value.upper(), eer, th, data_src.upper()))
         plt.show()
         return fig
 
 
-    def __draw_far_frr_curve(self, th_range, frr, far, eer, req_name):
+    def __draw_far_frr_curve(self, th_range, frr, far, eer, req_name, data_src):
         fig = plt.figure(1)
         plt.plot(th_range, frr,'-r')
         plt.plot(th_range, far,'-b')
@@ -59,7 +59,7 @@ class ModelEvaluator:
         plt.ylabel('FAR/FRR %')
         plt.xlim([0, 1.02])
         plt.ylim([0, 100])
-        plt.title(f'Req: {req_name.value.upper()} - EER = {round(eer,4)}')
+        plt.title(f'Req: {req_name.value.upper()} - EER = {round(eer,4)} - {data_src.upper()}')
         plt.legend(['FRR','FAR'], loc='upper center')
         plt.show()
         return fig
@@ -95,7 +95,7 @@ class ModelEvaluator:
         return frr
 
 
-    def calculate_eer(self, y_true, y_pred, req):
+    def calculate_eer(self, y_true, y_pred, req, data_src):
         fpr, tpr, ths = roc_curve(y_true, y_pred)
         far = self.__calculate_far(y_true, y_pred)
         frr = self.__calculate_frr(y_true, y_pred)
@@ -104,8 +104,8 @@ class ModelEvaluator:
         eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         best_th = interp1d(fpr, ths)(eer)
 
-        roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th, req)
-        far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer, req_name=req)
+        roc_curve_fig = self.__draw_roc_curve(fpr, tpr, eer, best_th, req, data_src)
+        far_frr_curve_fig = self.__draw_far_frr_curve(th_range=th_range, far=far, frr=frr, eer=eer, req_name=req, data_src=data_src)
 
         best_th = round(best_th.tolist(), 4)
         eer = round(eer, 4)
@@ -147,10 +147,10 @@ class ModelEvaluator:
         return FAR,FRR,TN,FP,FN,TP
 
     
-    def __log_test_metrics(self, predIdxs, req_name, test_gen):
+    def __log_test_metrics(self, predIdxs, req_name, test_gen, data_src):
         self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
         
-        eer,best_th,roc_curve_fig,far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name)
+        eer,best_th,roc_curve_fig,far_frr_curve_fig = self.calculate_eer(self.y_test_true, self.y_test_hat, req_name, data_src)
         
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
         
@@ -159,20 +159,20 @@ class ModelEvaluator:
         FAR,FRR,TN,FP,FN,TP = self.get_confusion_matrix(self.y_test_true, self.y_test_hat_discrete)
 
         if self.use_neptune:
-            neptune.send_image('roc_curve.png', roc_curve_fig)
-            neptune.send_image('far_frr_curve.png', far_frr_curve_fig)
-            neptune.log_metric('eer', eer)
-            neptune.log_metric('best_th', best_th)
-            neptune.log_metric('TP', TP)
-            neptune.log_metric('TN', TN)
-            neptune.log_metric('FP', FP)
-            neptune.log_metric('FN', FN)
-            neptune.log_metric('FAR', FAR)
-            neptune.log_metric('FRR', FRR)
-            neptune.log_metric('eval_acc', acc)
+            neptune.send_image(f'roc_curve_{data_src}.png', roc_curve_fig)
+            neptune.send_image(f'far_frr_curve_{data_src}.png', far_frr_curve_fig)
+            neptune.log_metric(f'eer_{data_src}', eer)
+            neptune.log_metric(f'best_th_{data_src}', best_th)
+            neptune.log_metric(f'TP_{data_src}', TP)
+            neptune.log_metric(f'TN_{data_src}', TN)
+            neptune.log_metric(f'FP_{data_src}', FP)
+            neptune.log_metric(f'FN_{data_src}', FN)
+            neptune.log_metric(f'FAR_{data_src}', FAR)
+            neptune.log_metric(f'FRR_{data_src}', FRR)
+            neptune.log_metric(f'eval_acc_{data_src}', acc)
     
     
-    def test_model(self, data_gen, model, is_mtl_model):
+    def test_model(self, data_src, data_gen, model, is_mtl_model):
         print("Testing Trained Model")
         
         print('Predicting labels....')
@@ -188,13 +188,13 @@ class ModelEvaluator:
                 
                 self.y_test_true = np.array(data_gen.labels[idx])
                 
-                self.__log_test_metrics(predIdxs[idx], req, data_gen)
+                self.__log_test_metrics(predIdxs[idx], req, data_gen, data_src)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             
             self.y_test_true = np.array(data_gen.labels)
             
-            self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], data_gen)
+            self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], data_gen, data_src)
     
     
 #     def evaluate_model(self, data_gen, model):
@@ -246,7 +246,7 @@ class ModelEvaluator:
         return upsample
     
     
-    def __select_viz_data(self, data_gen, preds, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
+    def __select_viz_data(self, data_src, data_gen, preds, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
         tmp_df = pd.DataFrame()
         tmp_df['img_name'] = data_gen.filepaths
         tmp_df['comp'] = data_gen.labels
@@ -255,18 +255,18 @@ class ModelEvaluator:
         viz_title = None
         if show_only_fn:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
-            viz_title = "Only False Negatives images" 
+            viz_title = f"Only False Negatives images - {data_src.upper()}" 
         elif show_only_fp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
-            viz_title = "Only False Positive images" 
+            viz_title = f"Only False Positive images - {data_src.upper()}" 
         elif show_only_tp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
-            viz_title = "Only True Positive images" 
+            viz_title = f"Only True Positive images - {data_src.upper()}" 
         elif show_only_tn:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
-            viz_title = "Only True Negatives images" 
+            viz_title = f"Only True Negatives images - {data_src.upper()}" 
         else:
-            viz_title = "Any (TP,FP,TN,FN) images"
+            viz_title = f"Any (TP,FP,TN,FN) images - {data_src.upper()}"
         
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
         
@@ -280,9 +280,9 @@ class ModelEvaluator:
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, base_model, model, test_gen, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
+    def vizualize_predictions(self, data_src, base_model, model, test_gen, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
         preds = self.y_test_hat_discrete
-        tmp_df,viz_title = self.__select_viz_data(test_gen, preds, n_imgs, show_only_fp, show_only_fn,
+        tmp_df,viz_title = self.__select_viz_data(data_src, test_gen, preds, n_imgs, show_only_fp, show_only_fn,
                                        show_only_tp, show_only_tn)
         
         
@@ -297,5 +297,5 @@ class ModelEvaluator:
         f = dr.draw_imgs(imgs, title=viz_title, labels=labels, predictions=preds, heatmaps=heatmaps)
         
         if self.use_neptune:
-            neptune.send_image('predictions_with_heatmaps.png',f)
+            neptune.send_image(f'predictions_with_heatmaps_{data_src}.png',f)
     
