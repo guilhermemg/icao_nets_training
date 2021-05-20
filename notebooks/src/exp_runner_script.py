@@ -45,10 +45,6 @@ def create_config(req, ds, aligned):
                     'early_stopping': 10,
                     'learning_rate': 1e-3,
                     'optimizer': Optimizer.ADAMAX,
-                    'train_prop': 0.9,
-                    'validation_prop': 0.05,
-                    'test_prop': 0.05,
-                    'validation_split': 0.1,
                     'dropout': 0.3
                 }
             }

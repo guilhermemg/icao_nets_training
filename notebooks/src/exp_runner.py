@@ -210,9 +210,12 @@ class ExperimentRunner:
             print('Not saving model!')
 
     
-    def test_model(self):
+    def test_model(self, data_src='test'):
         self.__print_method_log_sig( 'test model')
-        self.model_evaluator.test_model(self.test_gen, self.model, self.is_mtl_model)
+        if data_src == 'test':
+            self.model_evaluator.test_model(self.test_gen, self.model, self.is_mtl_model)
+        elif data_src == 'validation':
+            self.model_evaluator.test_model(self.validation_gen, self.model, self.is_mtl_model)
 
     
     def evaluate_model(self, data_src='test'):
@@ -224,12 +227,18 @@ class ExperimentRunner:
             self.model_evaluator.evaluate_model(self.test_gen, self.model)
     
     
-    def vizualize_predictions(self, n_imgs = 40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
+    def vizualize_predictions(self, data_src = 'test', n_imgs = 40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
         self.__print_method_log_sig( 'vizualize predictions')
-        self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen,
-                                                  n_imgs=n_imgs, 
-                                                  show_only_fp=show_only_fp, show_only_fn=show_only_fn,
-                                                  show_only_tp=show_only_tp, show_only_tn=show_only_tn)
+        if data_src == 'test':
+            self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.test_gen,
+                                                      n_imgs=n_imgs, 
+                                                      show_only_fp=show_only_fp, show_only_fn=show_only_fn,
+                                                      show_only_tp=show_only_tp, show_only_tn=show_only_tn)
+        elif data_src == 'validation':
+            self.model_evaluator.vizualize_predictions(base_model=self.base_model, model=self.model, test_gen=self.validation_gen,
+                                                      n_imgs=n_imgs, 
+                                                      show_only_fp=show_only_fp, show_only_fn=show_only_fn,
+                                                      show_only_tp=show_only_tp, show_only_tn=show_only_tn)
     
 
     def finish_experiment(self):

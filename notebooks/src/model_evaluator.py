@@ -34,6 +34,10 @@ class ModelEvaluator:
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
         self.use_neptune = use_neptune
+        
+        self.THRESH_START_VAL = 0.0
+        self.THRESH_END_VAL = 1.02
+        self.THRESH_STEP_SIZE = 1e-2
     
     
     def __draw_roc_curve(self, fpr, tpr, eer, th, req):
@@ -63,14 +67,14 @@ class ModelEvaluator:
 
     def __calculate_far(self, y_true, y_pred):
         far = []
-        n_attacks = len([x for x in y_true if x == Eval.NON_COMPLIANT.value])
-        th_range = np.arange(0, 1.02, 0.01) 
+        n_non_comp = len([x for x in y_true if x == Eval.NON_COMPLIANT.value])
+        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
         for th in th_range:
             num = 0
             for tr_val,pred in zip(y_true,y_pred):
                 if pred >= th and tr_val == Eval.NON_COMPLIANT.value:
                     num += 1
-            far.append(round((num/n_attacks) * 100, 2))
+            far.append(round((num/n_non_comp) * 100, 2))
 
         far = np.array(far) 
         return far
@@ -78,14 +82,14 @@ class ModelEvaluator:
 
     def __calculate_frr(self, y_true, y_pred):
         frr = []
-        n_reals = len([x for x in y_true if x == Eval.COMPLIANT.value])
-        th_range = np.arange(0, 1.02, 0.01) 
+        n_comp = len([x for x in y_true if x == Eval.COMPLIANT.value])
+        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
         for th in th_range:
             num = 0
             for tr_val,pred in zip(y_true,y_pred):
                 if pred < th and tr_val == Eval.COMPLIANT.value:
                     num += 1
-            frr.append(round((num/n_reals) * 100, 2))
+            frr.append(round((num/n_comp) * 100, 2))
 
         frr = np.array(frr)    
         return frr
@@ -95,7 +99,7 @@ class ModelEvaluator:
         fpr, tpr, ths = roc_curve(y_true, y_pred)
         far = self.__calculate_far(y_true, y_pred)
         frr = self.__calculate_frr(y_true, y_pred)
-        th_range = np.arange(0, 1.02, 0.01)
+        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
 
         eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         best_th = interp1d(fpr, ths)(eer)
@@ -168,12 +172,12 @@ class ModelEvaluator:
             neptune.log_metric('eval_acc', acc)
     
     
-    def test_model(self, test_gen, model, is_mtl_model):
+    def test_model(self, data_gen, model, is_mtl_model):
         print("Testing Trained Model")
         
         print('Predicting labels....')
-        test_gen.reset()
-        predIdxs = model.predict(test_gen, batch_size=self.net_args['batch_size'], verbose=1)
+        data_gen.reset()
+        predIdxs = model.predict(data_gen, batch_size=self.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
         if is_mtl_model:
@@ -182,15 +186,15 @@ class ModelEvaluator:
                     continue
                 print(f'Requisite: {req.value.upper()}')
                 
-                self.y_test_true = np.array(test_gen.labels[idx])
+                self.y_test_true = np.array(data_gen.labels[idx])
                 
-                self.__log_test_metrics(predIdxs[idx], req, test_gen)
+                self.__log_test_metrics(predIdxs[idx], req, data_gen)
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             
-            self.y_test_true = np.array(test_gen.labels)
+            self.y_test_true = np.array(data_gen.labels)
             
-            self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], test_gen)
+            self.__log_test_metrics(predIdxs, self.prop_args['reqs'][0], data_gen)
     
     
 #     def evaluate_model(self, data_gen, model):
