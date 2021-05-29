@@ -1,0 +1,46 @@
+TensorFlow 2.0 Upgrade Script
+-----------------------------
+Converted 1 files
+Detected 1 issues that require attention
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+File: tf1_version/cnn.py
+--------------------------------------------------------------------------------
+tf1_version/cnn.py:42:31: ERROR: Using member tf.contrib.layers.flatten in deprecated module tf.contrib. tf.contrib.layers.flatten cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
+================================================================================
+Detailed log follows:
+
+================================================================================
+--------------------------------------------------------------------------------
+Processing file 'tf1_version/cnn.py'
+ outputting to 'tf2_version/cnn.py'
+--------------------------------------------------------------------------------
+
+9:17: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+12:17: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+13:33: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+14:33: INFO: Renamed 'tf.placeholder' to 'tf.compat.v1.placeholder'
+19:13: INFO: `name` passed to `name_scope`. Because you may be re-entering an existing scope, it is not safe to convert automatically,  the v2 name_scope does not support re-entering scopes by name.
+
+19:13: INFO: Renamed 'tf.name_scope' to 'tf.compat.v1.name_scope'
+21:21: INFO: `name` passed to `name_scope`. Because you may be re-entering an existing scope, it is not safe to convert automatically,  the v2 name_scope does not support re-entering scopes by name.
+
+21:21: INFO: Renamed 'tf.name_scope' to 'tf.compat.v1.name_scope'
+22:31: INFO: Renamed 'tf.layers.conv1d' to 'tf.compat.v1.layers.conv1d'
+30:43: INFO: Changing tf.contrib.layers xavier initializer to a tf.compat.v1.keras.initializers.VarianceScaling and converting arguments.
+
+31:41: INFO: tf.zeros_initializer requires manual check. Initializers no longer have the dtype argument in the constructor or partition_info argument in the __call__ method.
+The calls have been converted to compat.v1 for safety (even though they may already have been correct).
+31:41: INFO: Renamed 'tf.zeros_initializer' to 'tf.compat.v1.zeros_initializer'
+33:31: INFO: Renamed 'tf.layers.max_pooling1d' to 'tf.compat.v1.layers.max_pooling1d'
+40:31: INFO: Changing keep_prob arg of tf.nn.dropout to rate, and recomputing value.
+
+42:31: ERROR: Using member tf.contrib.layers.flatten in deprecated module tf.contrib. tf.contrib.layers.flatten cannot be converted automatically. tf.contrib will not be distributed with TensorFlow 2.0, please consider an alternative in non-contrib TensorFlow, a community-maintained repository such as tensorflow/addons, or fork the required code.
+43:26: INFO: Renamed 'tf.layers.dense' to 'tf.compat.v1.layers.dense'
+46:20: INFO: Changing labels arg of tf.nn.softmax_cross_entropy_with_logits to tf.stop_gradient(labels). Please check this transformation.
+
+47:32: INFO: Added keywords to args of function 'tf.argmax'
+47:63: INFO: Added keywords to args of function 'tf.argmax'
+48:24: INFO: Added keywords to args of function 'tf.reduce_mean'
+--------------------------------------------------------------------------------
+
