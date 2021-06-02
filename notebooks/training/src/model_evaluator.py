@@ -200,15 +200,15 @@ class ModelEvaluator:
         if self.use_neptune:
             self.neptune_run[f'viz/{data_src}/roc_curve'].upload(roc_curve_fig)
             self.neptune_run[f'viz/{data_src}/far_frr_curve'].upload(far_frr_curve_fig)
-            self.neptune_run[f'metrics/{data_src}/eer'].log(eer)
-            self.neptune_run[f'metrics/{data_src}/best_th'].log(best_th)
-            self.neptune_run[f'metrics/{data_src}/TP'].log(TP)
-            self.neptune_run[f'metrics/{data_src}/TN'].log(TN)
-            self.neptune_run[f'metrics/{data_src}/FP'].log(FP)
-            self.neptune_run[f'metrics/{data_src}/FN'].log(FN)
-            self.neptune_run[f'metrics/{data_src}/FAR'].log(FAR)
-            self.neptune_run[f'metrics/{data_src}/FRR'].log(FRR)
-            self.neptune_run[f'metrics/{data_src}/eval_acc'].log(acc)
+            self.neptune_run[f'metrics/{data_src}/eer'] = eer
+            self.neptune_run[f'metrics/{data_src}/best_th'] = best_th
+            self.neptune_run[f'metrics/{data_src}/TP'] = TP
+            self.neptune_run[f'metrics/{data_src}/TN'] = TN
+            self.neptune_run[f'metrics/{data_src}/FP'] = FP
+            self.neptune_run[f'metrics/{data_src}/FN'] = FN
+            self.neptune_run[f'metrics/{data_src}/FAR'] = FAR
+            self.neptune_run[f'metrics/{data_src}/FRR'] = FRR
+            self.neptune_run[f'metrics/{data_src}/eval_acc'] = acc
     
     
     def test_model(self, data_src, data_gen, model, is_mtl_model):
