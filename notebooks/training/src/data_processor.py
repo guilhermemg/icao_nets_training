@@ -1,4 +1,3 @@
-import neptune
 import numpy as np
 import pandas as pd
 
@@ -13,13 +12,14 @@ from utils.constants import SEED
 
 
 class DataProcessor:
-    def __init__(self, prop_args, net_args, is_mtl_model, use_neptune):
+    def __init__(self, prop_args, net_args, is_mtl_model, neptune_run):
         self.prop_args = prop_args
         self.net_args = net_args
         self.is_mtl_model = is_mtl_model
-        self.use_neptune = use_neptune
+        self.neptune_run = neptune_run
+        self.use_neptune = True if neptune_run is not None else False
         self.train_data, self.validation_data, self.test_data = None, None, None
-    
+        
     
     def load_training_data(self):
         print('Loading data')
@@ -230,29 +230,31 @@ class DataProcessor:
             print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
             
             if self.use_neptune:
-                neptune.log_metric(req.name + '_total_train', total_train)
-                neptune.log_metric(req.name + '_n_train_comp', n_train_comp)
-                neptune.log_metric(req.name + '_n_train_not_comp', n_train_not_comp)
-                neptune.log_metric(req.name + '_n_train_dummy', n_train_dummy)
-                neptune.log_metric(req.name + '_prop_n_train_comp', prop_n_train_comp)
-                neptune.log_metric(req.name + '_prop_n_train_not_comp', prop_n_train_not_comp)
-                neptune.log_metric(req.name + '_prop_n_train_dummy', prop_n_train_dummy)
+                neptune_vars_base_path = f'data_props/{req.value}'
                 
-                neptune.log_metric(req.name + '_total_validation', total_validation)
-                neptune.log_metric(req.name + '_n_validation_comp', n_validation_comp)
-                neptune.log_metric(req.name + '_n_validation_not_comp', n_validation_not_comp)
-                neptune.log_metric(req.name + '_n_validation_dummy', n_validation_dummy)
-                neptune.log_metric(req.name + '_prop_n_validation_comp', prop_n_validation_comp)
-                neptune.log_metric(req.name + '_prop_n_validation_not_comp', prop_n_validation_not_comp)
-                neptune.log_metric(req.name + '_prop_n_validation_dummy', prop_n_validation_dummy)
+                self.neptune_run[f'{neptune_vars_base_path}/total_train'] = total_train
+                self.neptune_run[f'{neptune_vars_base_path}/n_train_comp'] = n_train_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_train_not_comp'] = n_train_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_train_dummy'] = n_train_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_comp'] = prop_n_train_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_not_comp'] = prop_n_train_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_dummy'] = prop_n_train_dummy
                 
-                neptune.log_metric(req.name + '_total_test', total_test)
-                neptune.log_metric(req.name + '_n_test_comp', n_test_comp)
-                neptune.log_metric(req.name + '_n_test_not_comp', n_test_not_comp)
-                neptune.log_metric(req.name + '_n_test_dummy', n_test_dummy)
-                neptune.log_metric(req.name + '_prop_n_test_comp', prop_n_test_comp)
-                neptune.log_metric(req.name + '_prop_n_test_not_comp', prop_n_test_not_comp)
-                neptune.log_metric(req.name + '_prop_n_test_dummy', prop_n_test_dummy)
+                self.neptune_run[f'{neptune_vars_base_path}/total_validation'] = total_validation
+                self.neptune_run[f'{neptune_vars_base_path}/n_validation_comp'] = n_validation_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_validation_not_comp'] = n_validation_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_validation_dummy'] = n_validation_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_comp'] = prop_n_validation_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_not_comp'] = prop_n_validation_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_dummy'] = prop_n_validation_dummy
+                
+                self.neptune_run[f'{neptune_vars_base_path}/total_test'] = total_test
+                self.neptune_run[f'{neptune_vars_base_path}/n_test_comp'] = n_test_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_test_not_comp'] = n_test_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/n_test_dummy'] = n_test_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_comp'] = prop_n_test_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_not_comp'] = prop_n_test_not_comp
+                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_dummy'] = prop_n_test_dummy
             
             print('----')
     
@@ -298,27 +300,29 @@ class DataProcessor:
         print(f'GEN_N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
         
         if self.use_neptune:
-            neptune.log_metric('gen_total_train', total_train)
-            neptune.log_metric('gen_n_train_comp', n_train_comp)
-            neptune.log_metric('gen_n_train_non_comp', n_train_non_comp)
-            neptune.log_metric('gen_n_train_dummy', n_train_dummy)
-            neptune.log_metric('gen_prop_n_train_comp', prop_n_train_comp)
-            neptune.log_metric('gen_prop_n_train_non_comp', prop_n_train_non_comp)
-            neptune.log_metric('gen_prop_n_train_dummy', prop_n_train_dummy)
+            neptune_vars_base_path = f'data_props/generators'
             
-            neptune.log_metric('gen_total_valid', total_valid)
-            neptune.log_metric('gen_n_valid_comp', n_valid_comp)
-            neptune.log_metric('gen_n_valid_non_comp', n_valid_non_comp)
-            neptune.log_metric('gen_n_valid_dummy', n_valid_dummy)
-            neptune.log_metric('gen_prop_n_valid_comp', prop_n_valid_comp)
-            neptune.log_metric('gen_prop_n_valid_non_comp', prop_n_valid_non_comp)
-            neptune.log_metric('gen_prop_n_valid_dummy', prop_n_valid_dummy)
+            self.neptune_run[f'{neptune_vars_base_path}/gen_total_train'] = total_train
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_comp'] = n_train_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_non_comp'] = n_train_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_dummy'] = n_train_dummy
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_comp'] = prop_n_train_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_non_comp'] = prop_n_train_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_dummy'] = prop_n_train_dummy
             
-            neptune.log_metric('gen_total_test', total_test)
-            neptune.log_metric('gen_n_test_comp', n_test_comp)
-            neptune.log_metric('gen_n_test_non_comp', n_test_non_comp)
-            neptune.log_metric('gen_n_test_dummy', n_test_dummy)
-            neptune.log_metric('gen_prop_n_test_comp', prop_n_test_comp)
-            neptune.log_metric('gen_prop_n_test_non_comp', prop_n_test_non_comp)
-            neptune.log_metric('gen_prop_n_test_dummy', prop_n_test_dummy)
+            self.neptune_run[f'{neptune_vars_base_path}/gen_total_valid'] = total_valid
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_comp'] = n_valid_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_non_comp'] = n_valid_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_dummy'] = n_valid_dummy
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_comp'] = prop_n_valid_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_non_comp'] = prop_n_valid_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_dummy'] = prop_n_valid_dummy
+            
+            self.neptune_run[f'{neptune_vars_base_path}/gen_total_test'] = total_test
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_comp'] = n_test_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_non_comp'] = n_test_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_dummy'] = n_test_dummy
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_comp'] = prop_n_test_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_non_comp'] = prop_n_test_non_comp
+            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_dummy'] = prop_n_test_dummy
             

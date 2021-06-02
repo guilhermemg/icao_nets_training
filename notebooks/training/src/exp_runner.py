@@ -2,8 +2,9 @@ import os
 import sys
 import yaml
 import pprint
-import neptune
 import argparse
+
+import neptune.new as neptune
 
 if '../../../../notebooks/' not in sys.path:
     sys.path.insert(0, '../../../../notebooks/')
@@ -52,14 +53,17 @@ class ExperimentRunner:
         print('Base Model Name: ', self.base_model)
         print('----')
         
+        self.neptune_run = None
+        self.__start_neptune()
+        
         print('----')
         self.is_mtl_model = len(self.prop_args['reqs']) > 1
         print(f'MTL Model: {self.is_mtl_model}')
         print('----')
         
-        self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.use_neptune)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.use_neptune)
-        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.use_neptune)
+        self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.neptune_run)
+        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
         
     
     def __print_method_log_sig(self, msg):
@@ -109,11 +113,15 @@ class ExperimentRunner:
         self.test_gen = self.data_processor.test_gen
 
     
-    def start_neptune(self):
+    def __start_neptune(self):
         self.__print_method_log_sig( 'start neptune')
         if self.use_neptune:
             print('Starting Neptune')
-            neptune.init('guilhermemg/icao-nets-training')    
+            self.neptune_run = neptune.init(project='guilhermemg/test',
+                                    name=self.exp_args['name'],
+                                    description=self.exp_args['description'],
+                                    tags=self.exp_args['tags'],
+                                    source_files=self.exp_args['src_files'])    
         else:
             print('Not using Neptune')
         
@@ -128,10 +136,10 @@ class ExperimentRunner:
         self.data_processor.summary_gen_labels_dist()    
     
        
-    def create_experiment(self):
+    def setup_experiment(self):
         self.__print_method_log_sig( 'create experiment')
         if self.use_neptune:
-            print('Creating experiment')
+            print('Setup neptune properties and parameters')
 
             params = self.net_args
             params['n_train'] = self.train_gen.n
@@ -156,19 +164,23 @@ class ExperimentRunner:
             props['icao_reqs'] = str([r.value for r in self.prop_args['reqs']])
             props['balance_input_data'] = self.prop_args['balance_input_data']
             props['train_model'] = self.prop_args['train_model']
-            props['model_name'] = self.prop_args['model_name']
             props['orig_model_experiment_id'] = self.prop_args['orig_model_experiment_id']
             props['save_trained_model'] = self.prop_args['save_trained_model']
             props['sample_training_data'] = self.prop_args['sample_training_data']
             props['sample_prop'] = self.prop_args['sample_prop']
             props['is_mtl_model'] = self.is_mtl_model
             
-            neptune.create_experiment( name=self.exp_args['name'],
-                                       params=params,
-                                       properties=props,
-                                       description=self.exp_args['description'],
-                                       tags=self.exp_args['tags'],
-                                       upload_source_files=self.exp_args['src_files'])
+            #neptune.create_experiment( name=self.exp_args['name'],
+            #                           params=params,
+            #                           properties=props,
+            #                           description=self.exp_args['description'],
+            #                           tags=self.exp_args['tags'],
+            #                           upload_source_files=self.exp_args['src_files'])
+            
+            self.neptune_run['params'] = params
+            self.neptune_run['props'] = props
+            
+            print('Properties and parameters setup done!')
         else:
             print('Not using Neptune')
     
@@ -258,7 +270,7 @@ class ExperimentRunner:
         self.__print_method_log_sig( 'finish experiment')
         if self.use_neptune:
             print('Finishing Neptune')
-            neptune.stop()
+            self.neptune_run.stop()
             self.use_neptune = False
         else:
             print('Not using Neptune')

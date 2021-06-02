@@ -1,11 +1,11 @@
 import os
-import neptune
+import shutil
+import zipfile
 import numpy as np
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
 
 from keras.utils.vis_utils import plot_model
 
@@ -38,6 +38,8 @@ from tensorflow.keras.models import load_model
 from enum import Enum
 
 from utils.constants import SEED
+
+import config as cfg
 
 
 ## restrict memory growth -------------------
@@ -74,29 +76,84 @@ class Optimizer(Enum):
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, use_neptune):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, neptune_run):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
-        self.use_neptune = use_neptune
+        self.neptune_run = neptune_run
+        self.use_neptune = True if neptune_run is not None else False
         self.base_model = base_model
         
         self.is_training_model = self.prop_args['train_model']
         
+        self.orig_model_experiment_id = self.prop_args['orig_model_experiment_id']
+        
         self.CHECKPOINT_PATH = os.path.join('training_ckpt', 'best_model.hdf5')
+        self.TRAINED_MODEL_DIR_PATH = None
         
-        model_name = self.prop_args['model_name']
-        if model_name != '':
-            self.TRAINED_MODEL_DIR_PATH = os.path.join('prev_trained_models', model_name)
-        else:
-            if not self.is_training_model:
-                print('Error! Insert model name in field of kwargs')
-            else:
-                self.TRAINED_MODEL_DIR_PATH = os.path.join('trained_model')
-        
+        self.__set_model_path()
+        self.__check_model_existence()
         self.__clear_checkpoints()
         self.__check_gpu_availability()
         
+    
+    def __set_model_path(self):
+        model_path = None
+        if self.orig_model_experiment_id != '':
+            ds = self.prop_args['gt_names']['train_validation_test'][0]
+            aligned = 'aligned' if self.prop_args['aligned'] else 'not_aligned'
+            model_type = 'single_task' if not self.is_mtl_model else 'multi_task'
+            req = self.prop_args['reqs'][0].value if not self.is_mtl_model else 'multi_reqs'
+            model_path = os.path.join('prev_trained_models', f'{model_type}', f'{ds}_{aligned}', f'{req}', f'{self.orig_model_experiment_id}')
+        else:
+            if not self.is_training_model:
+                raise Exception('Insert orig_model_experiment_id in field of kwargs or train a new model!')
+            else:
+                model_path = os.path.join('trained_model')
+        
+        self.TRAINED_MODEL_DIR_PATH = model_path
+    
+    
+    def __download_model(self):
+        print('  Downloading model from Neptune')
+        print(f'  Experiment ID: {self.orig_model_experiment_id}')
+        
+        model_dir_path = self.TRAINED_MODEL_DIR_PATH
+        
+        if os.path.exists(model_dir_path):
+            print('  Model already exists locally')
+            print(f'  Path: {model_dir_path}')
+            return
+        
+        prev_run = neptune.init('guilhermemg/icao-nets-training', api_token=cfg.NEPTUNE_API_TOKEN)
+        my_exp = prev_run.get_experiments(id=self.orig_model_experiment_id)[0]
+    
+        print(f' .. Destination Folder: {model_dir_path}')
+        my_exp.download(path='output', destination_dir=model_dir_path)
+        print(' .. Download done!')
+
+        with zipfile.ZipFile(os.path.join(model_dir_path, 'output.zip'), 'r') as zip_ref:
+            zip_ref.extractall(model_dir_path)
+
+        os.remove(os.path.join(model_dir_path, 'output.zip'))
+        shutil.move(os.path.join(model_dir_path, 'output', 'variables'), model_dir_path)
+        shutil.move(os.path.join(model_dir_path, 'output', 'saved_model.pb'), model_dir_path)
+        shutil.rmtree(os.path.join(model_dir_path, 'output'))
+
+        print('.. Folders set')
+        print('-----------------------------')
+    
+    
+    def __check_model_existence(self):
+        print('----')
+        print('Checking model existence locally...')
+        if self.is_training_model:
+            print('Training a new model! Not checking model existence')
+        else:
+            print('Not training a new model')
+            self.__download_model()
+        print('----')
+    
     
     def __check_gpu_availability(self):
         print('------------------------------')
@@ -203,7 +260,7 @@ class ModelTrainer:
             self.__create_mtl_model()
 
         if self.use_neptune:
-            self.model.summary(print_fn=lambda x: neptune.log_text('model_summary', x))
+            self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
         
         print('Model created')
 
@@ -229,26 +286,26 @@ class ModelTrainer:
     
     def __log_data(self, logs):
         if not self.is_mtl_model:
-            neptune.log_metric('epoch_accuracy', logs['accuracy'])
-            neptune.log_metric('epoch_val_accuracy', logs['val_accuracy'])
-            neptune.log_metric('epoch_loss', logs['loss'])    
-            neptune.log_metric('epoch_val_loss', logs['val_loss'])
+            self.neptune_run['epoch/accuracy'].log(logs['accuracy'])
+            self.neptune_run['epoch/val_accuracy'].log(logs['val_accuracy'])
+            self.neptune_run['epoch/loss'].log(logs['loss'])    
+            self.neptune_run['epoch/val_loss'].log(logs['val_loss'])
         else:
             train_acc_list = []
             val_acc_list = []
             for req in self.prop_args['reqs']:
-                neptune.log_metric(f'epoch_accuracy_{req.value}', logs[f'{req.value}_accuracy'])
-                neptune.log_metric(f'epoch_val_{req.value}_accuracy', logs[f'val_{req.value}_accuracy'])
-                neptune.log_metric(f'epoch_loss_{req.value}', logs[f'{req.value}_loss'])
-                neptune.log_metric(f'epoch_val_{req.value}_loss', logs[f'val_{req.value}_loss'])
-                neptune.log_metric(f'total_loss', logs['loss'])
+                self.neptune_run[f'epoch/{req.value}/accuracy'].log(logs[f'{req.value}_accuracy'])
+                self.neptune_run[f'epoch/{req.value}/val_accuracy'].log(logs[f'val_{req.value}_accuracy'])
+                self.neptune_run[f'epoch/{req.value}/loss'].log(logs[f'{req.value}_loss'])
+                self.neptune_run[f'epoch/{req.value}/val_loss'].log(logs[f'val_{req.value}_loss'])
+                self.neptune_run[f'epoch/total_loss'].log(logs['loss'])
                 
                 train_acc_list.append(logs[f'{req.value}_accuracy'])
                 val_acc_list.append(logs[f'val_{req.value}_accuracy'])
             
             total_acc, total_val_acc = np.mean(train_acc_list), np.mean(val_acc_list)
-            neptune.log_metric('epoch_total_accuracy', total_acc)
-            neptune.log_metric('epoch_total_val_accuracy', total_val_acc)
+            self.neptune_run['epoch/total_accuracy'].log(total_acc)
+            self.neptune_run['epoch/total_val_accuracy'].log(total_val_acc)
             
 
     def __lr_scheduler(self, epoch):
@@ -262,7 +319,7 @@ class ModelTrainer:
             new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
 
         if self.use_neptune:
-            neptune.log_metric('learning_rate', new_lr)
+            self.neptune_run['learning_rate'].log(new_lr)
             
         return new_lr
     
@@ -322,6 +379,8 @@ class ModelTrainer:
 
     def vizualize_model(self, outfile_path=None):
         display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
+        if self.use_neptune:
+            self.neptune_run['viz/model_architecture'].upload(outfile_path)
 
     
     def train_model(self, train_gen, validation_gen):
@@ -418,7 +477,7 @@ class ModelTrainer:
             plt.show()
 
             if self.use_neptune:
-                neptune.send_image('training_curves.png',f)
+                self.neptune_run['viz/train/training_curves'].upload(f)
         else:
             print('Not training a model')
     
@@ -445,6 +504,14 @@ class ModelTrainer:
     
     def save_trained_model(self):
         if self.prop_args['save_trained_model']:
+            def zipdir(path):
+                outfile_path = 'trained_model.zip'
+                with zipfile.ZipFile(outfile_path, 'w', zipfile.ZIP_DEFLATED) as ziph:
+                    for root, dirs, files in os.walk(path):
+                        for file in files:
+                            ziph.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.join(path, '..')))
+                return outfile_path
+            
             print('Saving model')
 
             self.model.save(self.TRAINED_MODEL_DIR_PATH)
@@ -452,9 +519,10 @@ class ModelTrainer:
             print(f'...Model path: {self.TRAINED_MODEL_DIR_PATH}')
 
             if self.use_neptune:
-                print('..Saving model to neptune..')
-                for item in os.listdir(self.TRAINED_MODEL_DIR_PATH):
-                    neptune.log_artifact(os.path.join(self.TRAINED_MODEL_DIR_PATH, item))
+                print('Saving model to neptune')
+                trained_model_zip_path = zipdir(self.TRAINED_MODEL_DIR_PATH)
+                print(f' ..Uploading file {trained_model_zip_path}')
+                self.neptune_run['artifacts/trained_model'].upload(trained_model_zip_path)
                 print('Model saved into Neptune')
 
             self.model.training = False

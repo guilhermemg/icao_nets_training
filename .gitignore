@@ -35,3 +35,11 @@ notebooks/exp_config.yaml
 notebooks/exp_logs/
 
 notebooks/analysis/single_task_nets/prev_trained_models/
+
+notebooks/training/figs/
+
+notebooks/training/.neptune/
+
+notebooks/training/trained_model/
+
+notebooks/training/training_ckpt/

@@ -1,8 +1,9 @@
 import cv2
-import neptune
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+
+from enum import Enum
 
 import matplotlib.pyplot as plt
 
@@ -28,16 +29,35 @@ import utils.draw_utils as dr
 
 from utils.constants import SEED
 
+
+class DataSource(Enum):
+    VALIDATION = 'validation'
+    TEST = 'test'  
+    
+
 class ModelEvaluator:
-    def __init__(self, net_args, prop_args, is_mtl_model, use_neptune):
+    def __init__(self, net_args, prop_args, is_mtl_model, neptune_run):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
-        self.use_neptune = use_neptune
+        self.neptune_run = neptune_run
+        self.use_neptune = True if neptune_run is not None else False
+        
+        self.metrics_var_base_path = None  # base path of metrics-variables in Neptune
+        self.viz_var_base_path = None # base path of vizualizations-variables in Neptune
         
         self.THRESH_START_VAL = 0.0
         self.THRESH_END_VAL = 1.02
         self.THRESH_STEP_SIZE = 1e-2
+    
+    
+    def set_data_src(self, data_src):
+        if data_src in list(DataSource):
+            self.data_src = data_src
+            self.metrics_var_base_path = f'metrics/{self.data_src.value}'
+            self.viz_var_base_path = f'viz/{self.data_src.value}'
+        else:
+            raise Exception(f'Error! Invalid data source. Valid Options: {list(DataSource)}')
     
     
     def __draw_roc_curve(self, fpr, tpr, eer, th, req, data_src):
@@ -178,17 +198,17 @@ class ModelEvaluator:
         FAR,FRR,TN,FP,FN,TP = self.get_confusion_matrix(self.y_test_true, self.y_test_hat_discrete)
         
         if self.use_neptune:
-            neptune.send_image(f'roc_curve_{data_src}.png', roc_curve_fig)
-            neptune.send_image(f'far_frr_curve_{data_src}.png', far_frr_curve_fig)
-            neptune.log_metric(f'eer_{data_src}', eer)
-            neptune.log_metric(f'best_th_{data_src}', best_th)
-            neptune.log_metric(f'TP_{data_src}', TP)
-            neptune.log_metric(f'TN_{data_src}', TN)
-            neptune.log_metric(f'FP_{data_src}', FP)
-            neptune.log_metric(f'FN_{data_src}', FN)
-            neptune.log_metric(f'FAR_{data_src}', FAR)
-            neptune.log_metric(f'FRR_{data_src}', FRR)
-            neptune.log_metric(f'eval_acc_{data_src}', acc)
+            self.neptune_run[f'viz/{data_src}/roc_curve'].upload(roc_curve_fig)
+            self.neptune_run[f'viz/{data_src}/far_frr_curve'].upload(far_frr_curve_fig)
+            self.neptune_run[f'metrics/{data_src}/eer'].log(eer)
+            self.neptune_run[f'metrics/{data_src}/best_th'].log(best_th)
+            self.neptune_run[f'metrics/{data_src}/TP'].log(TP)
+            self.neptune_run[f'metrics/{data_src}/TN'].log(TN)
+            self.neptune_run[f'metrics/{data_src}/FP'].log(FP)
+            self.neptune_run[f'metrics/{data_src}/FN'].log(FN)
+            self.neptune_run[f'metrics/{data_src}/FAR'].log(FAR)
+            self.neptune_run[f'metrics/{data_src}/FRR'].log(FRR)
+            self.neptune_run[f'metrics/{data_src}/eval_acc'].log(acc)
     
     
     def test_model(self, data_src, data_gen, model, is_mtl_model):
@@ -271,27 +291,32 @@ class ModelEvaluator:
         tmp_df['comp'] = data_gen.labels
         tmp_df['pred'] = preds
         
-        viz_title = None
+        viz_title, neptune_viz_path = None, None
         if show_only_fn:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
             viz_title = f"Only False Negatives images - {data_src.upper()}" 
+            neptune_viz_path = f'viz/{data_src}/predictions_with_heatmaps_fn_only'
         elif show_only_fp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
             viz_title = f"Only False Positive images - {data_src.upper()}" 
+            neptune_viz_path = f'viz/{data_src}/predictions_with_heatmaps_fp_only'
         elif show_only_tp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
             viz_title = f"Only True Positive images - {data_src.upper()}" 
+            neptune_viz_path = f'viz/{data_src}/predictions_with_heatmaps_tp_only'
         elif show_only_tn:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
             viz_title = f"Only True Negatives images - {data_src.upper()}" 
+            neptune_viz_path = f'viz/{data_src}/predictions_with_heatmaps_tn_only'
         else:
             viz_title = f"Any (TP,FP,TN,FN) images - {data_src.upper()}"
+            neptune_viz_path = f'viz/{data_src}/predictions_with_heatmaps_any_img'
         
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
         
         tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
         
-        return tmp_df, viz_title
+        return tmp_df, viz_title, neptune_viz_path
     
     
     def __get_img_name(self, img_path):
@@ -301,13 +326,13 @@ class ModelEvaluator:
     # and log the resulting images in a grid to neptune
     def vizualize_predictions(self, data_src, base_model, model, test_gen, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
         preds = self.y_test_hat_discrete
-        tmp_df,viz_title = self.__select_viz_data(data_src, test_gen, preds, n_imgs, show_only_fp, show_only_fn,
-                                       show_only_tp, show_only_tn)
+        tmp_df,viz_title, neptune_viz_path = self.__select_viz_data(data_src, test_gen, preds, n_imgs, show_only_fp, show_only_fn,
+                                                                       show_only_tp, show_only_tn)
         
         
-        labels = [f'COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
+        labels = [f'GT: COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'GT: NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         
-        preds = [f'COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
+        preds = [f'GT: COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'GT: NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
         
         heatmaps = [self.__calc_heatmap(im_name, base_model, model) for im_name in tmp_df.img_name.values]
         
@@ -316,5 +341,5 @@ class ModelEvaluator:
         f = dr.draw_imgs(imgs, title=viz_title, labels=labels, predictions=preds, heatmaps=heatmaps)
         
         if self.use_neptune:
-            neptune.send_image(f'predictions_with_heatmaps_{data_src}.png',f)
+            self.neptune_run[neptune_viz_path].upload(f)
     
