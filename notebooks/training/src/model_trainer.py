@@ -3,6 +3,8 @@ import shutil
 import zipfile
 import numpy as np
 
+import neptune.new as neptune
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -38,9 +40,6 @@ from tensorflow.keras.models import load_model
 from enum import Enum
 
 from utils.constants import SEED
-
-import config as cfg
-
 
 ## restrict memory growth -------------------
 
@@ -100,7 +99,7 @@ class ModelTrainer:
     def __set_model_path(self):
         model_path = None
         if self.orig_model_experiment_id != '':
-            ds = self.prop_args['gt_names']['train_validation_test'][0]
+            ds = self.prop_args['gt_names']['train_validation_test'][0].value
             aligned = 'aligned' if self.prop_args['aligned'] else 'not_aligned'
             model_type = 'single_task' if not self.is_mtl_model else 'multi_task'
             req = self.prop_args['reqs'][0].value if not self.is_mtl_model else 'multi_reqs'
@@ -115,30 +114,29 @@ class ModelTrainer:
     
     
     def __download_model(self):
-        print('  Downloading model from Neptune')
-        print(f'  Experiment ID: {self.orig_model_experiment_id}')
+        print(f'Trained model dir path: {self.TRAINED_MODEL_DIR_PATH}')
         
-        model_dir_path = self.TRAINED_MODEL_DIR_PATH
-        
-        if os.path.exists(model_dir_path):
-            print('  Model already exists locally')
-            print(f'  Path: {model_dir_path}')
+        if os.path.exists(self.TRAINED_MODEL_DIR_PATH):
+            print('  Model already exists locally. Not downloading!')
             return
         
-        prev_run = neptune.init('guilhermemg/icao-nets-training', api_token=cfg.NEPTUNE_API_TOKEN)
-        my_exp = prev_run.get_experiments(id=self.orig_model_experiment_id)[0]
-    
-        print(f' .. Destination Folder: {model_dir_path}')
-        my_exp.download(path='output', destination_dir=model_dir_path)
+        print(f'..Downloading model from Neptune')
+        print(f'..Experiment ID: {self.orig_model_experiment_id}')
+        print(f'..Destination Folder: {self.TRAINED_MODEL_DIR_PATH}')
+        
+        destination_folder = self.TRAINED_MODEL_DIR_PATH
+        
+        prev_run = neptune.init(run=self.orig_model_experiment_id)
+        prev_run['artifacts/trained_model'].download(destination_folder)
         print(' .. Download done!')
 
-        with zipfile.ZipFile(os.path.join(model_dir_path, 'output.zip'), 'r') as zip_ref:
-            zip_ref.extractall(model_dir_path)
+        with zipfile.ZipFile(os.path.join(destination_folder, 'trained_model.zip'), 'r') as zip_ref:
+            zip_ref.extractall(destination_folder)
 
-        os.remove(os.path.join(model_dir_path, 'output.zip'))
-        shutil.move(os.path.join(model_dir_path, 'output', 'variables'), model_dir_path)
-        shutil.move(os.path.join(model_dir_path, 'output', 'saved_model.pb'), model_dir_path)
-        shutil.rmtree(os.path.join(model_dir_path, 'output'))
+        os.remove(os.path.join(destination_folder, 'trained_model.zip'))
+        shutil.move(os.path.join(destination_folder, 'trained_model', 'variables'), destination_folder)
+        shutil.move(os.path.join(destination_folder, 'trained_model', 'saved_model.pb'), destination_folder)
+        shutil.rmtree(os.path.join(destination_folder, 'trained_model'))
 
         print('.. Folders set')
         print('-----------------------------')
@@ -264,6 +262,16 @@ class ModelTrainer:
         
         print('Model created')
 
+        
+    def model_summary(self):
+        if self.is_training_model:
+            self.model.summary()
+        
+            if self.use_neptune:
+                self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
+        else:
+            print('Not training a model!')
+        
     
     def __get_optimizer(self):
         opt = None
@@ -409,8 +417,34 @@ class ModelTrainer:
                     epochs=self.net_args['n_epochs'],
                     callbacks=callbacks_list)
         else:
-            print('Not training a model')
+            print(f'Not training a model. Downloading data from Neptune')
+            self.__get_acc_and_loss_data()
 
+    
+    # download accuracy and loss series data from neptune
+    # (previous experiment) and log them to current experiment
+    def __get_acc_and_loss_data(self):
+        print(f' ..Experiment ID: {self.orig_model_experiment_id}')
+        print(f' ..Downloading data from previous experiment')
+        prev_run = neptune.init(run=self.orig_model_experiment_id)
+        
+        logs = {}
+        acc_series = prev_run['logs/epoch_accuracy'].fetch_values()['value']
+        val_acc_series = prev_run['logs/eopch_val_accuracy'].fetch_values()['value']
+        loss_series = prev_run['logs/epoch_loss'].fetch_values()['value']
+        val_loss_series = prev_run['logs/eopch_val_loss'].fetch_values()['value']
+        print(f' ..Download finished')
+        
+        print(f' ..Upload data to current experiment')
+        for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
+            self.neptune_run['epoch/accuracy'].log(acc)
+            self.neptune_run['epoch/val_accuracy'].log(val_acc)
+            self.neptune_run['epoch/loss'].log(loss)    
+            self.neptune_run['epoch/val_loss'].log(loss_val)
+        
+        print(f' ..Upload finished')
+        
+    
     
     def draw_training_history(self):
         if self.is_training_model:
@@ -479,7 +513,22 @@ class ModelTrainer:
             if self.use_neptune:
                 self.neptune_run['viz/train/training_curves'].upload(f)
         else:
-            print('Not training a model')
+            print('Not training a model. Downloading plot from Neptune')
+            self.__get_training_curves()
+    
+    
+    # download training curves plot from Neptune previous experiment
+    # and upload it to the current one
+    def __get_training_curves(self):
+        print(f' ..Experiment ID: {self.orig_model_experiment_id}')
+        print(f' ..Downloading plot from previous experiment')
+        prev_run = neptune.init(run=self.orig_model_experiment_id)
+        prev_run['logs/training_curves.png'].download()
+        print(f' ..Download finished')
+        
+        print(f' ..Uploading plot')
+        self.neptune_run['viz/train/training_curves'].upload('training_curves.png')
+        print(f' ..Upload finished')
     
     
     def load_checkpoint(self, chkp_name):

@@ -43,3 +43,5 @@ notebooks/training/.neptune/
 notebooks/training/trained_model/
 
 notebooks/training/training_ckpt/
+
+notebooks/training/trained_model.zip

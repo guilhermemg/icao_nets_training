@@ -11,7 +11,7 @@ if '../../../../notebooks/' not in sys.path:
     
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
-from model_evaluator import ModelEvaluator
+from model_evaluator import ModelEvaluator, DataSource
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -20,6 +20,7 @@ import config as cfg
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 os.environ['NEPTUNE_API_TOKEN'] = cfg.NEPTUNE_API_TOKEN
+os.environ['NEPTUNE_PROJECT'] = cfg.NEPTUNE_PROJECT
 
 
 class ExperimentRunner:
@@ -48,6 +49,8 @@ class ExperimentRunner:
         self.prop_args = kwargs['properties']
         self.net_args = kwargs['net_train_params']
         
+        self.__kwargs_sanity_check()
+        
         self.base_model = self.net_args['base_model']
         print('----')
         print('Base Model Name: ', self.base_model)
@@ -64,7 +67,32 @@ class ExperimentRunner:
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
         self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.neptune_run)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
+    
+    
+    def __kwargs_sanity_check(self):
+        has_experiment_id = True if self.prop_args['orig_model_experiment_id'] != '' else False
+        is_training_new_model = self.prop_args['train_model']
+        is_saving_trained_model = self.prop_args['save_trained_model']
         
+        if not has_experiment_id and not is_training_new_model:
+            raise Exception('You must train a new model or provide an experiment ID')
+        if has_experiment_id and is_training_new_model:
+            raise Exception('You cannot train a new model and provice an experiment ID')
+        #if has_experiment_id and is_saving_trained_model:
+        #    raise Exception('You cannot save a model already registered in Neptune with the provided experiment ID. Avoid waste of hard drive space!')
+            
+    
+    def __start_neptune(self):
+        self.__print_method_log_sig( 'start neptune')
+        if self.use_neptune:
+            print('Starting Neptune')
+            self.neptune_run = neptune.init(name=self.exp_args['name'],
+                                            description=self.exp_args['description'],
+                                            tags=self.exp_args['tags'],
+                                            source_files=self.exp_args['src_files'])    
+        else:
+            print('Not using Neptune to record Experiment Metadata')
+    
     
     def __print_method_log_sig(self, msg):
         print(f'-------------------- {msg} -------------------')
@@ -112,19 +140,6 @@ class ExperimentRunner:
         self.validation_gen = self.data_processor.validation_gen
         self.test_gen = self.data_processor.test_gen
 
-    
-    def __start_neptune(self):
-        self.__print_method_log_sig( 'start neptune')
-        if self.use_neptune:
-            print('Starting Neptune')
-            self.neptune_run = neptune.init(project='guilhermemg/test',
-                                    name=self.exp_args['name'],
-                                    description=self.exp_args['description'],
-                                    tags=self.exp_args['tags'],
-                                    source_files=self.exp_args['src_files'])    
-        else:
-            print('Not using Neptune')
-        
     
     def summary_labels_dist(self):
         self.__print_method_log_sig( 'summary labels dist')
@@ -205,6 +220,10 @@ class ExperimentRunner:
         self.model_trainer.draw_training_history()
     
     
+    def model_summary(self):
+        self.model_trainer.model_summary()
+    
+    
     def load_checkpoint(self, chkp_name):
         self.__print_method_log_sig( 'load checkpoint')
         self.model_trainer.load_checkpoint(chkp_name)
@@ -225,45 +244,34 @@ class ExperimentRunner:
             print('Not saving model!')
 
     
-    def test_model(self, data_src='test'):
-        self.__print_method_log_sig( 'test model')
-        if data_src == 'test':
-            self.model_evaluator.test_model(data_src, self.test_gen, self.model, self.is_mtl_model)
-        elif data_src == 'validation':
-            self.model_evaluator.test_model(data_src, self.validation_gen, self.model, self.is_mtl_model)
-
-    
-    def evaluate_model(self, data_src='test'):
-        self.__print_method_log_sig( 'evaluate model')
-        if data_src == 'validation':
-            self.model_evaluator.evaluate_model(data_src, self.validation_gen, self.model)
-        elif data_src == 'test':
-            self.test_gen.reset()
-            self.model_evaluator.evaluate_model(data_src, self.test_gen, self.model)
+    def set_model_evaluator_data_src(self, data_src):
+        self.model_evaluator.set_data_src(data_src)
     
     
-    def vizualize_predictions(self, data_src='test', n_imgs=40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
+    def test_model(self):
+        if self.model_evaluator.data_src.value == DataSource.TEST.value:
+            self.model_evaluator.test_model(self.test_gen, self.model)
+        if self.model_evaluator.data_src.value == DataSource.VALIDATION.value:
+            self.model_evaluator.test_model(self.validation_gen, self.model)
+            
+    
+    def vizualize_predictions(self, n_imgs=40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
         self.__print_method_log_sig( 'vizualize predictions')
-        if data_src == 'test':
-            self.model_evaluator.vizualize_predictions(data_src=data_src,
-                                                       base_model=self.base_model, 
-                                                       model=self.model, 
-                                                       test_gen=self.test_gen,
-                                                       n_imgs=n_imgs, 
-                                                       show_only_fp=show_only_fp, 
-                                                       show_only_fn=show_only_fn,
-                                                       show_only_tp=show_only_tp, 
-                                                       show_only_tn=show_only_tn)
-        elif data_src == 'validation':
-            self.model_evaluator.vizualize_predictions(data_src=data_src,
-                                                       base_model=self.base_model, 
-                                                       model=self.model, 
-                                                       test_gen=self.validation_gen,
-                                                       n_imgs=n_imgs, 
-                                                       show_only_fp=show_only_fp, 
-                                                       show_only_fn=show_only_fn,
-                                                       show_only_tp=show_only_tp, 
-                                                       show_only_tn=show_only_tn)
+        
+        data_gen = None
+        if self.model_evaluator.data_src.value == DataSource.TEST.value:
+            data_gen = self.test_gen
+        elif self.model_evaluator.data_src.value == DataSource.VALIDATION.value:
+            data_gen = self.validation_gen
+        
+        self.model_evaluator.vizualize_predictions(base_model=self.base_model, 
+                                                   model=self.model, 
+                                                   data_gen=data_gen,
+                                                   n_imgs=n_imgs, 
+                                                   show_only_fp=show_only_fp, 
+                                                   show_only_fn=show_only_fn,
+                                                   show_only_tp=show_only_tp, 
+                                                   show_only_tn=show_only_tn)
     
 
     def finish_experiment(self):
@@ -283,28 +291,33 @@ class ExperimentRunner:
         self.balance_input_data()
         self.setup_data_generators()
         try:
-            self.start_neptune()
-            self.create_experiment()
+            self.setup_experiment()
             self.summary_labels_dist()
             self.summary_gen_labels_dist()
             self.create_model()
+            self.vizualize_model(outfile_path=f"figs/{model_name.replace('/','_')}.png")
             self.train_model()
             self.draw_training_history()
             self.load_best_model()
             self.save_model()
-            self.test_model(data_src='validation')
-            self.vizualize_predictions(data_src='validation', n_imgs=50)
-            self.vizualize_predictions(data_src='validation', n_imgs=50, show_only_tp=True)
-            self.vizualize_predictions(data_src='validation', n_imgs=50, show_only_fp=True)
-            self.vizualize_predictions(data_src='validation', n_imgs=50, show_only_fn=True)
-            self.vizualize_predictions(data_src='validation', n_imgs=50, show_only_tn=True)
-            self.test_model(data_src='test')
-            self.vizualize_predictions(data_src='test', n_imgs=50)
-            self.vizualize_predictions(data_src='test', n_imgs=50, show_only_tp=True)
-            self.vizualize_predictions(data_src='test', n_imgs=50, show_only_fp=True)
-            self.vizualize_predictions(data_src='test', n_imgs=50, show_only_fn=True)
-            self.vizualize_predictions(data_src='test', n_imgs=50, show_only_tn=True)
+            
+            self.set_model_evaluator_data_src(DataSorce.VALIDATION)
+            self.test_model()
+            self.vizualize_predictions(n_imgs=50)
+            self.vizualize_predictions(n_imgs=50, show_only_tp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fn=True)
+            self.vizualize_predictions(n_imgs=50, show_only_tn=True)
+            
+            self.set_model_evaluator_data_src(DataSorce.TEST)
+            self.test_model()
+            self.vizualize_predictions(n_imgs=50)
+            self.vizualize_predictions(n_imgs=50, show_only_tp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fp=True)
+            self.vizualize_predictions(n_imgs=50, show_only_fn=True)
+            self.vizualize_predictions(n_imgs=50, show_only_tn=True)
             return 0
+        
         except Exception as e:
             print(f'ERROR: {e}')
             return 1
