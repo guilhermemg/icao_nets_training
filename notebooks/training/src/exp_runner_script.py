@@ -2,8 +2,8 @@ import os
 import sys
 import pprint
 
-if '../../../notebooks/' not in sys.path:
-    sys.path.insert(0, '../../../notebooks/')
+if '../../../../notebooks/' not in sys.path:
+    sys.path.insert(0, '../../../../notebooks/')
 
 import utils.constants as cts
 
@@ -17,16 +17,13 @@ from model_trainer import BaseModel, Optimizer
 
 
 def create_config(req, ds, aligned):
-    src_files = [os.path.join(dp, f) for dp, dn, filenames in os.walk('src') for f in filenames if os.path.splitext(f)[1] == '.py']
-    src_files = [x for x in src_files if 'ipynb' not in x]
-    
     return { 
                 'use_neptune': True,
                 'exp_params' : {
                     'name': 'train_vgg16',
                     'description': f'Training network for {req.value.upper()} requisite.',
                     'tags': ['vgg16', 'ground truths', 'adamax', ds.value.lower(), 'binary_output', req.value.lower()],
-                    'src_files': src_files
+                    'src_files': ['src/*.py']
                 },
                 'properties': {
                     'reqs': [req],
@@ -40,7 +37,6 @@ def create_config(req, ds, aligned):
                     'balance_input_data': False,
                     'train_model': True,
                     'save_trained_model': True,
-                    'model_name': '',
                     'orig_model_experiment_id': '',
                     'sample_training_data': False,
                     'sample_prop': 1.
@@ -73,7 +69,7 @@ if __name__ == '__main__':
     #if os.path.exists('exp_logs/single_task_logs.log'):
     #    os.remove('exp_logs/single_task_logs.log')
     
-    reqs_list = [cts.ICAO_REQ.FRAMES_HEAVY, cts.ICAO_REQ.VEIL, cts.ICAO_REQ.WASHED_OUT, cts.ICAO_REQ.INK_MARK]
+    reqs_list = list(cts.ICAO_REQ)[:4]
     ds_list = [GTName.FVC]
     align_list = [False]
     

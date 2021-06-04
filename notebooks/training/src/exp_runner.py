@@ -77,9 +77,7 @@ class ExperimentRunner:
         if not has_experiment_id and not is_training_new_model:
             raise Exception('You must train a new model or provide an experiment ID')
         if has_experiment_id and is_training_new_model:
-            raise Exception('You cannot train a new model and provice an experiment ID')
-        #if has_experiment_id and is_saving_trained_model:
-        #    raise Exception('You cannot save a model already registered in Neptune with the provided experiment ID. Avoid waste of hard drive space!')
+            raise Exception('You cannot train a new model and provide an experiment ID')
             
     
     def __start_neptune(self):
@@ -295,13 +293,13 @@ class ExperimentRunner:
             self.summary_labels_dist()
             self.summary_gen_labels_dist()
             self.create_model()
-            self.vizualize_model(outfile_path=f"figs/{model_name.replace('/','_')}.png")
+            self.vizualize_model(outfile_path=f"figs/model_architecture.png")
             self.train_model()
             self.draw_training_history()
             self.load_best_model()
             self.save_model()
             
-            self.set_model_evaluator_data_src(DataSorce.VALIDATION)
+            self.set_model_evaluator_data_src(DataSource.VALIDATION)
             self.test_model()
             self.vizualize_predictions(n_imgs=50)
             self.vizualize_predictions(n_imgs=50, show_only_tp=True)
@@ -309,7 +307,7 @@ class ExperimentRunner:
             self.vizualize_predictions(n_imgs=50, show_only_fn=True)
             self.vizualize_predictions(n_imgs=50, show_only_tn=True)
             
-            self.set_model_evaluator_data_src(DataSorce.TEST)
+            self.set_model_evaluator_data_src(DataSource.TEST)
             self.test_model()
             self.vizualize_predictions(n_imgs=50)
             self.vizualize_predictions(n_imgs=50, show_only_tp=True)

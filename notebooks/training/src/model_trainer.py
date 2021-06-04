@@ -9,6 +9,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from IPython.display import display
+
 from keras.utils.vis_utils import plot_model
 
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
@@ -47,6 +49,8 @@ import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU') 
 try: 
     tf.config.experimental.set_memory_growth(physical_devices[0], True) 
+    tf.config.experimental.set_virtual_device_configuration(
+        physical_devices[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 
@@ -112,34 +116,81 @@ class ModelTrainer:
         
         self.TRAINED_MODEL_DIR_PATH = model_path
     
+
+    def __check_prev_run_fields(self, prev_run):
+        print('-----')
+        print(' ..Checking previous experiment metadata')
+
+        prev_run_req = prev_run['props/icao_reqs'].fetch()
+        prev_run_aligned = float(prev_run['props/aligned'].fetch())
+        prev_run_ds = prev_run['props/gt_names'].fetch()
+
+        print(f' ...Prev Exp | Req: {prev_run_req}')
+        print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
+        print(f' ...Prev Exp | DS: {prev_run_ds}')
+
+        cur_run_req = str([self.prop_args['reqs'][0].value])
+        cur_run_aligned = float(int(self.prop_args['aligned']))
+        gt_names_formatted = {
+            'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
+            'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
+            'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
+        }
+        cur_run_ds = str({'gt_names': str(gt_names_formatted)})
+
+        print(f' ...Current Exp | Req: {cur_run_req}')
+        print(f' ...Current Exp | Aligned: {cur_run_aligned}')
+        print(f' ...Current Exp | DS: {cur_run_ds}')
+
+        if prev_run_req != cur_run_req:
+            raise Exception('Previous experiment Requisite field does not match current experiment Requisite field!')
+        if prev_run_aligned != cur_run_aligned:
+            raise Exception('Previous experiment Aligned field does not match current experiment Aligned field!')
+        if prev_run_req != cur_run_req:
+            raise Exception('Previous experiment DS fields does not match current experiment DS field!')
+
+        print(' ..All checked!')
+        print('-----')
+    
     
     def __download_model(self):
-        print(f'Trained model dir path: {self.TRAINED_MODEL_DIR_PATH}')
-        
-        if os.path.exists(self.TRAINED_MODEL_DIR_PATH):
-            print('  Model already exists locally. Not downloading!')
-            return
-        
-        print(f'..Downloading model from Neptune')
-        print(f'..Experiment ID: {self.orig_model_experiment_id}')
-        print(f'..Destination Folder: {self.TRAINED_MODEL_DIR_PATH}')
-        
-        destination_folder = self.TRAINED_MODEL_DIR_PATH
-        
-        prev_run = neptune.init(run=self.orig_model_experiment_id)
-        prev_run['artifacts/trained_model'].download(destination_folder)
-        print(' .. Download done!')
+        try:
+            print(f'Trained model dir path: {self.TRAINED_MODEL_DIR_PATH}')
+            prev_run = None
+            
+            if os.path.exists(self.TRAINED_MODEL_DIR_PATH):
+                print('  Model already exists locally. Not downloading!')
+                return
 
-        with zipfile.ZipFile(os.path.join(destination_folder, 'trained_model.zip'), 'r') as zip_ref:
-            zip_ref.extractall(destination_folder)
+            prev_run = neptune.init(run=self.orig_model_experiment_id)
 
-        os.remove(os.path.join(destination_folder, 'trained_model.zip'))
-        shutil.move(os.path.join(destination_folder, 'trained_model', 'variables'), destination_folder)
-        shutil.move(os.path.join(destination_folder, 'trained_model', 'saved_model.pb'), destination_folder)
-        shutil.rmtree(os.path.join(destination_folder, 'trained_model'))
+            self.__check_prev_run_fields(prev_run)
 
-        print('.. Folders set')
-        print('-----------------------------')
+            print(f'..Downloading model from Neptune')
+            print(f'..Experiment ID: {self.orig_model_experiment_id}')
+            print(f'..Destination Folder: {self.TRAINED_MODEL_DIR_PATH}')
+
+            os.mkdir(self.TRAINED_MODEL_DIR_PATH)
+            destination_folder = self.TRAINED_MODEL_DIR_PATH
+
+            prev_run['artifacts/trained_model'].download(destination_folder)
+            print(' .. Download done!')
+
+            with zipfile.ZipFile(os.path.join(destination_folder, 'trained_model.zip'), 'r') as zip_ref:
+                zip_ref.extractall(destination_folder)
+
+            os.remove(os.path.join(destination_folder, 'trained_model.zip'))
+            shutil.move(os.path.join(destination_folder, 'trained_model', 'variables'), destination_folder)
+            shutil.move(os.path.join(destination_folder, 'trained_model', 'saved_model.pb'), destination_folder)
+            shutil.rmtree(os.path.join(destination_folder, 'trained_model'))
+
+            print('.. Folders set')
+            print('-----------------------------')
+        except Exception as e:
+            raise e
+        finally:
+            if prev_run is not None:
+                prev_run.stop()
     
     
     def __check_model_existence(self):
@@ -416,33 +467,43 @@ class ModelTrainer:
                     validation_steps=validation_gen.n // self.net_args['batch_size'],
                     epochs=self.net_args['n_epochs'],
                     callbacks=callbacks_list)
-        else:
+        
+        elif not self.is_training_model and self.use_neptune:
             print(f'Not training a model. Downloading data from Neptune')
             self.__get_acc_and_loss_data()
+        
+        else:
+            print(f'Not training a model and not using Neptune!')
 
     
     # download accuracy and loss series data from neptune
     # (previous experiment) and log them to current experiment
     def __get_acc_and_loss_data(self):
-        print(f' ..Experiment ID: {self.orig_model_experiment_id}')
-        print(f' ..Downloading data from previous experiment')
-        prev_run = neptune.init(run=self.orig_model_experiment_id)
-        
-        logs = {}
-        acc_series = prev_run['logs/epoch_accuracy'].fetch_values()['value']
-        val_acc_series = prev_run['logs/eopch_val_accuracy'].fetch_values()['value']
-        loss_series = prev_run['logs/epoch_loss'].fetch_values()['value']
-        val_loss_series = prev_run['logs/eopch_val_loss'].fetch_values()['value']
-        print(f' ..Download finished')
-        
-        print(f' ..Upload data to current experiment')
-        for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
-            self.neptune_run['epoch/accuracy'].log(acc)
-            self.neptune_run['epoch/val_accuracy'].log(val_acc)
-            self.neptune_run['epoch/loss'].log(loss)    
-            self.neptune_run['epoch/val_loss'].log(loss_val)
-        
-        print(f' ..Upload finished')
+        try:
+            print(f' ..Experiment ID: {self.orig_model_experiment_id}')
+            print(f' ..Downloading data from previous experiment')
+            prev_run = neptune.init(run=self.orig_model_experiment_id)
+            
+            logs = {}
+            acc_series = prev_run['epoch/accuracy'].fetch_values()['value']
+            val_acc_series = prev_run['epoch/val_accuracy'].fetch_values()['value']
+            loss_series = prev_run['epoch/loss'].fetch_values()['value']
+            val_loss_series = prev_run['epoch/val_loss'].fetch_values()['value']
+            print(f' ..Download finished')
+
+            print(f' ..Upload data to current experiment')
+            for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
+                self.neptune_run['epoch/accuracy'].log(acc)
+                self.neptune_run['epoch/val_accuracy'].log(val_acc)
+                self.neptune_run['epoch/loss'].log(loss)    
+                self.neptune_run['epoch/val_loss'].log(loss_val)
+
+            print(f' ..Upload finished')
+        except Exception as e:
+            print('Error in __get_acc_and_loss_data()')
+            raise e
+        finally:
+            prev_run.stop()
         
     
     
@@ -512,23 +573,33 @@ class ModelTrainer:
 
             if self.use_neptune:
                 self.neptune_run['viz/train/training_curves'].upload(f)
-        else:
+        
+        elif not self.is_training_model and self.use_neptune:
             print('Not training a model. Downloading plot from Neptune')
             self.__get_training_curves()
+        
+        else:
+            print('Not training a model and not using Neptune!')
     
     
     # download training curves plot from Neptune previous experiment
     # and upload it to the current one
     def __get_training_curves(self):
-        print(f' ..Experiment ID: {self.orig_model_experiment_id}')
-        print(f' ..Downloading plot from previous experiment')
-        prev_run = neptune.init(run=self.orig_model_experiment_id)
-        prev_run['logs/training_curves.png'].download()
-        print(f' ..Download finished')
-        
-        print(f' ..Uploading plot')
-        self.neptune_run['viz/train/training_curves'].upload('training_curves.png')
-        print(f' ..Upload finished')
+        try:
+            print(f' ..Experiment ID: {self.orig_model_experiment_id}')
+            print(f' ..Downloading plot from previous experiment')
+            prev_run = neptune.init(run=self.orig_model_experiment_id)
+            prev_run['logs/training_curves.png'].download()
+            print(f' ..Download finished')
+
+            print(f' ..Uploading plot')
+            self.neptune_run['viz/train/training_curves'].upload('training_curves.png')
+            print(f' ..Upload finished')
+        except Exception as e:
+            print('Error in __get_training_curves()')
+            raise e
+        finally:
+            prev_run.stop()
     
     
     def load_checkpoint(self, chkp_name):

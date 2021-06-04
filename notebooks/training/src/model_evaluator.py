@@ -138,39 +138,20 @@ class ModelEvaluator:
         frr = self.__calculate_frr(y_true, y_pred)
         th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
         
-        eer = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-        best_th = interp1d(fpr, ths)(eer)
+        EER_interp = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
+        best_th = interp1d(fpr, ths)(EER_interp)
         
-        #print(f'ths: {ths}')
-        #print(f'fpr: {fpr[:20]}')
-        #print(f'tpr: {tpr[:20]}')
-        #print(f'FPRxTPR: eer: {eer} | best_th: {best_th}')
-        
-        #print(f'far: {far[:20]}')
-        #print(f'frr: {frr[:20]}')
-        #eer2 = brentq(lambda x : 1. - x - interp1d(far, frr)(x), 0., 1.)
-        #best_th2 = interp1d(fpr, ths)(eer)
-        #print(f'FARxFRR: eer: {eer2} | best_th: {best_th2}')
-        
-        #fnr = 1 - tpr
-        #print(np.absolute((fnr - fpr)))
-        #print(np.nanargmin(np.absolute((fnr - fpr))))
-        #eer_threshold = ths[np.nanargmin(np.absolute((fnr - fpr)))]
-        #EER_2 = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
-        #EER_3 = fnr[np.nanargmin(np.absolute((fnr - fpr)))]
-        #print(f'thresh: {eer_threshold} | EER_2: {EER_2} | EER_3: {EER_3}')
-
-        self.__draw_roc_curve(fpr, tpr, eer, best_th, req)
-        self.__draw_far_frr_curve(th_range, frr, far, eer, req, best_th)
+        self.__draw_roc_curve(fpr, tpr, EER_interp, best_th, req)
+        self.__draw_far_frr_curve(th_range, frr, far, EER_interp, req, best_th)
 
         best_th = best_th.tolist()
-        eer = round(eer, 4)
-        print(f'Requisite: {req.upper()} - EER: {eer*100}% - Best Threshold: {best_th}')
+        EER_interp = round(EER_interp, 4)
+        print(f'Requisite: {req.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
 
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
             
         if self.use_neptune:
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/eer'] = eer
+            self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_interp'] = EER_interp
             self.neptune_run[f'{self.metrics_var_base_path}/{req}/best_th'] = best_th
 
 
@@ -198,12 +179,12 @@ class ModelEvaluator:
             raise Exception('Call method make_predictions() and calculate_eer() before calculate_accuracy()!')
         
         print('Accuracy ------------------------------------------------')
-        acc = round(accuracy_score(self.y_test_true, self.y_test_hat_discrete), 4)
-        print(f'Model Accuracy: {acc*100}%')
+        ACC = round(accuracy_score(self.y_test_true, self.y_test_hat_discrete), 4)
+        print(f'Model Accuracy: {ACC*100}%')
         print('---------------------------------------------------------')
         
         if self.use_neptune:
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/eval_acc'] = acc
+            self.neptune_run[f'{self.metrics_var_base_path}/{req}/ACC'] = ACC
 
 
     def get_confusion_matrix(self, req):
@@ -216,7 +197,9 @@ class ModelEvaluator:
                                        labels=[Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]).ravel()
         FAR = round(FP/(FP+TN),4)
         FRR = round(FN/(FN+TP),4)
-        print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
+        EER_mean = round((FAR+FRR)/2.,4)
+        
+        print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
         if self.use_neptune:
             self.neptune_run[f'{self.metrics_var_base_path}/{req}/TP'] = TP
@@ -225,6 +208,7 @@ class ModelEvaluator:
             self.neptune_run[f'{self.metrics_var_base_path}/{req}/FN'] = FN
             self.neptune_run[f'{self.metrics_var_base_path}/{req}/FAR'] = FAR
             self.neptune_run[f'{self.metrics_var_base_path}/{req}/FRR'] = FRR
+            self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_mean'] = EER_mean
 
     
     def __calculate_metrics(self, predIdxs, data_gen, req):
