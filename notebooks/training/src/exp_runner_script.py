@@ -69,7 +69,14 @@ if __name__ == '__main__':
     #if os.path.exists('exp_logs/single_task_logs.log'):
     #    os.remove('exp_logs/single_task_logs.log')
     
-    reqs_list = list(cts.ICAO_REQ)[:4]
+    reqs_list = [cts.ICAO_REQ.RED_EYES, 
+                 cts.ICAO_REQ.BACKGROUND, 
+                 cts.ICAO_REQ.HAIR_EYES,
+                 cts.ICAO_REQ.PIXELATION,
+                 cts.ICAO_REQ.WASHED_OUT,
+                 cts.ICAO_REQ.SKIN_TONE,
+                 cts.ICAO_REQ.BLURRED,
+                 cts.ICAO_REQ.INK_MARK]
     ds_list = [GTName.FVC]
     align_list = [False]
     

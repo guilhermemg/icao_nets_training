@@ -7,6 +7,8 @@ from enum import Enum
 
 import matplotlib.pyplot as plt
 
+from neptune.new.types import File
+
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 from sklearn.metrics import roc_curve
@@ -286,6 +288,7 @@ class ModelEvaluator:
         tmp_df['img_name'] = data_gen.filepaths
         tmp_df['comp'] = data_gen.labels
         tmp_df['pred'] = preds
+        partition = ''
         
         data_src_uppercase = self.data_src.value.upper()
         data_src_lowercase = self.data_src.value.lower()
@@ -295,25 +298,37 @@ class ModelEvaluator:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
             viz_title = f"Only False Negatives images - {data_src_uppercase}" 
             neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_fn_only'
+            partition = 'fn'
         elif show_only_fp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
             viz_title = f"Only False Positive images - {data_src_uppercase}" 
             neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_fp_only'
+            partition = 'fp'
         elif show_only_tp:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
             viz_title = f"Only True Positive images - {data_src_uppercase}" 
             neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_tp_only'
+            partition = 'tp'
         elif show_only_tn:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
             viz_title = f"Only True Negatives images - {data_src_uppercase}" 
             neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_tn_only'
+            partition = 'tn'
         else:
             viz_title = f"Any (TP,FP,TN,FN) images - {data_src_uppercase}"
             neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_any_img'
+            partition = 'all'
         
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
         
         tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
+        
+        if self.use_neptune:
+            for index, row in tmp_df.iterrows():
+                filename = row['img_name']
+                self.neptune_run[str('sample_images/'+self.data_src.value.upper()+'/'+partition)].log(File(filename))
+        
+        return tmp_df, viz_title, neptune_viz_path
         
         return tmp_df, viz_title, neptune_viz_path
     

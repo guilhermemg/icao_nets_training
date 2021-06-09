@@ -43,18 +43,18 @@ from enum import Enum
 
 from utils.constants import SEED
 
-## restrict memory growth -------------------
 
+## restrict memory growth -------------------
 import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU') 
-try: 
-    tf.config.experimental.set_memory_growth(physical_devices[0], True) 
-    tf.config.experimental.set_virtual_device_configuration(
-        physical_devices[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
+try:
+    gpu_0 = physical_devices[0]
+    tf.config.experimental.set_memory_growth(gpu_0, True) 
+    tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
-
 ## restrict memory growth ------------------- 
+
 
 
 class BaseModel(Enum):
@@ -212,6 +212,7 @@ class ModelTrainer:
         else:
             print(' ..GPU is NOT available!')
         print('------------------------------')
+    
     
     
     def __clear_checkpoints(self):
