@@ -117,54 +117,57 @@ class ModelTrainer:
         self.TRAINED_MODEL_DIR_PATH = model_path
     
 
-    def __check_prev_run_fields(self, prev_run):
-        print('-----')
-        print(' ..Checking previous experiment metadata')
+    def __check_prev_run_fields(self):
+        try:
+            print('-----')
+            print(' ..Checking previous experiment metadata')
+            
+            prev_run = None
+            prev_run = neptune.init(run=self.orig_model_experiment_id)
+            
+            prev_run_req = prev_run['props/icao_reqs'].fetch()
+            prev_run_aligned = float(prev_run['props/aligned'].fetch())
+            prev_run_ds = prev_run['props/gt_names'].fetch()
 
-        prev_run_req = prev_run['props/icao_reqs'].fetch()
-        prev_run_aligned = float(prev_run['props/aligned'].fetch())
-        prev_run_ds = prev_run['props/gt_names'].fetch()
+            print(f' ...Prev Exp | Req: {prev_run_req}')
+            print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
+            print(f' ...Prev Exp | DS: {prev_run_ds}')
 
-        print(f' ...Prev Exp | Req: {prev_run_req}')
-        print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
-        print(f' ...Prev Exp | DS: {prev_run_ds}')
+            cur_run_req = str([self.prop_args['reqs'][0].value])
+            cur_run_aligned = float(int(self.prop_args['aligned']))
+            gt_names_formatted = {
+                'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
+                'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
+                'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
+            }
+            cur_run_ds = str({'gt_names': str(gt_names_formatted)})
 
-        cur_run_req = str([self.prop_args['reqs'][0].value])
-        cur_run_aligned = float(int(self.prop_args['aligned']))
-        gt_names_formatted = {
-            'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
-            'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
-            'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
-        }
-        cur_run_ds = str({'gt_names': str(gt_names_formatted)})
+            print(f' ...Current Exp | Req: {cur_run_req}')
+            print(f' ...Current Exp | Aligned: {cur_run_aligned}')
+            print(f' ...Current Exp | DS: {cur_run_ds}')
 
-        print(f' ...Current Exp | Req: {cur_run_req}')
-        print(f' ...Current Exp | Aligned: {cur_run_aligned}')
-        print(f' ...Current Exp | DS: {cur_run_ds}')
+            if prev_run_req != cur_run_req:
+                raise Exception('Previous experiment Requisite field does not match current experiment Requisite field!')
+            if prev_run_aligned != cur_run_aligned:
+                raise Exception('Previous experiment Aligned field does not match current experiment Aligned field!')
+            if prev_run_req != cur_run_req:
+                raise Exception('Previous experiment DS fields does not match current experiment DS field!')
 
-        if prev_run_req != cur_run_req:
-            raise Exception('Previous experiment Requisite field does not match current experiment Requisite field!')
-        if prev_run_aligned != cur_run_aligned:
-            raise Exception('Previous experiment Aligned field does not match current experiment Aligned field!')
-        if prev_run_req != cur_run_req:
-            raise Exception('Previous experiment DS fields does not match current experiment DS field!')
-
-        print(' ..All checked!')
-        print('-----')
+            print(' ..All checked!')
+            print('-----')
+        
+        except Exception as e:
+            raise e
+        finally:
+            if prev_run is not None:
+                prev_run.stop()
     
     
     def __download_model(self):
         try:
             print(f'Trained model dir path: {self.TRAINED_MODEL_DIR_PATH}')
             prev_run = None
-            
-            if os.path.exists(self.TRAINED_MODEL_DIR_PATH):
-                print('  Model already exists locally. Not downloading!')
-                return
-
             prev_run = neptune.init(run=self.orig_model_experiment_id)
-
-            self.__check_prev_run_fields(prev_run)
 
             print(f'..Downloading model from Neptune')
             print(f'..Experiment ID: {self.orig_model_experiment_id}')
@@ -199,8 +202,13 @@ class ModelTrainer:
         if self.is_training_model:
             print('Training a new model! Not checking model existence')
         else:
-            print('Not training a new model')
-            self.__download_model()
+            if os.path.exists(self.TRAINED_MODEL_DIR_PATH):
+                print('Model already exists locally. Not downloading!')
+                print(f'Trained model dir path: {self.TRAINED_MODEL_DIR_PATH}')
+                self.__check_prev_run_fields()
+            else:
+                self.__check_prev_run_fields()
+                self.__download_model()
         print('----')
     
     
@@ -590,7 +598,7 @@ class ModelTrainer:
             print(f' ..Experiment ID: {self.orig_model_experiment_id}')
             print(f' ..Downloading plot from previous experiment')
             prev_run = neptune.init(run=self.orig_model_experiment_id)
-            prev_run['logs/training_curves.png'].download()
+            prev_run['viz/train/training_curves'].download()
             print(f' ..Download finished')
 
             print(f' ..Uploading plot')

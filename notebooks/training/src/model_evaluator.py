@@ -35,6 +35,14 @@ from utils.constants import SEED
 class DataSource(Enum):
     VALIDATION = 'validation'
     TEST = 'test'  
+
+    
+class DataPredSelection(Enum):
+    ANY = {'title': 'Any (TP,FP,TN,FN) images', 'abv': 'any_imgs'}
+    ONLY_FP = {'title': 'Only False Positives images', 'abv': 'fp_only'}
+    ONLY_FN = {'title': 'Only False Negatives images', 'abv': 'fn_only'}
+    ONLY_TP = {'title': 'Only True Positives images', 'abv': 'tp_only'}
+    ONLY_TN = {'title': 'Only True Negatives images', 'abv': 'tn_only'}
     
 
 class ModelEvaluator:
@@ -281,54 +289,43 @@ class ModelEvaluator:
 
         upsample = cv2.resize(heatmap[0], base_model.value['target_size'])
         return upsample
+        
+    
+    def __log_imgs_sample(self, data_df, data_pred_selection):
+        if self.use_neptune:
+            print(f"Logging sample of {data_pred_selection.value['abv'].upper()} images to Neptune")
+            for index, row in data_df.iterrows():
+                self.neptune_run[f"images/{self.data_src.value.lower()}/{data_pred_selection.value['abv']}"].log(File(row['img_name']))
+        else:
+            print('Not using Neptune!')
     
     
-    def __select_viz_data(self, data_gen, preds, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
+    def __select_viz_data(self, data_gen, preds, n_imgs, data_pred_selection):
         tmp_df = pd.DataFrame()
         tmp_df['img_name'] = data_gen.filepaths
         tmp_df['comp'] = data_gen.labels
         tmp_df['pred'] = preds
-        partition = ''
         
         data_src_uppercase = self.data_src.value.upper()
         data_src_lowercase = self.data_src.value.lower()
         
         viz_title, neptune_viz_path = None, None
-        if show_only_fn:
+        if data_pred_selection.name == DataPredSelection.ONLY_FN.name:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
-            viz_title = f"Only False Negatives images - {data_src_uppercase}" 
-            neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_fn_only'
-            partition = 'fn'
-        elif show_only_fp:
+        elif data_pred_selection.name == DataPredSelection.ONLY_FP.name:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
-            viz_title = f"Only False Positive images - {data_src_uppercase}" 
-            neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_fp_only'
-            partition = 'fp'
-        elif show_only_tp:
+        elif data_pred_selection.name == DataPredSelection.ONLY_TP.name:
             tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
-            viz_title = f"Only True Positive images - {data_src_uppercase}" 
-            neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_tp_only'
-            partition = 'tp'
-        elif show_only_tn:
+        elif data_pred_selection.name == DataPredSelection.ONLY_TN.name:
             tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
-            viz_title = f"Only True Negatives images - {data_src_uppercase}" 
-            neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_tn_only'
-            partition = 'tn'
-        else:
-            viz_title = f"Any (TP,FP,TN,FN) images - {data_src_uppercase}"
-            neptune_viz_path = f'viz/{data_src_lowercase}/predictions_with_heatmaps_any_img'
-            partition = 'all'
         
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
-        
         tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
         
-        if self.use_neptune:
-            for index, row in tmp_df.iterrows():
-                filename = row['img_name']
-                self.neptune_run[str('sample_images/'+self.data_src.value.upper()+'/'+partition)].log(File(filename))
+        self.__log_imgs_sample(tmp_df, data_pred_selection)
         
-        return tmp_df, viz_title, neptune_viz_path
+        viz_title = f"{data_pred_selection.value['title']} - {self.data_src.value.upper()}" 
+        neptune_viz_path = f"{self.viz_var_base_path}/predictions_with_heatmaps/{data_pred_selection.value['abv']}"
         
         return tmp_df, viz_title, neptune_viz_path
     
@@ -338,16 +335,9 @@ class ModelEvaluator:
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, base_model, model, data_gen, n_imgs, show_only_fp, show_only_fn, show_only_tp, show_only_tn):
+    def vizualize_predictions(self, base_model, model, data_gen, n_imgs, data_pred_selection):
         preds = self.y_test_hat_discrete
-        tmp_df,viz_title, neptune_viz_path = self.__select_viz_data(data_gen, 
-                                                                    preds, 
-                                                                    n_imgs, 
-                                                                    show_only_fp, 
-                                                                    show_only_fn,
-                                                                    show_only_tp, 
-                                                                    show_only_tn)
-        
+        tmp_df,viz_title, neptune_viz_path = self.__select_viz_data(data_gen, preds, n_imgs, data_pred_selection)
         
         labels = [f'GT: COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'GT: NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         

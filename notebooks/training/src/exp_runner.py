@@ -11,7 +11,7 @@ if '../../../../notebooks/' not in sys.path:
     
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
-from model_evaluator import ModelEvaluator, DataSource
+from model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -253,7 +253,7 @@ class ExperimentRunner:
             self.model_evaluator.test_model(self.validation_gen, self.model)
             
     
-    def vizualize_predictions(self, n_imgs=40, show_only_fp=False, show_only_fn=False, show_only_tp=False, show_only_tn=False):
+    def vizualize_predictions(self, n_imgs=40, data_pred_selection=DataPredSelection.ANY):
         self.__print_method_log_sig( 'vizualize predictions')
         
         data_gen = None
@@ -266,10 +266,7 @@ class ExperimentRunner:
                                                    model=self.model, 
                                                    data_gen=data_gen,
                                                    n_imgs=n_imgs, 
-                                                   show_only_fp=show_only_fp, 
-                                                   show_only_fn=show_only_fn,
-                                                   show_only_tp=show_only_tp, 
-                                                   show_only_tn=show_only_tn)
+                                                   data_pred_selection=data_pred_selection)
     
 
     def finish_experiment(self):
@@ -302,18 +299,18 @@ class ExperimentRunner:
             self.set_model_evaluator_data_src(DataSource.VALIDATION)
             self.test_model()
             self.vizualize_predictions(n_imgs=50)
-            self.vizualize_predictions(n_imgs=50, show_only_tp=True)
-            self.vizualize_predictions(n_imgs=50, show_only_fp=True)
-            self.vizualize_predictions(n_imgs=50, show_only_fn=True)
-            self.vizualize_predictions(n_imgs=50, show_only_tn=True)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
             
             self.set_model_evaluator_data_src(DataSource.TEST)
             self.test_model()
             self.vizualize_predictions(n_imgs=50)
-            self.vizualize_predictions(n_imgs=50, show_only_tp=True)
-            self.vizualize_predictions(n_imgs=50, show_only_fp=True)
-            self.vizualize_predictions(n_imgs=50, show_only_fn=True)
-            self.vizualize_predictions(n_imgs=50, show_only_tn=True)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
+            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
             return 0
         
         except Exception as e:

@@ -49,3 +49,5 @@ notebooks/training/trained_model.zip
 notebooks/analysis/prev_trained_models
 
 notebooks/analysis/single_task_nets/.neptune/
+
+notebooks/training/training_curves.png
