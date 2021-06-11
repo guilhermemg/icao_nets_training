@@ -181,6 +181,45 @@ class DataProcessor:
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
     
+        self.__log_class_indices()
+        self.__log_class_labels()
+
+    
+    def __log_class_indices(self):
+        print('')
+        print('Logging class indices')
+        
+        train_class_indices = self.train_gen.class_indices
+        valid_class_indices = self.validation_gen.class_indices
+        test_class_indices = self.test_gen.class_indices
+        
+        print(f' ..Train Generator: {train_class_indices}')
+        print(f' ..Valid Generator: {valid_class_indices}')
+        print(f' ..Test Generator: {test_class_indices}')
+        
+        if self.use_neptune:
+            self.neptune_run['properties/class_indices_train'] = str(train_class_indices)
+            self.neptune_run['properties/class_indices_valid'] = str(valid_class_indices)
+            self.neptune_run['properties/class_indices_test'] = str(test_class_indices)
+    
+    
+    def __log_class_labels(self):
+        print('')
+        print('Logging class labels')
+        
+        print(f' COMPLIANT label: {Eval.COMPLIANT.value}')
+        print(f' NON_COMPLIANT label: {Eval.NON_COMPLIANT.value}')
+        print(f' DUMMY label: {Eval.DUMMY.value}')
+        print(f' DUMMY_CLS label: {Eval.DUMMY_CLS.value}')
+        print(f' NO_ANSWER label: {Eval.NO_ANSWER.value}')
+        
+        if self.use_neptune:
+            self.neptune_run['properties/labels'] = str({'compliant':Eval.COMPLIANT.value, 
+                                                         'non_compliant':Eval.NON_COMPLIANT.value,
+                                                         'dummy':Eval.DUMMY.value,
+                                                         'dummy_cls':Eval.DUMMY_CLS.value,
+                                                         'no_answer':Eval.NO_ANSWER.value})
+    
     
     def summary_labels_dist(self):
         comp_val = Eval.COMPLIANT.value if self.is_mtl_model else str(Eval.COMPLIANT.value)
