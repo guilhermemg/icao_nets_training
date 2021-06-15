@@ -125,9 +125,9 @@ class ModelTrainer:
             prev_run = None
             prev_run = neptune.init(run=self.orig_model_experiment_id)
             
-            prev_run_req = prev_run['props/icao_reqs'].fetch()
-            prev_run_aligned = float(prev_run['props/aligned'].fetch())
-            prev_run_ds = prev_run['props/gt_names'].fetch()
+            prev_run_req = prev_run['properties/icao_reqs'].fetch()
+            prev_run_aligned = float(prev_run['properties/aligned'].fetch())
+            prev_run_ds = prev_run['properties/gt_names'].fetch()
 
             print(f' ...Prev Exp | Req: {prev_run_req}')
             print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
@@ -181,11 +181,13 @@ class ModelTrainer:
 
             with zipfile.ZipFile(os.path.join(destination_folder, 'trained_model.zip'), 'r') as zip_ref:
                 zip_ref.extractall(destination_folder)
-
+            
+            folder_name = [x for x in os.listdir(destination_folder) if '.zip' not in x][0]
+            
             os.remove(os.path.join(destination_folder, 'trained_model.zip'))
-            shutil.move(os.path.join(destination_folder, 'trained_model', 'variables'), destination_folder)
-            shutil.move(os.path.join(destination_folder, 'trained_model', 'saved_model.pb'), destination_folder)
-            shutil.rmtree(os.path.join(destination_folder, 'trained_model'))
+            shutil.move(os.path.join(destination_folder, folder_name, 'variables'), destination_folder)
+            shutil.move(os.path.join(destination_folder, folder_name, 'saved_model.pb'), destination_folder)
+            shutil.rmtree(os.path.join(destination_folder, folder_name))
 
             print('.. Folders set')
             print('-----------------------------')
@@ -638,7 +640,11 @@ class ModelTrainer:
                 with zipfile.ZipFile(outfile_path, 'w', zipfile.ZIP_DEFLATED) as ziph:
                     for root, dirs, files in os.walk(path):
                         for file in files:
-                            ziph.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), os.path.join(path, '..')))
+                            filename = os.path.join(root, file)
+                            arcname = os.path.relpath(os.path.join(root, file), os.path.join(path, '..'))
+                            if self.orig_model_experiment_id in arcname:
+                                arcname = arcname.replace(self.orig_model_experiment_id, 'trained_model')
+                            ziph.write(filename, arcname)
                 return outfile_path
             
             print('Saving model')

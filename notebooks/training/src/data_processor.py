@@ -189,18 +189,23 @@ class DataProcessor:
         print('')
         print('Logging class indices')
         
-        train_class_indices = self.train_gen.class_indices
-        valid_class_indices = self.validation_gen.class_indices
-        test_class_indices = self.test_gen.class_indices
+        if not self.is_mtl_model:
         
-        print(f' ..Train Generator: {train_class_indices}')
-        print(f' ..Valid Generator: {valid_class_indices}')
-        print(f' ..Test Generator: {test_class_indices}')
+            train_class_indices = self.train_gen.class_indices
+            valid_class_indices = self.validation_gen.class_indices
+            test_class_indices = self.test_gen.class_indices
+
+            print(f' ..Train Generator: {train_class_indices}')
+            print(f' ..Valid Generator: {valid_class_indices}')
+            print(f' ..Test Generator: {test_class_indices}')
+
+            if self.use_neptune:
+                self.neptune_run['properties/class_indices_train'] = str(train_class_indices)
+                self.neptune_run['properties/class_indices_valid'] = str(valid_class_indices)
+                self.neptune_run['properties/class_indices_test'] = str(test_class_indices)
         
-        if self.use_neptune:
-            self.neptune_run['properties/class_indices_train'] = str(train_class_indices)
-            self.neptune_run['properties/class_indices_valid'] = str(valid_class_indices)
-            self.neptune_run['properties/class_indices_test'] = str(test_class_indices)
+        else:
+            print(' .. MTL model not logging class indices!')
     
     
     def __log_class_labels(self):

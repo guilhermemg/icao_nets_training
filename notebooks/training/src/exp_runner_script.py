@@ -2,6 +2,8 @@ import os
 import sys
 import pprint
 
+import pandas as pd
+
 if '../../../../notebooks/' not in sys.path:
     sys.path.insert(0, '../../../../notebooks/')
 
@@ -14,6 +16,15 @@ from data_loaders.data_loader import DLName
 from gt_loaders.gt_names import GTName
 from exp_runner import ExperimentRunner
 from model_trainer import BaseModel, Optimizer
+
+
+def get_experiment_id(req, aligned, ds):
+    df = pd.read_csv('../analysis/single_task_nets/single_task_exps_data/icao-nets-training-2.csv')
+    req_name = f"['{req.value.lower()}']"
+    model_exp_id = df[(df['properties/icao_reqs'].str.contains(req_name, regex=False, case=False)) & 
+                      (df['properties/aligned'] == float(aligned)) & 
+                      (df['properties/gt_names'].str.contains(ds.value.lower()))].Id.values[0]
+    return model_exp_id
 
 
 def create_config(req, ds, aligned):
@@ -35,9 +46,9 @@ def create_config(req, ds, aligned):
                         'train_validation_test': [ds]
                     },
                     'balance_input_data': False,
-                    'train_model': True,
+                    'train_model': False,
                     'save_trained_model': True,
-                    'orig_model_experiment_id': '',
+                    'orig_model_experiment_id': get_experiment_id(req, aligned, ds),
                     'sample_training_data': False,
                     'sample_prop': 1.
                 },
@@ -69,19 +80,14 @@ if __name__ == '__main__':
     #if os.path.exists('exp_logs/single_task_logs.log'):
     #    os.remove('exp_logs/single_task_logs.log')
     
-    reqs_list = [cts.ICAO_REQ.RED_EYES, 
-                 cts.ICAO_REQ.BACKGROUND, 
-                 cts.ICAO_REQ.HAIR_EYES,
-                 cts.ICAO_REQ.PIXELATION,
-                 cts.ICAO_REQ.WASHED_OUT,
-                 cts.ICAO_REQ.SKIN_TONE,
-                 cts.ICAO_REQ.BLURRED,
-                 cts.ICAO_REQ.INK_MARK]
+    reqs_list = list(cts.ICAO_REQ)
     ds_list = [GTName.FVC]
     align_list = [False]
     
     lock = mp.Lock()
     for req in reqs_list:
+        if req.name == cts.ICAO_REQ.INK_MARK.name:
+            pass
         for ds in ds_list:
             for alig in align_list:
                 exp_cf = create_config(req, ds, alig)

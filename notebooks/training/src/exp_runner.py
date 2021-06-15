@@ -190,8 +190,8 @@ class ExperimentRunner:
             #                           tags=self.exp_args['tags'],
             #                           upload_source_files=self.exp_args['src_files'])
             
-            self.neptune_run['params'] = params
-            self.neptune_run['props'] = props
+            self.neptune_run['parameters'] = params
+            self.neptune_run['properties'] = props
             
             print('Properties and parameters setup done!')
         else:

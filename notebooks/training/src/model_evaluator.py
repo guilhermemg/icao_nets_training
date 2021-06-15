@@ -120,7 +120,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.use_neptune:
-            self.neptune_run[f'{self.viz_var_base_path}/{req}/far_frr_curve.png'].upload(fig)
+            self.neptune_run[f'{self.viz_var_base_path}/far_frr_curve.png'].upload(fig)
 
 
     def __draw_roc_curve(self, fpr, tpr, eer, th, req):
@@ -133,7 +133,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.use_neptune:
-            self.neptune_run[f'{self.viz_var_base_path}/{req}/roc_curve.png'].upload(fig)
+            self.neptune_run[f'{self.viz_var_base_path}/roc_curve.png'].upload(fig)
     
     
     def calculate_eer(self, req):
@@ -159,10 +159,14 @@ class ModelEvaluator:
         print(f'Requisite: {req.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
 
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
-            
+        
         if self.use_neptune:
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_interp'] = EER_interp
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/best_th'] = best_th
+            if not self.is_mtl_model:
+                self.neptune_run[f'{self.metrics_var_base_path}/EER_interp'] = EER_interp
+                self.neptune_run[f'{self.metrics_var_base_path}/best_th'] = best_th
+            else:
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_interp'] = EER_interp
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/best_th'] = best_th
 
 
     def get_classification_report(self, data_gen):
@@ -194,7 +198,10 @@ class ModelEvaluator:
         print('---------------------------------------------------------')
         
         if self.use_neptune:
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/ACC'] = ACC
+            if not self.is_mtl_model:
+                self.neptune_run[f'{self.metrics_var_base_path}/ACC'] = ACC
+            else:
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/ACC'] = ACC
 
 
     def get_confusion_matrix(self, req):
@@ -212,13 +219,22 @@ class ModelEvaluator:
         print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
         if self.use_neptune:
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/TP'] = TP
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/TN'] = TN
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/FP'] = FP
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/FN'] = FN
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/FAR'] = FAR
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/FRR'] = FRR
-            self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_mean'] = EER_mean
+            if not self.is_mtl_model:
+                self.neptune_run[f'{self.metrics_var_base_path}/TP'] = TP
+                self.neptune_run[f'{self.metrics_var_base_path}/TN'] = TN
+                self.neptune_run[f'{self.metrics_var_base_path}/FP'] = FP
+                self.neptune_run[f'{self.metrics_var_base_path}/FN'] = FN
+                self.neptune_run[f'{self.metrics_var_base_path}/FAR'] = FAR
+                self.neptune_run[f'{self.metrics_var_base_path}/FRR'] = FRR
+                self.neptune_run[f'{self.metrics_var_base_path}/EER_mean'] = EER_mean
+            else:
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/TP'] = TP
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/TN'] = TN
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FP'] = FP
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FN'] = FN
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FAR'] = FAR
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FRR'] = FRR
+                self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_mean'] = EER_mean
 
     
     def __calculate_metrics(self, predIdxs, data_gen, req):
@@ -243,8 +259,8 @@ class ModelEvaluator:
         
         if self.is_mtl_model:
             for idx,req in enumerate(self.prop_args['reqs']):
-                #if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
-                #    continue
+                if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
+                    continue
                 print(f'Requisite: {req.value.upper()}')
                 self.y_test_true = np.array(data_gen.labels[idx])
                 self.__calculate_metrics(predIdxs[idx], data_gen, req)
@@ -322,7 +338,7 @@ class ModelEvaluator:
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
         tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
         
-        self.__log_imgs_sample(tmp_df, data_pred_selection)
+        #self.__log_imgs_sample(tmp_df, data_pred_selection)
         
         viz_title = f"{data_pred_selection.value['title']} - {self.data_src.value.upper()}" 
         neptune_viz_path = f"{self.viz_var_base_path}/predictions_with_heatmaps/{data_pred_selection.value['abv']}"
