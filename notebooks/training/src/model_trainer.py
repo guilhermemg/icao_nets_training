@@ -132,8 +132,11 @@ class ModelTrainer:
             print(f' ...Prev Exp | Req: {prev_run_req}')
             print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
             print(f' ...Prev Exp | DS: {prev_run_ds}')
-
-            cur_run_req = str([self.prop_args['reqs'][0].value])
+            
+            if not self.is_mtl_model:
+                cur_run_req = str([self.prop_args['reqs'][0].value])
+            else:
+                cur_run_req = str([req.value for req in self.prop_args['reqs']])
             cur_run_aligned = float(int(self.prop_args['aligned']))
             gt_names_formatted = {
                 'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
