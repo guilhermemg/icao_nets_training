@@ -645,7 +645,7 @@ class ModelTrainer:
                         for file in files:
                             filename = os.path.join(root, file)
                             arcname = os.path.relpath(os.path.join(root, file), os.path.join(path, '..'))
-                            if self.orig_model_experiment_id in arcname:
+                            if self.orig_model_experiment_id != "" and self.orig_model_experiment_id in arcname:
                                 arcname = arcname.replace(self.orig_model_experiment_id, 'trained_model')
                             ziph.write(filename, arcname)
                 return outfile_path
