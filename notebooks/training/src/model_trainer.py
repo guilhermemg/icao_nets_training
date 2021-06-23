@@ -50,7 +50,7 @@ physical_devices = tf.config.list_physical_devices('GPU')
 try:
     gpu_0 = physical_devices[0]
     tf.config.experimental.set_memory_growth(gpu_0, True) 
-    tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
+    #tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 ## restrict memory growth ------------------- 
@@ -498,19 +498,34 @@ class ModelTrainer:
             print(f' ..Downloading data from previous experiment')
             prev_run = neptune.init(run=self.orig_model_experiment_id)
             
-            logs = {}
-            acc_series = prev_run['epoch/accuracy'].fetch_values()['value']
-            val_acc_series = prev_run['epoch/val_accuracy'].fetch_values()['value']
-            loss_series = prev_run['epoch/loss'].fetch_values()['value']
-            val_loss_series = prev_run['epoch/val_loss'].fetch_values()['value']
-            print(f' ..Download finished')
+            if not self.is_mtl_model:
+                acc_series = prev_run['epoch/accuracy'].fetch_values()['value']
+                val_acc_series = prev_run['epoch/val_accuracy'].fetch_values()['value']
+                loss_series = prev_run['epoch/loss'].fetch_values()['value']
+                val_loss_series = prev_run['epoch/val_loss'].fetch_values()['value']
+                print(f' ..Download finished')
 
-            print(f' ..Upload data to current experiment')
-            for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
-                self.neptune_run['epoch/accuracy'].log(acc)
-                self.neptune_run['epoch/val_accuracy'].log(val_acc)
-                self.neptune_run['epoch/loss'].log(loss)    
-                self.neptune_run['epoch/val_loss'].log(loss_val)
+                print(f' ..Upload data to current experiment')
+                for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
+                    self.neptune_run['epoch/accuracy'].log(acc)
+                    self.neptune_run['epoch/val_accuracy'].log(val_acc)
+                    self.neptune_run['epoch/loss'].log(loss)    
+                    self.neptune_run['epoch/val_loss'].log(loss_val)
+            else:
+                for req in self.prop_args['reqs']:
+                    req = req.value
+                    acc_series = prev_run[f'epoch/{req}/accuracy'].fetch_values()['value']
+                    val_acc_series = prev_run[f'epoch/{req}/val_accuracy'].fetch_values()['value']
+                    loss_series = prev_run[f'epoch/{req}/loss'].fetch_values()['value']
+                    val_loss_series = prev_run[f'epoch/{req}/val_loss'].fetch_values()['value']
+                    print(f' ..Download finished')
+
+                    print(f' ..Upload data to current experiment')
+                    for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
+                        self.neptune_run[f'epoch/{req}/accuracy'].log(acc)
+                        self.neptune_run[f'epoch/{req}/val_accuracy'].log(val_acc)
+                        self.neptune_run[f'epoch/{req}/loss'].log(loss)    
+                        self.neptune_run[f'epoch/{req}/val_loss'].log(loss_val)
 
             print(f' ..Upload finished')
         except Exception as e:
