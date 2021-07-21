@@ -327,12 +327,15 @@ class ModelTrainer:
         print('Model created')
 
         
-    def model_summary(self):
+    def model_summary(self, fine_tuned=False):
         if self.is_training_model:
             self.model.summary()
         
             if self.use_neptune:
-                self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
+                if not fine_tuned:
+                    self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
+                else:
+                    self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/fine_tune_model_summary'].log(x))
         else:
             print('Not training a model!')
         
@@ -473,7 +476,7 @@ class ModelTrainer:
                  if m_l.name in base_model_layers:
                     m_l.trainable = False
         
-        print(self.model.summary())
+        self.model_summary(fine_tuned)
             
     
     def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs):
@@ -500,6 +503,8 @@ class ModelTrainer:
                 epchs = self.net_args['n_epochs']
             else:
                 epchs = n_epochs
+                if self.use_neptune:
+                    self.neptune_run['parameters/n_epochs_fine_tuning'] = epchs
 
             self.H = self.model.fit(
                     train_gen,
