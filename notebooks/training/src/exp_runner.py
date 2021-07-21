@@ -12,6 +12,7 @@ if '../../../../notebooks/' not in sys.path:
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator, DataSource, DataPredSelection
+from nas_trainer import NASTrainer
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -48,6 +49,7 @@ class ExperimentRunner:
         self.exp_args = kwargs['exp_params']
         self.prop_args = kwargs['properties']
         self.net_args = kwargs['net_train_params']
+        self.nas_params = kwargs['nas_params']
         
         self.__kwargs_sanity_check()
         
@@ -65,6 +67,7 @@ class ExperimentRunner:
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
+        self.nas_trainer = NASTrainer(self.prop_args, self.nas_params, self.base_model, self.is_mtl_model, self.neptune_run)
         self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.neptune_run)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
     
@@ -198,6 +201,11 @@ class ExperimentRunner:
             print('Not using Neptune')
     
     
+    def run_neural_architeture_search(self):
+        self.__print_method_log_sig( 'run neural architecture search' )
+        self.model = self.nas_trainer.run_nas(self.train_gen, self.validation_gen)
+    
+    
     def create_model(self):
         self.__print_method_log_sig( 'create model')
         self.model = self.model_trainer.create_model(self.train_gen)
@@ -208,9 +216,9 @@ class ExperimentRunner:
         self.model_trainer.vizualize_model(outfile_path)
     
     
-    def train_model(self):
+    def train_model(self, fine_tuned=False, n_epochs=None):
         self.__print_method_log_sig( 'train model')
-        self.model_trainer.train_model(self.train_gen, self.validation_gen)
+        self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned, n_epochs)
     
     
     def draw_training_history(self):

@@ -87,6 +87,8 @@ class ModelTrainer:
         self.use_neptune = True if neptune_run is not None else False
         self.base_model = base_model
         
+        self.baseModel = None  # instance of base model keras/tensorflow
+        
         self.is_training_model = self.prop_args['train_model']
         
         self.orig_model_experiment_id = self.prop_args['orig_model_experiment_id']
@@ -251,14 +253,11 @@ class ModelTrainer:
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
         
-        for layer in baseModel.layers:
-            layer.trainable = False
-        
         return baseModel
     
         
     def __create_model(self, train_gen):
-        baseModel = self.__create_base_model()
+        self.baseModel = self.__create_base_model()
         headModel = None
         if self.base_model.name != BaseModel.INCEPTION_V3.name:
             headModel = baseModel.output
@@ -274,8 +273,8 @@ class ModelTrainer:
         headModel = Dense(128, activation="relu", kernel_initializer=initializer)(headModel)
         headModel = Dropout(0.5)(headModel)
         headModel = Dense(N_CLASSES, activation="softmax", kernel_initializer=initializer)(headModel)
-
-        self.model = Model(inputs=baseModel.input, outputs=headModel)
+        
+        self.model = Model(inputs=self.baseModel.input, outputs=headModel)
         
         opt = self.__get_optimizer()
 
@@ -289,11 +288,11 @@ class ModelTrainer:
             y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
             return y
         
-        baseModel = self.__create_base_model()
+        self.baseModel = self.__create_base_model()
         
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
         
-        x = baseModel.output
+        x = self.baseModel.output
         x = GlobalAveragePooling2D()(x)
         #x = Flatten()(x)
         
@@ -304,7 +303,7 @@ class ModelTrainer:
         
         branches_list = [__create_branch(x, req.value, 2) for req in self.prop_args['reqs']]
         
-        self.model = Model(inputs=baseModel.input, outputs=branches_list)
+        self.model = Model(inputs=self.baseModel.input, outputs=branches_list)
         
         opt = self.__get_optimizer()
         n_reqs = len(self.prop_args['reqs'])
@@ -455,10 +454,33 @@ class ModelTrainer:
         if self.use_neptune:
             self.neptune_run['viz/model_architecture'].upload(outfile_path)
 
+            
+    def __setup_fine_tuning(self, fine_tuned):
+        if fine_tuned:
+            print(' .. Fine tuning base model...')
+            non_traininable_layers = self.baseModel.layers[:-2]
+            
+            print(f' .. Base model non trainable layers: {[l.name for l in non_traininable_layers]}')
+            for layer in self.model.layers:
+                if layer in non_traininable_layers:
+                    layer.trainable = False
+                else:
+                    layer.trainable = True
+        else:
+            print(' .. Not fine tuning base model...')
+            base_model_layers = [l.name for l in self.baseModel.layers]
+            for m_l in self.model.layers:
+                 if m_l.name in base_model_layers:
+                    m_l.trainable = False
+        
+        print(self.model.summary())
+            
     
-    def train_model(self, train_gen, validation_gen):
+    def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs):
         if self.is_training_model:
             print(f'Training {self.base_model.name} network')
+            
+            self.__setup_fine_tuning(fine_tuned)       
 
             callbacks_list = []
 
@@ -474,12 +496,17 @@ class ModelTrainer:
 
             callbacks_list.append(self.__get_model_checkpoint_callback())
             
+            if n_epochs is None:
+                epchs = self.net_args['n_epochs']
+            else:
+                epchs = n_epochs
+
             self.H = self.model.fit(
                     train_gen,
                     steps_per_epoch=train_gen.n // self.net_args['batch_size'],
                     validation_data=validation_gen,
                     validation_steps=validation_gen.n // self.net_args['batch_size'],
-                    epochs=self.net_args['n_epochs'],
+                    epochs=epchs,
                     callbacks=callbacks_list)
         
         elif not self.is_training_model and self.use_neptune:
