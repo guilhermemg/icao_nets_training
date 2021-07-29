@@ -1,0 +1,4 @@
+origin,img_name,mouth,rotation,l_away,eyes_closed,close,hat,dark_glasses,frames_heavy,frame_eyes,flash_lenses,veil,reflection,light,sh_face,sh_head,blurred,ink_mark,skin_tone,washed_out,pixelation,hair_eyes,background,red_eyes
+VSOFT,/home/guilherme/data1/Dropbox/Link to Desktop/Doutorado/Datasets/icao_dataset/train/FRGC_04288d208.jpg,1,0,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1
+VSOFT,/home/guilherme/data1/Dropbox/Link to Desktop/Doutorado/Datasets/icao_dataset/train/FRGC_04233d404.jpg,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+VSOFT,/home/guilherme/data1/Dropbox/Link to Desktop/Doutorado/Datasets/icao_dataset/train/FRGC_04549d72.jpg,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1
