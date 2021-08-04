@@ -39,25 +39,25 @@ class DataPredSelection(Enum):
     
 
 class VsoftEvaluator:
-    def __init__(self, data_src):
-        self.y_true = None
-        self.y_hat = None
+    def __init__(self, data_src, img_paths, y_true, y_hat, requisite):
+        print('Creating VsoftEvaluator')
+        print(f' .. Data source: {data_src.value.upper()}')
+        print(f' .. Requisite: {requisite.value.upper()}')
+        print(f' .. n img_paths: {len(img_paths)}')
+        print(f' .. n y_true: {len(y_true)}')
+        print(f' .. n y_hat: {len(y_hat)}')
+        
+        self.img_paths = img_paths
+        self.y_true = y_true
+        self.y_hat = y_hat
         self.y_hat_discrete = None
-        self.data_src = None
+        self.data_src = data_src
+        self.requisite = requisite
         
         self.THRESH_START_VAL = 0.0
         self.THRESH_END_VAL = 1.02
         self.THRESH_STEP_SIZE = 1e-2
         
-        self.__set_data_src(data_src)
-    
-    
-    def __set_data_src(self, data_src):
-        if data_src.value in [item.value for item in DataSource]:
-            self.data_src = data_src
-        else:
-            raise Exception(f'Error! Invalid data source. Valid Options: {list(DataSource)}')
-    
     
     def __calculate_far(self):
         far = []
@@ -162,19 +162,9 @@ class VsoftEvaluator:
         print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
     
-    def calculate_metrics(self, y_true, y_hat, requisite):
+    def calculate_metrics(self):
         print('Testing VSOFT BiopassID ICAO CHECK')
-        print(f'Requisite: {requisite.value.upper()}')
-        
-        self.y_true = y_true
-        self.y_hat = y_hat
-        self.requisite = requisite
-        
-        print(self.y_true[:15])
-        print(self.y_true.dtype)
-        
-        print(self.y_hat[:15])
-        print(self.y_hat.dtype)
+        print(f'Requisite: {self.requisite.value.upper()}')
         
         self.__calculate_eer()
         self.__get_classification_report()
@@ -183,55 +173,50 @@ class VsoftEvaluator:
     
     
 
-    def __select_viz_data(self, data_gen, preds, n_imgs, data_pred_selection):
+    def __select_viz_data(self, n_imgs, data_pred_selection):
         tmp_df = pd.DataFrame()
-        tmp_df['img_name'] = data_gen.filepaths
-        tmp_df['comp'] = data_gen.labels
-        tmp_df['pred'] = preds
+        tmp_df['img_name'] = self.img_paths
+        tmp_df['comp'] = self.y_true.astype(int)
+        tmp_df['pred'] = self.y_hat_discrete.astype(int)
         
         data_src_uppercase = self.data_src.value.upper()
         data_src_lowercase = self.data_src.value.lower()
         
-        viz_title, neptune_viz_path = None, None
+        COMP = Eval.COMPLIANT.value#int(Eval.COMPLIANT.value)
+        NON_COMP = Eval.NON_COMPLIANT.value#int(Eval.NON_COMPLIANT.value)
+        
+        viz_title = None
         if data_pred_selection.name == DataPredSelection.ONLY_FN.name:
-            tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
+            tmp_df = tmp_df[(tmp_df.comp == COMP) & (tmp_df.pred == NON_COMP)]
         elif data_pred_selection.name == DataPredSelection.ONLY_FP.name:
-            tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
+            tmp_df = tmp_df[(tmp_df.comp == NON_COMP) & (tmp_df.pred == COMP)]
         elif data_pred_selection.name == DataPredSelection.ONLY_TP.name:
-            tmp_df = tmp_df[(tmp_df.comp == Eval.COMPLIANT.value) & (tmp_df.pred == Eval.COMPLIANT.value)]
+            tmp_df = tmp_df[(tmp_df.comp == COMP) & (tmp_df.pred== COMP)]
         elif data_pred_selection.name == DataPredSelection.ONLY_TN.name:
-            tmp_df = tmp_df[(tmp_df.comp == Eval.NON_COMPLIANT.value) & (tmp_df.pred == Eval.NON_COMPLIANT.value)]
+            tmp_df = tmp_df[(tmp_df.comp == NON_COMP) & (tmp_df.pred == NON_COMP)]
         
         n_imgs = tmp_df.shape[0] if tmp_df.shape[0] < n_imgs else n_imgs
         tmp_df = tmp_df.sample(n=n_imgs, random_state=SEED)
         
-        #self.__log_imgs_sample(tmp_df, data_pred_selection)
-        
         viz_title = f"{data_pred_selection.value['title']} - {self.data_src.value.upper()}" 
-        neptune_viz_path = f"{self.viz_var_base_path}/predictions_with_heatmaps/{data_pred_selection.value['abv']}"
         
-        return tmp_df, viz_title, neptune_viz_path
+        return tmp_df, viz_title
     
     
     def __get_img_name(self, img_path):
             return img_path.split("/")[-1].split(".")[0]
     
-    # sort 50 samples from test_df, calculates GradCAM heatmaps
-    # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, base_model, model, data_gen, n_imgs, data_pred_selection):
-        preds = self.y_test_hat_discrete
-        tmp_df,viz_title, neptune_viz_path = self.__select_viz_data(data_gen, preds, n_imgs, data_pred_selection)
+    
+    # sort n samples from data_df based on criteria DataPredSelection
+    def vizualize_predictions(self, n_imgs, data_pred_selection=DataPredSelection.ANY):
+        tmp_df,viz_title = self.__select_viz_data(n_imgs, data_pred_selection)
         
         labels = [f'GT: COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'GT: NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.comp.values, tmp_df.img_name.values)]
         
         preds = [f'GT: COMP\n {self.__get_img_name(path)}' if x == Eval.COMPLIANT.value else f'GT: NON_COMP\n {self.__get_img_name(path)}' for x,path in zip(tmp_df.pred.values, tmp_df.img_name.values)]
         
-        heatmaps = [self.__calc_heatmap(im_name, base_model, model) for im_name in tmp_df.img_name.values]
+        imgs = [cv2.resize(cv2.imread(img), (224,224)) for img in tmp_df.img_name.values]
         
-        imgs = [cv2.resize(cv2.imread(img), base_model.value['target_size']) for img in tmp_df.img_name.values]
+        f = dr.draw_imgs(imgs, title=viz_title, labels=labels, predictions=preds)
         
-        f = dr.draw_imgs(imgs, title=viz_title, labels=labels, predictions=preds, heatmaps=heatmaps)
-        
-        if self.use_neptune and f is not None:
-            self.neptune_run[neptune_viz_path].upload(f)
     
