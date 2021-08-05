@@ -50,87 +50,9 @@ class VsoftEvaluator:
         self.img_paths = img_paths
         self.y_true = y_true
         self.y_hat = y_hat
-        self.y_hat_discrete = None
+        self.y_hat_discrete = np.where(self.y_hat < 0.5, 0, 1)
         self.data_src = data_src
         self.requisite = requisite
-        
-        self.THRESH_START_VAL = 0.0
-        self.THRESH_END_VAL = 1.02
-        self.THRESH_STEP_SIZE = 1e-2
-        
-    
-    def __calculate_far(self):
-        far = []
-        n_non_comp = len([x for x in self.y_true if x == Eval.NON_COMPLIANT.value])
-        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
-        for th in th_range:
-            num = 0
-            for tr_val,pred in zip(self.y_true,self.y_hat):
-                if pred >= th and tr_val == Eval.NON_COMPLIANT.value:
-                    num += 1
-            far.append(round((num/n_non_comp) * 100, 2))
-
-        far = np.array(far) 
-        return far
-
-
-    def __calculate_frr(self):
-        frr = []
-        n_comp = len([x for x in self.y_true if x == Eval.COMPLIANT.value])
-        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
-        for th in th_range:
-            num = 0
-            for tr_val,pred in zip(self.y_true,self.y_hat):
-                if pred < th and tr_val == Eval.COMPLIANT.value:
-                    num += 1
-            frr.append(round((num/n_comp) * 100, 2))
-
-        frr = np.array(frr)    
-        return frr
-    
-
-    def __draw_far_frr_curve(self, th_range, frr, far, eer, best_th):
-        fig = plt.figure(1)
-        plt.plot(th_range, frr,'-r')
-        plt.plot(th_range, far,'-b')
-        plt.scatter(best_th, round(eer*100,4), marker='^', color='green', label='EER', s=70.)
-        plt.xlabel('Threshold')
-        plt.ylabel('FAR/FRR %')
-        plt.xlim([0, 1.02])
-        plt.ylim([0, 100])
-        plt.title(f'Req: {self.requisite.value.upper()} - EER = {round(eer,4)} - {self.data_src.value.upper()}')
-        plt.legend(['FRR','FAR'], loc='upper center')
-        plt.show()
-        
-
-    def __draw_roc_curve(self, fpr, tpr, eer, th):
-        fig = plt.figure(1)
-        plt.plot([0, 1], [0, 1], 'k--')
-        plt.plot(fpr, tpr)
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('ROC - Req: {} | EER: {:.4f} | Thresh: {:.4f} | {}'.format(self.requisite.value.upper(), 
-                                                                             eer, th, self.data_src.value.upper()))
-        plt.show()
-        
-    
-    def __calculate_eer(self):
-        fpr, tpr, ths = roc_curve(self.y_true, self.y_hat)
-        far = self.__calculate_far()
-        frr = self.__calculate_frr()
-        th_range = np.arange(self.THRESH_START_VAL, self.THRESH_END_VAL, self.THRESH_STEP_SIZE) 
-        
-        EER_interp = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
-        best_th = interp1d(fpr, ths)(EER_interp)
-        
-        self.__draw_roc_curve(fpr, tpr, EER_interp, best_th)
-        self.__draw_far_frr_curve(th_range, frr, far, EER_interp, best_th)
-
-        best_th = best_th.tolist()
-        EER_interp = round(EER_interp, 4)
-        print(f'Requisite: {self.requisite.value.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
-
-        self.y_hat_discrete = np.where(self.y_hat < best_th, 0, 1)
         
 
     def __get_classification_report(self):
@@ -163,13 +85,15 @@ class VsoftEvaluator:
         
     
     def calculate_metrics(self):
+        print('================================================')
         print('Testing VSOFT BiopassID ICAO CHECK')
         print(f'Requisite: {self.requisite.value.upper()}')
         
-        self.__calculate_eer()
         self.__get_classification_report()
         self.__get_confusion_matrix()
         self.__calculate_accuracy()
+        
+        print('================================================')
     
     
 
