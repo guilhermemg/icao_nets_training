@@ -25,6 +25,7 @@ from tensorflow.keras.applications import ResNet50V2
 from tensorflow.keras.applications import VGG19
 from tensorflow.keras.applications import VGG16
 from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import MaxPooling2D
 from tensorflow.keras.layers import AveragePooling2D
 from tensorflow.keras.layers import GlobalAveragePooling2D
 from tensorflow.keras.layers import BatchNormalization
@@ -32,6 +33,7 @@ from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import Lambda
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
@@ -41,7 +43,7 @@ from tensorflow.keras.models import load_model
 
 from enum import Enum
 
-from utils.constants import SEED
+from utils.constants import SEED, ICAO_REQ
 
 
 ## restrict memory growth -------------------
@@ -50,11 +52,16 @@ physical_devices = tf.config.list_physical_devices('GPU')
 try:
     gpu_0 = physical_devices[0]
     tf.config.experimental.set_memory_growth(gpu_0, True) 
-    #tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=7500)])
+    #tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=6500)])
+    print(' ==> Restrict GPU memory growth: True')
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
 ## restrict memory growth ------------------- 
 
+
+class MTLApproach(Enum):
+    HAND_1 = 'handcrafted_1'
+    HAND_2 = 'handcrafted_2'
 
 
 class BaseModel(Enum):
@@ -79,10 +86,11 @@ class Optimizer(Enum):
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, neptune_run):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, mtl_approach, neptune_run):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
+        self.mtl_approach = mtl_approach
         self.neptune_run = neptune_run
         self.use_neptune = True if neptune_run is not None else False
         self.base_model = base_model
@@ -313,13 +321,77 @@ class ModelTrainer:
  
         self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
         
+    
+    def __create_mtl_model_2(self):
+        def __create_branch(prev_layer, req_name):
+            y = Dense(64, activation='relu')(prev_layer)
+            y = Dense(2, activation='softmax', name=req_name)(y)
+            return y
         
+        def __create_common_branch(prev_layer):
+            y = Conv2D(64, (3,3), padding='same', activation='relu')(prev_layer)
+            y = MaxPooling2D(2,2)(y)
+            y = Conv2D(64, (3,3), padding='same', activation='relu')(y)
+            return y
+        
+        def __create_spec_branch(prev_layer, req_name):
+            y = Conv2D(64, (3,3), padding='same', activation='relu')(prev_layer)
+            y = MaxPooling2D(2,2)(y)
+            y = Flatten()(y)
+            y = Dense(64, activation='relu')(y)
+            y = Dense(2, activation='softmax')(y)
+            return y
+    
+        self.baseModel = self.__create_base_model()
+        
+        x = self.baseModel.output
+        x = __create_common_branch(x)
+        x = Flatten()(x)
+        
+        split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1))(x)
+        
+        g0 = __create_branch(split[0], 'g0')
+        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
+                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
+        br_list_0 = [__create_branch(g0, req.value) for req in reqs_g0]
+        
+        g1 = __create_branch(split[1], 'g1')
+        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
+        br_list_1 = [__create_branch(g1, req.value) for req in reqs_g1]
+        
+        g2 = __create_branch(split[2], 'g2')
+        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
+                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
+        br_list_2 = [__create_branch(g2, req.value) for req in reqs_g2]
+        
+        g3 = __create_branch(split[3], 'g3')
+        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
+                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
+        br_list_3 = [__create_branch(g3, req.value) for req in reqs_g3]
+        
+        #branches_list = [__create_branch(x, req.value) for req in self.prop_args['reqs']]
+        out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
+        
+        self.model = Model(inputs=self.baseModel.input, outputs=out_branches_list)
+        
+        opt = self.__get_optimizer()
+        n_reqs = len(self.prop_args['reqs'])
+        loss_list = ['sparse_categorical_crossentropy' for x in range(n_reqs)]
+        metrics_list = ['accuracy']
+        loss_weights = [.1 for x in range(n_reqs)]
+ 
+        self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
+        
+    
     def create_model(self, train_gen):
         print('Creating model...')
         if not self.is_mtl_model:
             self.__create_model(train_gen)
         else:
-            self.__create_mtl_model()
+            if self.mtl_approach.value == MTLApproach.HAND_1.value:
+                self.__create_mtl_model()
+            elif self.mtl_approach.value == MTLApproach.HAND_2.value:
+                self.__create_mtl_model_2()
 
         if self.use_neptune:
             self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
@@ -327,9 +399,9 @@ class ModelTrainer:
         print('Model created')
 
         
-    def model_summary(self, fine_tuned=False):
+    def model_summary(self, fine_tuned=False, print_fn=print):
         if self.is_training_model:
-            self.model.summary()
+            self.model.summary(print_fn=print_fn)
         
             if self.use_neptune:
                 if not fine_tuned:
@@ -476,7 +548,11 @@ class ModelTrainer:
                  if m_l.name in base_model_layers:
                     m_l.trainable = False
         
-        self.model_summary(fine_tuned)
+        def p_func(line):
+            if 'params' in line.lower():
+                print(f'  .. {line}')
+        
+        self.model_summary(fine_tuned, print_fn=p_func)
             
     
     def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs):

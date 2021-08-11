@@ -64,11 +64,13 @@ class ExperimentRunner:
         print('----')
         self.is_mtl_model = len(self.prop_args['reqs']) > 1
         print(f'MTL Model: {self.is_mtl_model}')
+        self.mtl_approach = self.prop_args['mtl_approach']
+        print(f'MTL Approach: {self.mtl_approach}')
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
         self.nas_trainer = NASTrainer(self.prop_args, self.nas_params, self.base_model, self.is_mtl_model, self.neptune_run)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.neptune_run)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.mtl_approach, self.neptune_run)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
     
     
