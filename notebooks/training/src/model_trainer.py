@@ -35,6 +35,7 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.models import Model
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
@@ -324,18 +325,26 @@ class ModelTrainer:
     
     def __create_mtl_model_2(self):
         def __create_branch(prev_layer, req_name):
-            y = Dense(64, activation='relu')(prev_layer)
+            y = Flatten()(prev_layer)
+            y = Dense(64, activation='relu')(y)
             y = Dense(2, activation='softmax', name=req_name)(y)
             return y
         
+        def __vgg_block(prev_layer, num_convs, num_channels, block_name):
+            x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+'_0')(prev_layer)
+            for idx in range(num_convs-1):
+                x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+f'_{idx+1}')(x)
+            x = MaxPooling2D(pool_size=2, strides=2, padding="same", name=block_name+f'_{idx+2}')(x)
+            return x
+        
         def __create_common_branch(prev_layer):
-            y = Conv2D(64, (3,3), padding='same', activation='relu')(prev_layer)
+            y = Conv2D(64, 3, padding='same', activation='relu')(prev_layer)
             y = MaxPooling2D(2,2)(y)
-            y = Conv2D(64, (3,3), padding='same', activation='relu')(y)
+            y = Conv2D(64, 3, padding='same', activation='relu')(y)
             return y
         
         def __create_spec_branch(prev_layer, req_name):
-            y = Conv2D(64, (3,3), padding='same', activation='relu')(prev_layer)
+            y = Conv2D(64, 3, padding='same', activation='relu')(prev_layer)
             y = MaxPooling2D(2,2)(y)
             y = Flatten()(y)
             y = Dense(64, activation='relu')(y)
@@ -345,26 +354,41 @@ class ModelTrainer:
         self.baseModel = self.__create_base_model()
         
         x = self.baseModel.output
-        x = __create_common_branch(x)
+        x = __vgg_block(x, 3, 256, 'shared_vgg_block')
         x = Flatten()(x)
         
         split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1))(x)
+        spl_0 = tf.reshape(split[0], (1,32,32))
+        spl_0 = tf.expand_dims(spl_0, axis=0)
         
-        g0 = __create_branch(split[0], 'g0')
+        spl_1 = tf.reshape(split[1], (1,32,32))
+        spl_1 = tf.expand_dims(spl_1, axis=0)
+        
+        spl_2 = tf.reshape(split[2], (1,32,32))
+        spl_2 = tf.expand_dims(spl_2, axis=0)
+        
+        spl_3 = tf.reshape(split[3], (1,32,32))
+        spl_3 = tf.expand_dims(spl_3, axis=0)
+        
+        #g0 = __create_branch(split[0], 'g0')
+        g0 = __vgg_block(spl_0, 3, 32, 'g0')
         reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
                    ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
         br_list_0 = [__create_branch(g0, req.value) for req in reqs_g0]
         
-        g1 = __create_branch(split[1], 'g1')
+        #g1 = __create_branch(split[1], 'g1')
+        g1 = __vgg_block(spl_1, 3, 32, 'g1')
         reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
         br_list_1 = [__create_branch(g1, req.value) for req in reqs_g1]
         
-        g2 = __create_branch(split[2], 'g2')
+        #g2 = __create_branch(split[2], 'g2')
+        g2 = __vgg_block(spl_2, 3, 32, 'g2')
         reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
                    ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
         br_list_2 = [__create_branch(g2, req.value) for req in reqs_g2]
         
-        g3 = __create_branch(split[3], 'g3')
+        #g3 = __create_branch(split[3], 'g3')
+        g3 = __vgg_block(spl_3, 3, 32, 'g3')
         reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
                    ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
         br_list_3 = [__create_branch(g3, req.value) for req in reqs_g3]
