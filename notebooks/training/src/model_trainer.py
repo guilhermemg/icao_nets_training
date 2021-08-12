@@ -1,6 +1,7 @@
 import os
 import shutil
 import zipfile
+import datetime
 import numpy as np
 
 import neptune.new as neptune
@@ -269,9 +270,9 @@ class ModelTrainer:
         self.baseModel = self.__create_base_model()
         headModel = None
         if self.base_model.name != BaseModel.INCEPTION_V3.name:
-            headModel = baseModel.output
+            headModel = self.baseModel.output
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
-            headModel = baseModel.output
+            headModel = self.baseModel.output
             headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
 
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
@@ -358,16 +359,17 @@ class ModelTrainer:
         x = Flatten()(x)
         
         split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1))(x)
-        spl_0 = tf.reshape(split[0], (1,32,32))
+        
+        spl_0 = tf.reshape(split[0], [1,32,32])
         spl_0 = tf.expand_dims(spl_0, axis=0)
         
-        spl_1 = tf.reshape(split[1], (1,32,32))
+        spl_1 = tf.reshape(split[1], [1,32,32])
         spl_1 = tf.expand_dims(spl_1, axis=0)
         
-        spl_2 = tf.reshape(split[2], (1,32,32))
+        spl_2 = tf.reshape(split[2], [1,32,32])
         spl_2 = tf.expand_dims(spl_2, axis=0)
         
-        spl_3 = tf.reshape(split[3], (1,32,32))
+        spl_3 = tf.reshape(split[3], [1,32,32])
         spl_3 = tf.expand_dims(spl_3, axis=0)
         
         #g0 = __create_branch(split[0], 'g0')
