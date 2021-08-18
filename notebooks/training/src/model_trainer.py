@@ -12,14 +12,16 @@ import matplotlib.pyplot as plt
 
 from IPython.display import display
 
-from keras.utils.vis_utils import plot_model
+# disable tensorflow log level infos
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 
+
+from tensorflow.keras.utils import plot_model
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.applications.vgg19 import preprocess_input as prep_input_vgg19
 from tensorflow.keras.applications.vgg16 import preprocess_input as prep_input_vgg16
 from tensorflow.keras.applications.resnet_v2 import preprocess_input as prep_input_resnet50v2
-
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.applications import InceptionV3
 from tensorflow.keras.applications import ResNet50V2
@@ -47,7 +49,6 @@ from enum import Enum
 
 from utils.constants import SEED, ICAO_REQ
 
-
 ## restrict memory growth -------------------
 import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU') 
@@ -55,6 +56,7 @@ try:
     gpu_0 = physical_devices[0]
     tf.config.experimental.set_memory_growth(gpu_0, True) 
     #tf.config.experimental.set_virtual_device_configuration(gpu_0, [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=6500)])
+    
     print(' ==> Restrict GPU memory growth: True')
 except: 
     raise Exception("Invalid device or cannot modify virtual devices once initialized.")
@@ -358,19 +360,12 @@ class ModelTrainer:
         x = __vgg_block(x, 3, 256, 'shared_vgg_block')
         x = Flatten()(x)
         
-        split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1))(x)
+        split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1), output_shape=(None,...))(x)
         
-        spl_0 = tf.reshape(split[0], [1,32,32])
-        spl_0 = tf.expand_dims(spl_0, axis=0)
-        
-        spl_1 = tf.reshape(split[1], [1,32,32])
-        spl_1 = tf.expand_dims(spl_1, axis=0)
-        
-        spl_2 = tf.reshape(split[2], [1,32,32])
-        spl_2 = tf.expand_dims(spl_2, axis=0)
-        
-        spl_3 = tf.reshape(split[3], [1,32,32])
-        spl_3 = tf.expand_dims(spl_3, axis=0)
+        spl_0 = tf.reshape(tensor=split[0], shape=[tf.shape(split[0])[0],1,32,32])
+        spl_1 = tf.reshape(tensor=split[1], shape=[tf.shape(split[1])[0],1,32,32])
+        spl_2 = tf.reshape(tensor=split[2], shape=[tf.shape(split[2])[0],1,32,32])
+        spl_3 = tf.reshape(tensor=split[3], shape=[tf.shape(split[3])[0],1,32,32])
         
         #g0 = __create_branch(split[0], 'g0')
         g0 = __vgg_block(spl_0, 3, 32, 'g0')
@@ -405,7 +400,7 @@ class ModelTrainer:
         loss_list = ['sparse_categorical_crossentropy' for x in range(n_reqs)]
         metrics_list = ['accuracy']
         loss_weights = [.1 for x in range(n_reqs)]
- 
+        
         self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
         
     
@@ -441,19 +436,19 @@ class ModelTrainer:
     def __get_optimizer(self):
         opt = None
         if self.net_args['optimizer'].name == Optimizer.ADAM.name:
-            opt = Adam(lr=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
+            opt = Adam(learning_rate=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
         elif self.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
-            opt = Adam(lr=self.net_args['learning_rate'])
+            opt = Adam(learning_rate=self.net_args['learning_rate'])
         elif self.net_args['optimizer'].name == Optimizer.SGD.name:
-            opt = SGD(lr=self.net_args['learning_rate'])
+            opt = SGD(learning_rate=self.net_args['learning_rate'])
         elif self.net_args['optimizer'].name == Optimizer.SGD_NESTEROV.name:
-            opt = SGD(lr=self.net_args['learning_rate'], nesterov=True)
+            opt = SGD(learning_rate=self.net_args['learning_rate'], nesterov=True)
         elif self.net_args['optimizer'].name == Optimizer.ADAGRAD.name:
-            opt = Adagrad(lr=self.net_args['learning_rate'])
+            opt = Adagrad(learning_rate=self.net_args['learning_rate'])
         elif self.net_args['optimizer'].name == Optimizer.ADAMAX.name:
-            opt = Adamax(lr=self.net_args['learning_rate'])
+            opt = Adamax(learning_rate=self.net_args['learning_rate'])
         elif self.net_args['optimizer'].name == Optimizer.ADADELTA.name:
-            opt = Adadelta(lr=self.net_args['learning_rate'])
+            opt = Adadelta(learning_rate=self.net_args['learning_rate'])
         return opt
     
     
