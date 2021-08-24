@@ -65,6 +65,7 @@ except:
 class MTLApproach(Enum):
     HAND_1 = 'handcrafted_1'
     HAND_2 = 'handcrafted_2'
+    HAND_3 = 'handcrafted_3'
 
 
 class BaseModel(Enum):
@@ -240,7 +241,6 @@ class ModelTrainer:
         print('------------------------------')
     
     
-    
     def __clear_checkpoints(self):
         ckpts_dir_path = Path(self.CHECKPOINT_PATH.split(os.path.sep)[0])
         if(not os.path.exists(ckpts_dir_path)):
@@ -292,29 +292,8 @@ class ModelTrainer:
         self.model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
     
     
-    def __create_mtl_model(self):
-        def __create_branch(shared_branch, req_name, n_out):
-            y = Dense(64, activation='relu', kernel_initializer=initializer)(shared_branch)
-            y = Dropout(self.net_args['dropout'])(y)
-            y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
-            return y
-        
-        self.baseModel = self.__create_base_model()
-        
-        initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
-        
-        x = self.baseModel.output
-        x = GlobalAveragePooling2D()(x)
-        #x = Flatten()(x)
-        
-        x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.net_args['dropout'])(x)
-        x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.net_args['dropout'])(x)
-        
-        branches_list = [__create_branch(x, req.value, 2) for req in self.prop_args['reqs']]
-        
-        self.model = Model(inputs=self.baseModel.input, outputs=branches_list)
+    def __compile_mtl_model(self, input_layer, output_layers):
+        self.model = Model(inputs=input_layer, outputs=output_layers)
         
         opt = self.__get_optimizer()
         n_reqs = len(self.prop_args['reqs'])
@@ -323,48 +302,88 @@ class ModelTrainer:
         loss_weights = [.1 for x in range(n_reqs)]
  
         self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
+    
+    
+    def __create_branch_1(self, prev_layer, req_name, n_out):
+        y = Dense(64, activation='relu', kernel_initializer=initializer)(prev_layer)
+        y = Dropout(self.net_args['dropout'])(y)
+        y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
+        return y
+    
+    def __vgg_block(self, prev_layer, num_convs, num_channels, block_name):
+        x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+'_0')(prev_layer)
+        idx = num_convs
+        while idx > 0:
+            x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+f'_{num_convs-idx+1}')(x)
+            idx -= 1
+        x = MaxPooling2D(pool_size=2, strides=2, padding="same", name=block_name+f'_{num_convs-idx+2}')(x)
+        return x
+
+    def __create_fcs_block(self, prev_layer, n_dense, req_name):
+        y = Dense(64, activation='relu')(prev_layer)
+        for _ in range(n_dense-1):
+            y = Dense(64, activation='relu')(y)
+        y = Dense(2, activation='softmax', name=req_name)(y)
+        return y
+
+    def __create_fcs_block_2(self, prev_layer, n_dense, req_name):
+        y = Flatten()(prev_layer)
+        y = Dense(64, activation='relu')(y)
+        for _ in range(n_dense-1):
+            y = Dense(64, activation='relu')(y)
+        y = Dense(2, activation='softmax', name=req_name)(y)
+        return y
+    
+    
+    def __create_mtl_model(self):
+        self.baseModel = self.__create_base_model()
         
+        initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
+        
+        x = self.baseModel.output
+        x = GlobalAveragePooling2D()(x)
+        x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
+        x = Dropout(self.net_args['dropout'])(x)
+        x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
+        x = Dropout(self.net_args['dropout'])(x)
+        
+        branches_list = [self.__create_branch_1(x, req.value, 2) for req in self.prop_args['reqs']]
+        
+        self.__compile_mtl_model(self.baseModel.input, branches_list)
+    
     
     def __create_mtl_model_2(self):
-        def __create_branch(prev_layer, req_name):
-            y = Flatten()(prev_layer)
-            y = Dense(64, activation='relu')(y)
-            y = Dense(2, activation='softmax', name=req_name)(y)
-            return y
-        
-        def __vgg_block(prev_layer, num_convs, num_channels, block_name):
-            x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+'_0')(prev_layer)
-            idx = num_convs
-            #while idx > 0:
-            #    x = Conv2D(num_channels, kernel_size=3, padding='same', activation='relu', name=block_name+f'_{num_convs-idx+1}')(x)
-            #    idx -= 1
-            x = MaxPooling2D(pool_size=2, strides=2, padding="same", name=block_name+f'_{num_convs-idx+2}')(x)
-            return x
-        
-        def __create_common_branch(prev_layer):
-            y = Conv2D(64, 3, padding='same', activation='relu')(prev_layer)
-            y = MaxPooling2D(2,2)(y)
-            y = Conv2D(64, 3, padding='same', activation='relu')(y)
-            return y
-        
-        def __create_spec_branch(prev_layer, n_dense, req_name):
-            #y = Conv2D(32, 3, padding='same', activation='relu')(prev_layer)
-            #y = MaxPooling2D(2,2)(y)
-            #y = Flatten()(prev_layer)
-            y = Dense(64, activation='relu')(prev_layer)
-            for _ in range(n_dense-1):
-                y = Dense(64, activation='relu')(y)
-            y = Dense(2, activation='softmax', name=req_name)(y)
-            return y
-    
         self.baseModel = self.__create_base_model()
         
         x = self.baseModel.output
-        
         x = GlobalAveragePooling2D()(x)
-        #x = MaxPooling2D(2,2)(x)
-        #x = Flatten()(x)
-        #x = __vgg_block(x, 1, 256, 'shared_vgg_block')
+        
+        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
+                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
+        br_list_0 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g0]
+        
+        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
+        br_list_1 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g1]
+        
+        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
+                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
+        br_list_2 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g2]
+        
+        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
+                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
+        br_list_3 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g3]
+        
+        out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
+        
+        self.__compile_mtl_model(self.baseModel.input, out_branches_list)
+    
+    
+    def __create_mtl_model_3(self):
+        self.baseModel = self.__create_base_model()
+        
+        x = self.baseModel.output
+        x = self.__vgg_block(x, 1, 256, 'shared_vgg_block')
+        x = Flatten()(x)
         
         split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1), output_shape=(None,...))(x)
         spl_0 = tf.reshape(tensor=split[0], shape=[tf.shape(split[0])[0],1,32,32])
@@ -372,43 +391,29 @@ class ModelTrainer:
         spl_2 = tf.reshape(tensor=split[2], shape=[tf.shape(split[2])[0],1,32,32])
         spl_3 = tf.reshape(tensor=split[3], shape=[tf.shape(split[3])[0],1,32,32])
         
-        ##g0 = __create_branch(split[0], 'g0')
-        g0 = __vgg_block(spl_0, 1, 32, 'g0')
+        g0 = self.__vgg_block(spl_0, 2, 32, 'g0')
         reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
                    ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
-        #br_list_0 = [__create_branch(g0, req.value) for req in reqs_g0]
-        br_list_0 = [__create_spec_branch(x, 1, req.value) for req in reqs_g0]
+        br_list_0 = [self.__create_fcs_block_2(g0, 3, req.value) for req in reqs_g0]
         
-        ##g1 = __create_branch(split[1], 'g1')
-        g1 = __vgg_block(spl_1, 1, 32, 'g1')
+        g1 = self.__vgg_block(spl_1, 3, 32, 'g1')
         reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
-        br_list_1 = [__create_spec_branch(x, 1, req.value) for req in reqs_g1]
+        br_list_1 = [self.__create_fcs_block_2(g1, 2, req.value) for req in reqs_g1]
         
-        ##g2 = __create_branch(split[2], 'g2')
-        g2 = __vgg_block(spl_2, 1, 32, 'g2')
+        g2 = self.__vgg_block(spl_2, 3, 32, 'g2')
         reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
                    ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
-        br_list_2 = [__create_spec_branch(x, 1, req.value) for req in reqs_g2]
+        br_list_2 = [self.__create_fcs_block_2(g2, 3, req.value) for req in reqs_g2]
         
-        ##g3 = __create_branch(split[3], 'g3')
-        g3 = __vgg_block(spl_3, 1, 32, 'g3')
+        g3 = self.__vgg_block(spl_3, 2, 32, 'g3')
         reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
                    ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        br_list_3 = [__create_spec_branch(x, 1, req.value) for req in reqs_g3]
+        br_list_3 = [self.__create_fcs_block_2(g3, 3, req.value) for req in reqs_g3]
         
-        #branches_list = [__create_branch(x, req.value) for req in self.prop_args['reqs']]
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         
-        self.model = Model(inputs=self.baseModel.input, outputs=out_branches_list)
-        
-        opt = self.__get_optimizer()
-        n_reqs = len(self.prop_args['reqs'])
-        loss_list = ['sparse_categorical_crossentropy' for x in range(n_reqs)]
-        metrics_list = ['accuracy']
-        loss_weights = [.1 for x in range(n_reqs)]
-        
-        self.model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
-        
+        self.__compile_mtl_model(self.baseModel.input, out_branches_list)
+    
     
     def create_model(self, train_gen):
         print('Creating model...')
@@ -419,6 +424,8 @@ class ModelTrainer:
                 self.__create_mtl_model()
             elif self.mtl_approach.value == MTLApproach.HAND_2.value:
                 self.__create_mtl_model_2()
+            elif self.mtl_approach.value == MTLApproach.HAND_3.value:
+                self.__create_mtl_model_3()
 
         if self.use_neptune:
             self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
@@ -523,34 +530,6 @@ class ModelTrainer:
                               verbose=1)
     
     
-#     def __get_my_callback(self):
-#         class MyCallback(tf.keras.callbacks.Callback): 
-#             def __init__(self, val_gen):
-#                 self.val_gen = val_gen
-#                 self.out_file_path = 'output/out.csv'
-
-#             def __clean_out_file(self):
-#                 if os.path.exists(self.out_file_path):
-#                     os.remove(self.out_file_path)
-
-#             def on_epoch_end(self, epoch, logs={}): 
-#                 if epoch == 0:
-#                     self.__clean_out_file()
-
-#         #         print(f'Validation Accuracy: {self.model.evaluate(self.val_gen, batch_size=BS)}')
-
-#                 with open(self.out_file_path,'a') as f:
-#                     predIxs = self.model.predict(self.val_gen, batch_size=BS)
-#                     Y = self.val_gen.labels
-#                     Y_hat = np.argmax(predIxs, axis=1)
-#                     for idx,(y,y_h) in enumerate(zip(Y,Y_hat)):
-#                         if epoch == 0 and idx == 0:
-#                             f.writelines('epoch,idx,y,y_hat\n')
-#                         f.writelines(f'{epoch+1},{idx},{y},{y_h}\n')   
-        
-#         return MyCallback(self.validation_gen)
-
-
     def vizualize_model(self, outfile_path=None):
         display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
         if self.use_neptune:
@@ -670,7 +649,6 @@ class ModelTrainer:
             prev_run.stop()
         
     
-    
     def draw_training_history(self):
         if self.is_training_model:
             if not self.is_mtl_model:
@@ -745,7 +723,6 @@ class ModelTrainer:
         else:
             print('Not training a model and not using Neptune!')
     
-    
     # download training curves plot from Neptune previous experiment
     # and upload it to the current one
     def __get_training_curves(self):
@@ -765,7 +742,7 @@ class ModelTrainer:
         finally:
             prev_run.stop()
     
-    
+
     def load_checkpoint(self, chkp_name):
         self.__create_model()
         self.model.load_weights(chkp_name)
