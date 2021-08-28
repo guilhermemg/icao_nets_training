@@ -135,7 +135,7 @@ class DataProcessor:
         
         train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'], 
                                      horizontal_flip=True,
-                                     rotation_range=20,
+#                                      rotation_range=20,
                                      zoom_range=0.15,
                                      width_shift_range=0.2,
                                      height_shift_range=0.2,
