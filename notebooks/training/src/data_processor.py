@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -137,8 +136,8 @@ class DataProcessor:
                                      horizontal_flip=True,
 #                                      rotation_range=20,
                                      zoom_range=0.15,
-                                     width_shift_range=0.2,
-                                     height_shift_range=0.2,
+                                     width_shift_range=0.1,
+                                     height_shift_range=0.1,
                                      shear_range=0.15,
                                      fill_mode="nearest")
         
