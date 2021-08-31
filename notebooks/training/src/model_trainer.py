@@ -23,6 +23,7 @@ from enum import Enum
 
 # from utils.constants import SEED, ICAO_REQ
 from model_creator import ModelCreator, Optimizer
+from model_train_visualizer import ModelTrainVisualizer
 
 ## restrict memory growth -------------------
 import tensorflow as tf
@@ -62,6 +63,7 @@ class ModelTrainer:
         self.__check_gpu_availability()
 
         self.model_creator = ModelCreator(self.net_args, self.prop_args, self.base_model, self.mtl_approach, self.is_mtl_model)
+        self.model_train_viz = ModelTrainVisualizer(self.prop_args, self.base_model, self.is_mtl_model)
         
     
     def __set_model_path(self):
@@ -404,67 +406,7 @@ class ModelTrainer:
     
     def draw_training_history(self):
         if self.is_training_model:
-            if not self.is_mtl_model:
-                f,ax = plt.subplots(1,2, figsize=(10,5))
-                f.suptitle(f'-----{self.base_model.name}-----')
-
-                ax[0].plot(self.H.history['accuracy'])
-                ax[0].plot(self.H.history['val_accuracy'])
-                ax[0].set_title('Model Accuracy')
-                ax[0].set_ylabel('accuracy')
-                ax[0].set_xlabel('epoch')
-                ax[0].legend(['train', 'validation'])
-
-                ax[1].plot(self.H.history['loss'])
-                ax[1].plot(self.H.history['val_loss'])
-                ax[1].set_title('Model Loss')
-                ax[1].set_ylabel('loss')
-                ax[1].set_xlabel('epoch')
-                ax[1].legend(['train', 'validation'])
-
-            else:
-                f,ax = plt.subplots(2,2, figsize=(20,25))
-                f.suptitle(f'-----{self.base_model.name}-----')
-
-                for _,req in enumerate(self.prop_args['reqs']):
-                    ax[0][0].plot(self.H.history[f'{req.value}_accuracy'])
-                    ax[0][1].plot(self.H.history[f'val_{req.value}_accuracy'])
-
-                    ax[1][0].plot(self.H.history[f'{req.value}_loss'])
-                    ax[1][1].plot(self.H.history[f'val_{req.value}_loss'])
-
-                ax[1][1].plot(self.H.history['loss'], color='red', linewidth=2.0) # total loss
-
-                ax[0][0].set_title('Model Accuracy - Train')
-                ax[0][1].set_title('Model Accuracy - Validation')
-
-                ax[0][0].set_ylabel('accuracy')
-                ax[0][1].set_ylabel('accuracy')
-                ax[0][0].set_xlabel('epoch')
-                ax[0][1].set_xlabel('epoch')
-
-                ax[0][0].set_ylim([0,1.1])
-                ax[0][1].set_ylim([0,1.1])
-
-                ax[1][0].set_title('Model Loss - Train')
-                ax[1][1].set_title('Model Loss - Validation')
-
-                ax[1][0].set_ylabel('loss')
-                ax[1][1].set_ylabel('loss')
-
-                ax[1][0].set_xlabel('epoch')
-                ax[1][1].set_xlabel('epoch')
-
-                ax[1][0].set_ylim([0,1.5])
-                ax[1][1].set_ylim([0,1.5])
-
-                legends = [r.value for r in self.prop_args['reqs']]
-                ax[0][0].legend(legends, ncol=4)
-                ax[0][1].legend(legends, ncol=4)
-                ax[1][0].legend(legends, ncol=4)
-                ax[1][1].legend(legends, ncol=4)
-            
-            plt.show()
+            self.model_train_viz.visualize_history(self.H)
 
             if self.use_neptune:
                 self.neptune_run['viz/train/training_curves'].upload(f)
