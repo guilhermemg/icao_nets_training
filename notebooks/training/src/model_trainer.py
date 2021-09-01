@@ -1,13 +1,10 @@
 import os
 import shutil
 import zipfile
-import numpy as np
 
 import neptune.new as neptune
 
 from pathlib import Path
-
-import matplotlib.pyplot as plt
 
 from IPython.display import display
 
@@ -15,15 +12,12 @@ from IPython.display import display
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 
 from tensorflow.keras.utils import plot_model
-from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
-from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.models import load_model
 
-from enum import Enum
-
-# from utils.constants import SEED, ICAO_REQ
-from model_creator import ModelCreator, Optimizer
+from model_creator import ModelCreator
 from model_train_visualizer import ModelTrainVisualizer
+from train_callbacks import *
+
 
 ## restrict memory growth -------------------
 import tensorflow as tf
@@ -63,6 +57,7 @@ class ModelTrainer:
         self.__check_gpu_availability()
 
         self.model_creator = ModelCreator(self.net_args, self.prop_args, self.base_model, self.mtl_approach, self.is_mtl_model)
+        self.cb_handler = CallbacksHandler(self.net_args, self.prop_args, self.use_neptune, self.neptune_run, self.CHECKPOINT_PATH, self.is_mtl_model)
         self.model_train_viz = ModelTrainVisualizer(self.prop_args, self.base_model, self.is_mtl_model)
         
     
@@ -226,65 +221,6 @@ class ModelTrainer:
             print('Not training a model!')
            
     
-    def __log_data(self, logs):
-        if not self.is_mtl_model:
-            self.neptune_run['epoch/accuracy'].log(logs['accuracy'])
-            self.neptune_run['epoch/val_accuracy'].log(logs['val_accuracy'])
-            self.neptune_run['epoch/loss'].log(logs['loss'])    
-            self.neptune_run['epoch/val_loss'].log(logs['val_loss'])
-        else:
-            train_acc_list = []
-            val_acc_list = []
-            for req in self.prop_args['reqs']:
-                self.neptune_run[f'epoch/{req.value}/accuracy'].log(logs[f'{req.value}_accuracy'])
-                self.neptune_run[f'epoch/{req.value}/val_accuracy'].log(logs[f'val_{req.value}_accuracy'])
-                self.neptune_run[f'epoch/{req.value}/loss'].log(logs[f'{req.value}_loss'])
-                self.neptune_run[f'epoch/{req.value}/val_loss'].log(logs[f'val_{req.value}_loss'])
-                self.neptune_run[f'epoch/total_loss'].log(logs['loss'])
-                
-                train_acc_list.append(logs[f'{req.value}_accuracy'])
-                val_acc_list.append(logs[f'val_{req.value}_accuracy'])
-            
-            total_acc, total_val_acc = np.mean(train_acc_list), np.mean(val_acc_list)
-            self.neptune_run['epoch/total_accuracy'].log(total_acc)
-            self.neptune_run['epoch/total_val_accuracy'].log(total_val_acc)
-            
-
-    def __lr_scheduler(self, epoch):
-        if epoch <= 10:
-            new_lr = self.net_args['learning_rate']
-        elif epoch <= 20:
-            new_lr = self.net_args['learning_rate'] * 0.5
-        elif epoch <= 40:
-            new_lr = self.net_args['learning_rate'] * 0.5
-        else:
-            new_lr = self.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.net_args['n_epochs'])*self.net_args['n_epochs'] - epoch))
-
-        if self.use_neptune:
-            self.neptune_run['learning_rate'].log(new_lr)
-            
-        return new_lr
-       
-    
-    def __get_log_data_callback(self):
-        return LambdaCallback(on_epoch_end = lambda epoch, logs: self.__log_data(logs))
-    
-    
-    def __get_lr_scheduler_callback(self):
-        return LearningRateScheduler(self.__lr_scheduler)
-    
-    
-    def __get_early_stopping_callback(self):
-        return EarlyStopping(patience=self.net_args['early_stopping'], 
-                                         monitor='val_loss', 
-                                         restore_best_weights=True)
-    
-    
-    def __get_model_checkpoint_callback(self):
-        return ModelCheckpoint(self.CHECKPOINT_PATH, monitor='val_loss', save_best_only=True, mode='min',
-                              verbose=1)
-    
-    
     def vizualize_model(self, outfile_path=None):
         display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
         if self.use_neptune:
@@ -315,26 +251,14 @@ class ModelTrainer:
         
         self.model_summary(fine_tuned, print_fn=p_func)
             
-    
+
     def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs):
         if self.is_training_model:
             print(f'Training {self.base_model.name} network')
             
             self.__setup_fine_tuning(fine_tuned)       
 
-            callbacks_list = []
-
-            if self.use_neptune:
-                callbacks_list.append(self.__get_log_data_callback())
-
-            if self.net_args['optimizer'].name in [Optimizer.ADAMAX_CUST.name, Optimizer.ADAGRAD_CUST.name,
-                                                   Optimizer.ADAM_CUST.name, Optimizer.SGD_CUST.name]:
-                callbacks_list.append(self.__get_lr_scheduler_callback())
-
-            if self.net_args['early_stopping'] is not None:
-                callbacks_list.append(self.__get_early_stopping_callback())
-
-            callbacks_list.append(self.__get_model_checkpoint_callback())
+            callbacks_list = self.cb_handler.get_callbacks_list()
             
             if n_epochs is None:
                 epchs = self.net_args['n_epochs']
@@ -406,7 +330,7 @@ class ModelTrainer:
     
     def draw_training_history(self):
         if self.is_training_model:
-            self.model_train_viz.visualize_history(self.H)
+            f = self.model_train_viz.visualize_history(self.H)
 
             if self.use_neptune:
                 self.neptune_run['viz/train/training_curves'].upload(f)

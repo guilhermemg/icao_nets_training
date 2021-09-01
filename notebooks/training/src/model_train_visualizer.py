@@ -10,6 +10,7 @@ class ModelTrainVisualizer:
 
     
     def visualize_history(self, history):
+        f = None
         if not self.is_mtl_model:
             f,ax = plt.subplots(1,2, figsize=(10,5))
             f.suptitle(f'-----{self.base_model.name}-----')
@@ -71,3 +72,5 @@ class ModelTrainVisualizer:
             ax[1][1].legend(legends, ncol=4)
         
         plt.show()
+
+        return f

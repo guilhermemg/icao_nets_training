@@ -22,19 +22,7 @@ from enum import Enum
 
 from utils.constants import SEED, ICAO_REQ
 from base_models import BaseModel
-
-
-class Optimizer(Enum):
-    ADAM = 'Adam'
-    ADAM_CUST = 'AdamCustomized'
-    SGD = 'SGD'
-    SGD_CUST = 'SGDCustomized'
-    SGD_NESTEROV = 'SGDNesterov'
-    ADAMAX = 'Adamax'
-    ADAMAX_CUST = 'AdamaxCustomized'
-    ADAGRAD = 'Adagrad'
-    ADAGRAD_CUST = 'AdagradCustomized'
-    ADADELTA = 'Adadelta'
+from optimizers import Optimizer
 
 
 class MTLApproach(Enum):
