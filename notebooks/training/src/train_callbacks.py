@@ -24,20 +24,27 @@ class CallbacksHandler:
         else:
             train_acc_list = []
             val_acc_list = []
+            train_loss_list = []
+            val_loss_list = []
+
             for req in self.prop_args['reqs']:
                 self.neptune_run[f'epoch/{req.value}/accuracy'].log(logs[f'{req.value}_accuracy'])
                 self.neptune_run[f'epoch/{req.value}/val_accuracy'].log(logs[f'val_{req.value}_accuracy'])
                 self.neptune_run[f'epoch/{req.value}/loss'].log(logs[f'{req.value}_loss'])
                 self.neptune_run[f'epoch/{req.value}/val_loss'].log(logs[f'val_{req.value}_loss'])
-                self.neptune_run[f'epoch/total_loss'].log(logs['loss'])
                 
                 train_acc_list.append(logs[f'{req.value}_accuracy'])
                 val_acc_list.append(logs[f'val_{req.value}_accuracy'])
+                train_loss_list.append(logs[f'loss'])
+                val_loss_list.append(logs[f'val_loss'])
             
             total_acc, total_val_acc = np.mean(train_acc_list), np.mean(val_acc_list)
+            total_loss, total_val_loss = np.mean(train_loss_list), np.mean(val_loss_list)
+
             self.neptune_run['epoch/total_accuracy'].log(total_acc)
             self.neptune_run['epoch/total_val_accuracy'].log(total_val_acc)
-            
+            self.neptune_run[f'epoch/total_loss'].log(total_loss)
+            self.neptune_run[f'epoch/total_val_loss'].log(total_val_loss)
     
 
     def __get_log_data_callback(self):
