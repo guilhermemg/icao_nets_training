@@ -77,7 +77,6 @@ class ExperimentRunner:
     def __kwargs_sanity_check(self):
         has_experiment_id = True if self.prop_args['orig_model_experiment_id'] != '' else False
         is_training_new_model = self.prop_args['train_model']
-        is_saving_trained_model = self.prop_args['save_trained_model']
         
         if not has_experiment_id and not is_training_new_model:
             raise Exception('You must train a new model or provide an experiment ID')
@@ -102,7 +101,7 @@ class ExperimentRunner:
     
     
     def __load_exp_config(self, yaml_config_file):
-        self.self.__print_method_log_sig('load experiment configs')
+        self.__print_method_log_sig('load experiment configs')
         print(f'Loading experiment config from {yaml_config_file}')
         with open(yaml_config_file, 'r') as f:
             cnt = yaml.load(f, Loader=yaml.Loader)[0]
@@ -187,13 +186,6 @@ class ExperimentRunner:
             props['sample_training_data'] = self.prop_args['sample_training_data']
             props['sample_prop'] = self.prop_args['sample_prop']
             props['is_mtl_model'] = self.is_mtl_model
-            
-            #neptune.create_experiment( name=self.exp_args['name'],
-            #                           params=params,
-            #                           properties=props,
-            #                           description=self.exp_args['description'],
-            #                           tags=self.exp_args['tags'],
-            #                           upload_source_files=self.exp_args['src_files'])
             
             self.neptune_run['parameters'] = params
             self.neptune_run['properties'] = props
