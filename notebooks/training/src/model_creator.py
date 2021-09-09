@@ -31,11 +31,15 @@ class MTLApproach(Enum):
     HAND_3 = 'handcrafted_3'
 
 
+class NAS_MTLApproach(Enum):
+    APPROACH_1 = 'approach_1'
+
+
 class ModelCreator:
-    def __init__(self, net_args, prop_args, base_model, mtl_approach, is_mtl_model):
+    def __init__(self, net_args, prop_args, base_model, approach, is_mtl_model):
         self.net_args = net_args
         self.prop_args = prop_args
-        self.mtl_approach = mtl_approach
+        self.approach = approach
         self.is_mtl_model = is_mtl_model
         self.base_model = base_model   # enum tpe BaseModel
     
@@ -234,13 +238,43 @@ class ModelCreator:
         return baseModel, model
 
 
-    def create_model(self, train_gen=None):
+    def create_nas_mtl_model_1(self, config):
+        baseModel = self.__create_base_model()
+        
+        x = baseModel.output
+        x = GlobalAveragePooling2D()(x)
+        
+        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
+                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
+        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], req.value) for req in reqs_g0]
+        
+        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
+        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], req.value) for req in reqs_g1]
+        
+        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
+                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
+        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], req.value) for req in reqs_g2]
+        
+        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
+                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
+        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], req.value) for req in reqs_g3]
+        
+        out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
+        
+        model = self.__compile_mtl_model(baseModel.input, out_branches_list)
+
+        return baseModel, model
+
+
+    def create_model(self, train_gen=None, config=None):
         if not self.is_mtl_model:
             return self.create_stl_model(train_gen)
         else:
-            if self.mtl_approach.value == MTLApproach.HAND_1.value:
+            if self.approach.value == MTLApproach.HAND_1.value:
                 return self.create_mtl_model()
-            elif self.mtl_approach.value == MTLApproach.HAND_2.value:
+            elif self.approach.value == MTLApproach.HAND_2.value:
                 return self.create_mtl_model_2()
-            elif self.mtl_approach.value == MTLApproach.HAND_3.value:
+            elif self.approach.value == MTLApproach.HAND_3.value:
                 return self.create_mtl_model_3()
+            elif self.approach.value == NAS_MTLApproach.APPROACH_1.value:
+                return self.create_nas_mtl_model_1(config)

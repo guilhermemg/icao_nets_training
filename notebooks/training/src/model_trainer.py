@@ -33,11 +33,11 @@ except:
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, mtl_approach, neptune_run):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, approach, neptune_run):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
-        self.mtl_approach = mtl_approach
+        self.approach = approach
         self.neptune_run = neptune_run
         self.use_neptune = True if neptune_run is not None else False
         self.base_model = base_model  # object of type enum BaseModel 
@@ -59,7 +59,7 @@ class ModelTrainer:
         self.__clear_checkpoints()
         self.__check_gpu_availability()
 
-        self.model_creator = ModelCreator(self.net_args, self.prop_args, self.base_model, self.mtl_approach, self.is_mtl_model)
+        self.model_creator = ModelCreator(self.net_args, self.prop_args, self.base_model, self.approach, self.is_mtl_model)
         self.cb_handler = CallbacksHandler(self.net_args, self.prop_args, self.use_neptune, self.neptune_run, self.CHECKPOINT_PATH, self.is_mtl_model)
         self.model_train_viz = ModelTrainVisualizer(self.prop_args, self.base_model, self.is_mtl_model)
         
@@ -105,10 +105,10 @@ class ModelTrainer:
             os.remove(self.CHECKPOINT_PATH)
     
     
-    def create_model(self, train_gen=None):
+    def create_model(self, train_gen=None, config=None):
         print('Creating model...')
         
-        self.baseModel, self.model = self.model_creator.create_model(train_gen)
+        self.baseModel, self.model = self.model_creator.create_model(train_gen, config)
 
         if self.use_neptune:
             self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))

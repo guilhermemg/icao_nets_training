@@ -12,7 +12,7 @@ if '../../../../notebooks/' not in sys.path:
 from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator, DataSource, DataPredSelection
-from nas_trainer import NASTrainer
+from nas_controller import NASController
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -64,13 +64,13 @@ class ExperimentRunner:
         print('----')
         self.is_mtl_model = len(self.prop_args['reqs']) > 1
         print(f'MTL Model: {self.is_mtl_model}')
-        self.mtl_approach = self.prop_args['mtl_approach']
-        print(f'MTL Approach: {self.mtl_approach}')
+        self.approach = self.prop_args['approach']
+        print(f'Approach: {self.approach}')
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
-        self.nas_trainer = NASTrainer(self.prop_args, self.nas_params, self.base_model, self.is_mtl_model, self.neptune_run)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.mtl_approach, self.neptune_run)
+        self.nas_controller = NASController(self.prop_args, self.nas_params, self.base_model, self.is_mtl_model, self.neptune_run)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
     
     
@@ -197,12 +197,19 @@ class ExperimentRunner:
     
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
-        self.model = self.nas_trainer.run_nas(self.train_gen, self.validation_gen)
+        
+        converged = False
+        while not converged:
+            config = self.nas_controller.select_topology()
+            self.model_trainer.create_model(config=config)
+            self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=5)
+            converged = self.nas_controller.evaluate_topology(self.model_trainer.H)
+
     
     
     def create_model(self):
         self.__print_method_log_sig( 'create model')
-        self.model = self.model_trainer.create_model(self.train_gen)
+        self.model_trainer.create_model(self.train_gen)
     
     
     def vizualize_model(self, outfile_path):
