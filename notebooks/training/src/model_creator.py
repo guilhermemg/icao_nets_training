@@ -117,7 +117,7 @@ class ModelCreator:
         return model
     
     
-    def __create_branch_1(self, prev_layer, req_name, n_out):
+    def __create_branch_1(self, prev_layer, req_name, n_out, initializer):
         y = Dense(64, activation='relu', kernel_initializer=initializer)(prev_layer)
         y = Dropout(self.net_args['dropout'])(y)
         y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
@@ -160,7 +160,7 @@ class ModelCreator:
         x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
         
-        branches_list = [self.__create_branch_1(x, req.value, 2) for req in self.prop_args['reqs']]
+        branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.prop_args['reqs']]
         
         model = self.__compile_mtl_model(baseModel.input, branches_list)
 
