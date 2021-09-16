@@ -43,7 +43,35 @@ class DataPredSelection(Enum):
     ONLY_FN = {'title': 'Only False Negatives images', 'abv': 'fn_only'}
     ONLY_TP = {'title': 'Only True Positives images', 'abv': 'tp_only'}
     ONLY_TN = {'title': 'Only True Negatives images', 'abv': 'tn_only'}
+
+
+class RequisiteEvaluation:
+    def __init__(self, req):
+        self.req = req
+        self.TP = None
+        self.FP = None
+        self.TN = None
+        self.FN = None
+        self.EER_interp = None
+        self.EER_mean = None
+        self.best_th = None
+        self.FAR = None
+        self.FRR = None
+        self.ACC = None
     
+    def __str__(self) -> str:
+        return f'Requisite: {self.req}\n' + \
+                f' TP: {self.TP} | ' + \
+                f' TN: {self.TN} | ' + \
+                f' FP: {self.FP} | ' + \
+                f' FN: {self.FN}\n' + \
+                f' ACC: {self.ACC}\n' + \
+                f' EER_interp: {self.EER_interp} | ' + \
+                f' EER_mean: {self.EER_mean} | ' + \
+                f' Best_thresh: {self.best_th} | ' + \
+                f' FAR: {self.FAR} | ' + \
+                f' FRR: {self.FRR}'
+
 
 class ModelEvaluator:
     def __init__(self, net_args, prop_args, is_mtl_model, neptune_run):
@@ -167,6 +195,8 @@ class ModelEvaluator:
             else:
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_interp'] = EER_interp
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/best_th'] = best_th
+        
+        return EER_interp, best_th
 
 
     def get_classification_report(self, data_gen):
@@ -202,6 +232,8 @@ class ModelEvaluator:
                 self.neptune_run[f'{self.metrics_var_base_path}/ACC'] = ACC
             else:
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/ACC'] = ACC
+        
+        return ACC
 
 
     def get_confusion_matrix(self, req):
@@ -235,17 +267,34 @@ class ModelEvaluator:
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/FAR'] = FAR
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/FRR'] = FRR
                 self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_mean'] = EER_mean
+        
+        return TN,TP,FN,FP,FAR,FRR,EER_mean
 
     
-    def __calculate_metrics(self, predIdxs, data_gen, req):
+    def __calculate_metrics(self, predIdxs, data_gen, req_eval):
         self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
         
-        req = req.value.lower()
+        req = req_eval.req.value.lower()
         
-        self.calculate_eer(req)
+        EER_interp, best_thresh = self.calculate_eer(req)
+        req_eval.EER_interp = EER_interp
+        req_eval.best_th = best_thresh
+        
         self.get_classification_report(data_gen)
-        self.get_confusion_matrix(req)
-        self.calculate_accuracy(req)
+
+        TN,TP,FN,FP,FAR,FRR,EER_mean = self.get_confusion_matrix(req)
+        req_eval.TP = TP
+        req_eval.TN = TN
+        req_eval.FP = FP
+        req_eval.FN = FN
+        req_eval.FAR = FAR
+        req_eval.FRR = FRR
+        req_eval.EER_mean = EER_mean
+
+        acc = self.calculate_accuracy(req)
+        req_eval.ACC = acc
+
+        return req_eval
         
         
     
@@ -257,17 +306,21 @@ class ModelEvaluator:
         predIdxs = model.predict(data_gen, batch_size=self.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
+        self.req_evaluations = []
         if self.is_mtl_model:
             for idx,req in enumerate(self.prop_args['reqs']):
                 if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
                     continue
                 print(f'Requisite: {req.value.upper()}')
                 self.y_test_true = np.array(data_gen.labels[idx])
-                self.__calculate_metrics(predIdxs[idx], data_gen, req)
+                req_eval = RequisiteEvaluation(req)
+                self.req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req_eval))
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
             self.y_test_true = np.array(data_gen.labels)
-            self.__calculate_metrics(predIdxs, data_gen, self.prop_args['reqs'][0])
+            req = self.prop_args['reqs'][0]
+            req_eval = RequisiteEvaluation(req)
+            self.req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req_eval))
     
     
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:
