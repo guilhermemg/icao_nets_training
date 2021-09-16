@@ -1,4 +1,6 @@
 
+import numpy as np
+
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
 from tensorflow.keras.applications.vgg19 import preprocess_input as prep_input_vgg19
@@ -35,7 +37,6 @@ class NASController:
         self.neptune_run = neptune_run
         
         self.model = None
-            
     
     # # receives current topology and adds basic block
     # # returns new topology
@@ -112,10 +113,15 @@ class NASController:
         #net_mng = NASNetManager()
 
 
+    def reset_env(self):
+        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=5, size=4))}  # n1,n2,n3,n4 
+
+
     def select_topology(self):
-        config = [1,1,1,1]   # TODO 
-        return config
+        #config = [1,1,1,1]   # n1,n2,n3,n4 
+        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=5, size=4))}  # n1,n2,n3,n4 
     
 
-    def evaluate_topology(self, history_logs):
-        pass
+    def evaluate_topology(self, reqs_evals):
+        final_EER_mean = np.sum([r_ev.EER_mean for r_ev in reqs_evals])/len(reqs_evals)
+        return final_EER_mean

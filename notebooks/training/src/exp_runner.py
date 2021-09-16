@@ -198,12 +198,36 @@ class ExperimentRunner:
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
         
-        converged = False
-        while not converged:
-            config = self.nas_controller.select_topology()
+        T = 5
+        MAX_EPISODES = 10
+
+        # for epi in range(MAX_EPISODES):
+        #     print(f'Episode: {epi}')
+        #     config = state = self.nas_controller.reset_env()  # topology or config
+            #agent.reset()
+        
+        config = self.nas_controller.select_topology()
+        for t in range(T):
+            print(f' ----- Training {t} | Config: {config} --------')
+            #action = agent.act(state)
             self.model_trainer.create_model(config=config)
-            self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=5)
-            converged = self.nas_controller.evaluate_topology(self.model_trainer.H)
+            self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=2)
+            self.model_trainer.load_best_model()
+            self.model_evaluator.set_data_src(DataSource.VALIDATION)
+            self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model)
+
+            req_evals = self.model_evaluator.req_evaluations
+            
+            final_eer_mean = self.nas_controller.evaluate_topology(req_evals)
+            
+            print(f'  final_eer_mean: {final_eer_mean}')
+            #state, reward = env.step(action)
+            #agent.update(action, state, reward)
+            
+            #if env.done():
+            #    break
+            
+            
 
     
     
