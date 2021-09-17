@@ -129,8 +129,12 @@ class ModelTrainer:
             print('Not training a model!')
            
     
-    def vizualize_model(self, outfile_path=None):
-        display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
+    def vizualize_model(self, outfile_path=None, verbose=True):
+        if verbose:
+            display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
+        else:
+            plot_model(self.model, show_shapes=True, to_file=outfile_path)
+        
         if self.use_neptune:
             self.neptune_run['viz/model_architecture'].upload(outfile_path)
 

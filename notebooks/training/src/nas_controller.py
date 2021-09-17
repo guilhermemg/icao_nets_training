@@ -114,14 +114,15 @@ class NASController:
 
 
     def reset_env(self):
-        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=5, size=4))}  # n1,n2,n3,n4 
+        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=6, size=4))}  # n1,n2,n3,n4 
 
 
     def select_topology(self):
         #config = [1,1,1,1]   # n1,n2,n3,n4 
-        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=5, size=4))}  # n1,n2,n3,n4 
+        return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=6, size=4))}  # n1,n2,n3,n4 
     
 
     def evaluate_topology(self, reqs_evals):
         final_EER_mean = np.sum([r_ev.EER_mean for r_ev in reqs_evals])/len(reqs_evals)
-        return final_EER_mean
+        final_ACC = np.sum([r_ev.ACC for r_ev in reqs_evals])/len(reqs_evals)
+        return {'final_EER_mean': final_EER_mean, 'final_ACC': final_ACC}

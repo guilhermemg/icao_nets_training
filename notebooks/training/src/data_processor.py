@@ -92,6 +92,12 @@ class DataProcessor:
         print(f"..Sampling proportion: {sample_prop} ({int(sample_prop * total_train)}/{total_train})")
         self.train_data = self.train_data.sample(frac=self.prop_args['sample_prop'], random_state=SEED)
         print(self.train_data.shape)
+
+        print('Applying subsampling in validation data')
+        total_valid = self.validation_data.shape[0]
+        print(f"..Sampling proportion: {sample_prop} ({int(sample_prop * total_valid)}/{total_valid})")
+        self.validation_data = self.validation_data.sample(frac=self.prop_args['sample_prop'], random_state=SEED)
+        print(self.validation_data.shape)
     
     
     def balance_input_data(self, req_name):

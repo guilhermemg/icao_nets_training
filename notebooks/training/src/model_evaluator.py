@@ -164,7 +164,7 @@ class ModelEvaluator:
             self.neptune_run[f'{self.viz_var_base_path}/roc_curve.png'].upload(fig)
     
     
-    def calculate_eer(self, req):
+    def calculate_eer(self, req, verbose):
         if self.y_test_true is None or self.y_test_hat is None:
             raise Exception('Call method make_predictions() before calculate_eer()!')
         
@@ -179,12 +179,15 @@ class ModelEvaluator:
         EER_interp = brentq(lambda x : 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         best_th = interp1d(fpr, ths)(EER_interp)
         
-        self.__draw_roc_curve(fpr, tpr, EER_interp, best_th, req)
-        self.__draw_far_frr_curve(th_range, frr, far, EER_interp, req, best_th)
+        if verbose:
+            self.__draw_roc_curve(fpr, tpr, EER_interp, best_th, req)
+            self.__draw_far_frr_curve(th_range, frr, far, EER_interp, req, best_th)
 
         best_th = best_th.tolist()
         EER_interp = round(EER_interp, 4)
-        print(f'Requisite: {req.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
+
+        if verbose:
+            print(f'Requisite: {req.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
 
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
         
@@ -199,11 +202,9 @@ class ModelEvaluator:
         return EER_interp, best_th
 
 
-    def get_classification_report(self, data_gen):
+    def get_classification_report(self, data_gen, verbose):
         if self.y_test_true is None or self.y_test_hat_discrete is None:
             raise Exception('Call method make_predictions() and calculate_eer() before __get_classification_report()!')
-        
-        print('Classification report -----------------------------------')
         
         target_names,labels = None,None
         if self.is_mtl_model:
@@ -213,19 +214,23 @@ class ModelEvaluator:
             target_names = list(data_gen.class_indices.keys())
             labels = list(data_gen.class_indices.values())
         
-        print(classification_report(y_true=self.y_test_true, 
-                                    y_pred=self.y_test_hat_discrete, 
-                                    target_names=target_names, 
-                                    labels=labels))
+        if verbose:
+            print('Classification report -----------------------------------')
+            print(classification_report(y_true=self.y_test_true, 
+                                        y_pred=self.y_test_hat_discrete, 
+                                        target_names=target_names, 
+                                        labels=labels))
 
-    def calculate_accuracy(self, req):
+    def calculate_accuracy(self, req, verbose):
         if self.y_test_true is None or self.y_test_hat_discrete is None:
             raise Exception('Call method make_predictions() and calculate_eer() before calculate_accuracy()!')
         
-        print('Accuracy ------------------------------------------------')
         ACC = round(accuracy_score(self.y_test_true, self.y_test_hat_discrete), 4)
-        print(f'Model Accuracy: {ACC*100}%')
-        print('---------------------------------------------------------')
+        
+        if verbose:
+            print('Accuracy ------------------------------------------------')
+            print(f'Model Accuracy: {ACC*100}%')
+            print('---------------------------------------------------------')
         
         if self.use_neptune:
             if not self.is_mtl_model:
@@ -236,11 +241,10 @@ class ModelEvaluator:
         return ACC
 
 
-    def get_confusion_matrix(self, req):
+    def get_confusion_matrix(self, req, verbose):
         if self.y_test_true is None or self.y_test_hat is None:
             raise Exception('Call method make_predictions() before calculate_confusion_matrix()!')
         
-        print('Confusion matrix ----------------------------------------')
         TN,FP,FN,TP = confusion_matrix(self.y_test_true, 
                                        self.y_test_hat_discrete, 
                                        labels=[Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]).ravel()
@@ -248,7 +252,9 @@ class ModelEvaluator:
         FRR = round(FN/(FN+TP),4)
         EER_mean = round((FAR+FRR)/2.,4)
         
-        print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
+        if verbose:
+            print('Confusion matrix ----------------------------------------')
+            print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
         if self.use_neptune:
             if not self.is_mtl_model:
@@ -271,18 +277,20 @@ class ModelEvaluator:
         return TN,TP,FN,FP,FAR,FRR,EER_mean
 
     
-    def __calculate_metrics(self, predIdxs, data_gen, req_eval):
+    def __calculate_metrics(self, predIdxs, data_gen, req, verbose):
         self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
         
-        req = req_eval.req.value.lower()
+        req_eval = RequisiteEvaluation(req)
+
+        req = req.value.lower()
         
-        EER_interp, best_thresh = self.calculate_eer(req)
+        EER_interp, best_thresh = self.calculate_eer(req, verbose)
         req_eval.EER_interp = EER_interp
         req_eval.best_th = best_thresh
         
-        self.get_classification_report(data_gen)
+        self.get_classification_report(data_gen, verbose)
 
-        TN,TP,FN,FP,FAR,FRR,EER_mean = self.get_confusion_matrix(req)
+        TN,TP,FN,FP,FAR,FRR,EER_mean = self.get_confusion_matrix(req, verbose)
         req_eval.TP = TP
         req_eval.TN = TN
         req_eval.FP = FP
@@ -291,14 +299,14 @@ class ModelEvaluator:
         req_eval.FRR = FRR
         req_eval.EER_mean = EER_mean
 
-        acc = self.calculate_accuracy(req)
+        acc = self.calculate_accuracy(req, verbose)
         req_eval.ACC = acc
 
         return req_eval
         
         
     
-    def test_model(self, data_gen, model):
+    def test_model(self, data_gen, model, verbose=True):
         print("Testing Trained Model")
         
         print('Predicting labels....')
@@ -311,16 +319,14 @@ class ModelEvaluator:
             for idx,req in enumerate(self.prop_args['reqs']):
                 if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
                     continue
-                print(f'Requisite: {req.value.upper()}')
+                print(f'Requisite: {req.value.upper()}') if verbose else None
                 self.y_test_true = np.array(data_gen.labels[idx])
-                req_eval = RequisiteEvaluation(req)
-                self.req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req_eval))
+                self.req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req, verbose))
         else:
-            print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}')
+            print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
             req = self.prop_args['reqs'][0]
-            req_eval = RequisiteEvaluation(req)
-            self.req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req_eval))
+            self.req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req, verbose))
     
     
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:

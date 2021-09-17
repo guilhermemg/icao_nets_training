@@ -13,6 +13,7 @@ from data_processor import DataProcessor
 from model_trainer import ModelTrainer
 from model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 from nas_controller import NASController
+from fake_data_producer import FakeDataProducer
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -114,7 +115,19 @@ class ExperimentRunner:
         self.data_processor.load_training_data()
         self.train_data = self.data_processor.train_data
         self.test_data = self.data_processor.test_data
-        
+
+
+    def produce_fake_data(self):
+        self.__print_method_log_sig( 'producing fake data for experimental purposes')
+        faker = FakeDataProducer(self.data_processor.train_data, 
+                                 self.data_processor.validation_data,
+                                 self.data_processor.test_data)
+        faker.produce_data()
+
+        self.data_processor.train_data = faker.fake_train_data_df
+        self.data_processor.validation_data = faker.fake_validation_data_df
+        self.data_processor.test_data = faker.fake_test_data_df
+
     
     def sample_training_data(self):
         self.__print_method_log_sig( 'sample training data')
@@ -199,36 +212,42 @@ class ExperimentRunner:
         self.__print_method_log_sig( 'run neural architecture search' )
         
         T = 5
-        MAX_EPISODES = 10
-
+        #MAX_EPISODES = 10
         # for epi in range(MAX_EPISODES):
         #     print(f'Episode: {epi}')
         #     config = state = self.nas_controller.reset_env()  # topology or config
             #agent.reset()
-        
+        memory_dict = {}
         config = self.nas_controller.select_topology()
         for t in range(T):
+            print('+'*50 + ' STARTING NEW TRAIN ' + '+'*50)
             print(f' ----- Training {t} | Config: {config} --------')
             #action = agent.act(state)
             self.model_trainer.create_model(config=config)
+            self.model_trainer.vizualize_model(f'figs/nas/nas_model_{t}.jpg', verbose=False)
             self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=2)
             self.model_trainer.load_best_model()
             self.model_evaluator.set_data_src(DataSource.VALIDATION)
-            self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model)
+            self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False)
 
             req_evals = self.model_evaluator.req_evaluations
             
-            final_eer_mean = self.nas_controller.evaluate_topology(req_evals)
+            metrics_dict = self.nas_controller.evaluate_topology(req_evals)
             
-            print(f'  final_eer_mean: {final_eer_mean}')
+            print(f'  final_eer_mean: {metrics_dict["final_EER_mean"]}')
+            print(f'  final_acc: {metrics_dict["final_ACC"]}')
+
+            memory_dict[f'model_{t}'] = metrics_dict
+
             #state, reward = env.step(action)
             #agent.update(action, state, reward)
             
             #if env.done():
             #    break
-            
-            
-
+            print('-'*50 + 'FINISHING TRAIN' + '-'*50)
+        
+        print(f'memory_dict: {memory_dict}')
+        return memory_dict
     
     
     def create_model(self):
