@@ -1,5 +1,6 @@
 
 import numpy as np
+from numpy.lib.twodim_base import tri
 
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as prep_input_mobilenetv2
 from tensorflow.keras.applications.inception_v3 import preprocess_input as prep_input_inceptionv3
@@ -26,6 +27,8 @@ from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.models import load_model
 from tensorflow.python.keras.layers.pooling import GlobalAveragePooling2D
+
+from utils.constants import SEED
 
 
 class NASController:
@@ -113,16 +116,25 @@ class NASController:
         #net_mng = NASNetManager()
 
 
-    def reset_env(self):
+    def __gen_new_seed(self, trial_num):
+        return (trial_num * SEED) + SEED
+
+
+    def reset_env(self, trial_num):
+        np.random.seed(self.__gen_new_seed(trial_num))
         return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=6, size=4))}  # n1,n2,n3,n4 
 
 
-    def select_topology(self):
-        #config = [1,1,1,1]   # n1,n2,n3,n4 
+    def select_topology(self, trial_num):
+        np.random.seed(self.__gen_new_seed(trial_num))
         return {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=6, size=4))}  # n1,n2,n3,n4 
     
 
     def evaluate_topology(self, reqs_evals):
         final_EER_mean = np.sum([r_ev.EER_mean for r_ev in reqs_evals])/len(reqs_evals)
         final_ACC = np.sum([r_ev.ACC for r_ev in reqs_evals])/len(reqs_evals)
+
+        final_EER_mean = round(final_EER_mean * 100, 2)
+        final_ACC = round(final_ACC * 100, 2)
+
         return {'final_EER_mean': final_EER_mean, 'final_ACC': final_ACC}

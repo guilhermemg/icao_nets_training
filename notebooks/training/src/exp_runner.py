@@ -211,16 +211,17 @@ class ExperimentRunner:
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
         
-        T = 5
+        T = self.nas_params['n_trials']
         #MAX_EPISODES = 10
         # for epi in range(MAX_EPISODES):
         #     print(f'Episode: {epi}')
         #     config = state = self.nas_controller.reset_env()  # topology or config
             #agent.reset()
         memory_dict = {}
-        config = self.nas_controller.select_topology()
         for t in range(T):
             print('+'*50 + ' STARTING NEW TRAIN ' + '+'*50)
+
+            config = self.nas_controller.select_topology(trial_num=t)
             print(f' ----- Training {t} | Config: {config} --------')
             #action = agent.act(state)
             self.model_trainer.create_model(config=config)
@@ -230,14 +231,12 @@ class ExperimentRunner:
             self.model_evaluator.set_data_src(DataSource.VALIDATION)
             self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False)
 
-            req_evals = self.model_evaluator.req_evaluations
-            
-            metrics_dict = self.nas_controller.evaluate_topology(req_evals)
-            
-            print(f'  final_eer_mean: {metrics_dict["final_EER_mean"]}')
-            print(f'  final_acc: {metrics_dict["final_ACC"]}')
+            results = self.nas_controller.evaluate_topology(self.model_evaluator.req_evaluations)            
+            results['config'] = config
 
-            memory_dict[f'model_{t}'] = metrics_dict
+            pprint.pprint(results)
+
+            memory_dict[f'model_{t}'] = results
 
             #state, reward = env.step(action)
             #agent.update(action, state, reward)
