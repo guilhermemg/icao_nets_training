@@ -129,7 +129,7 @@ class ModelTrainer:
             print('Not training a model!')
            
     
-    def vizualize_model(self, outfile_path=None, verbose=True):
+    def visualize_model(self, outfile_path=None, verbose=True):
         if verbose:
             display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
         else:

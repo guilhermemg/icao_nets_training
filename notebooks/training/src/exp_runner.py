@@ -219,13 +219,13 @@ class ExperimentRunner:
             #agent.reset()
         memory_dict = {}
         for t in range(T):
-            print('+'*50 + ' STARTING NEW TRAIN ' + '+'*50)
+            print('+'*20 + ' STARTING NEW TRAIN ' + '+'*20)
 
             config = self.nas_controller.select_topology(trial_num=t)
             print(f' ----- Training {t} | Config: {config} --------')
             #action = agent.act(state)
             self.model_trainer.create_model(config=config)
-            self.model_trainer.vizualize_model(f'figs/nas/nas_model_{t}.jpg', verbose=False)
+            self.model_trainer.visualize_model(f'figs/nas/nas_model_{t}.jpg', verbose=False)
             self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=2)
             self.model_trainer.load_best_model()
             self.model_evaluator.set_data_src(DataSource.VALIDATION)
@@ -243,7 +243,7 @@ class ExperimentRunner:
             
             #if env.done():
             #    break
-            print('-'*50 + 'FINISHING TRAIN' + '-'*50)
+            print('-'*20 + 'FINISHING TRAIN' + '-'*20)
         
         print(f'memory_dict: {memory_dict}')
         return memory_dict
@@ -254,9 +254,9 @@ class ExperimentRunner:
         self.model_trainer.create_model(self.train_gen)
     
     
-    def vizualize_model(self, outfile_path):
+    def visualize_model(self, outfile_path):
         self.__print_method_log_sig( 'vizualize model')
-        self.model_trainer.vizualize_model(outfile_path)
+        self.model_trainer.visualize_model(outfile_path)
     
     
     def train_model(self, fine_tuned=False, n_epochs=None):
