@@ -21,8 +21,8 @@ import tensorflow as tf
 from enum import Enum
 
 from utils.constants import SEED, ICAO_REQ
-from base_models import BaseModel
-from optimizers import Optimizer
+from base.base_models import BaseModel
+from base.optimizers import Optimizer
 
 
 class MTLApproach(Enum):

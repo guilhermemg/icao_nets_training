@@ -3,7 +3,7 @@ import numpy as np
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint
 
-from optimizers import Optimizer
+from base.optimizers import Optimizer
 
 class CallbacksHandler:
     def __init__(self, net_args, prop_args, use_neptune, neptune_run, checkpoint_path, is_mtl_model):
@@ -84,11 +84,11 @@ class CallbacksHandler:
                                 mode='min',
                                 verbose=1)
         
-    def get_callbacks_list(self):
+    def get_callbacks_list(self, running_nas):
         cust_optimizers_list = [Optimizer.ADAMAX_CUST.name, Optimizer.ADAGRAD_CUST.name,Optimizer.ADAM_CUST.name, Optimizer.SGD_CUST.name]
 
         callbacks_list = []
-        if self.use_neptune:
+        if self.use_neptune and not running_nas:
             callbacks_list.append(self.__get_log_data_callback())
         
         if self.net_args['optimizer'].name in cust_optimizers_list:

@@ -9,11 +9,11 @@ import neptune.new as neptune
 if '../../../../notebooks/' not in sys.path:
     sys.path.insert(0, '../../../../notebooks/')
     
-from data_processor import DataProcessor
-from model_trainer import ModelTrainer
-from model_evaluator import ModelEvaluator, DataSource, DataPredSelection
-from nas_controller import NASController
-from fake_data_producer import FakeDataProducer
+from base.data_processor import DataProcessor
+from base.model_trainer import ModelTrainer
+from base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
+from nas.nas_controller import NASController
+from base.fake_data_producer import FakeDataProducer
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -70,7 +70,7 @@ class ExperimentRunner:
         print('----')
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
-        self.nas_controller = NASController(self.prop_args, self.nas_params, self.base_model, self.is_mtl_model, self.neptune_run)
+        self.nas_controller = NASController(self.nas_params, self.neptune_run, self.use_neptune)
         self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
     
@@ -199,6 +199,7 @@ class ExperimentRunner:
             props['sample_training_data'] = self.prop_args['sample_training_data']
             props['sample_prop'] = self.prop_args['sample_prop']
             props['is_mtl_model'] = self.is_mtl_model
+            props['approach'] = self.prop_args['approach']
             
             self.neptune_run['parameters'] = params
             self.neptune_run['properties'] = props
@@ -208,45 +209,49 @@ class ExperimentRunner:
             print('Not using Neptune')
     
     
+    def __run_nas_trial(self, trial_num):
+        print('+'*20 + ' STARTING NEW TRAIN ' + '+'*20)
+
+        self.nas_controller.create_new_trial(trial_num)
+
+        config = self.nas_controller.select_config()
+        print(f' ----- Training {trial_num} | Config: {config} --------')
+        
+        vis_path = f'figs/nas/nas_model_{trial_num}.jpg'
+
+        n_epochs = self.nas_params['n_epochs']
+
+        self.model_trainer.create_model(config=config, running_nas=True)
+        self.model_trainer.visualize_model(vis_path, verbose=False)
+        self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=n_epochs, running_nas=True)
+        self.model_trainer.load_best_model()
+        self.model_evaluator.set_data_src(DataSource.VALIDATION)
+        self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
+
+        self.nas_controller.evaluate_config(self.model_evaluator.req_evaluations)
+
+        if self.use_neptune:
+            self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)
+
+        self.nas_controller.log_trial()
+        self.nas_controller.finish_trial()
+
+        print('-'*20 + 'FINISHING TRAIN' + '-'*20)
+
+
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
         
-        T = self.nas_params['n_trials']
-        #MAX_EPISODES = 10
-        # for epi in range(MAX_EPISODES):
-        #     print(f'Episode: {epi}')
-        #     config = state = self.nas_controller.reset_env()  # topology or config
-            #agent.reset()
-        memory_dict = {}
-        for t in range(T):
-            print('+'*20 + ' STARTING NEW TRAIN ' + '+'*20)
+        if self.use_neptune:
+            self.neptune_run['nas_parameters'] = self.nas_params
 
-            config = self.nas_controller.select_topology(trial_num=t)
-            print(f' ----- Training {t} | Config: {config} --------')
-            #action = agent.act(state)
-            self.model_trainer.create_model(config=config)
-            self.model_trainer.visualize_model(f'figs/nas/nas_model_{t}.jpg', verbose=False)
-            self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=2)
-            self.model_trainer.load_best_model()
-            self.model_evaluator.set_data_src(DataSource.VALIDATION)
-            self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False)
+        n_trials = self.nas_params['n_trials']
+        for t in range(1,n_trials+1):
+            self.__run_nas_trial(t)
 
-            results = self.nas_controller.evaluate_topology(self.model_evaluator.req_evaluations)            
-            results['config'] = config
-
-            pprint.pprint(results)
-
-            memory_dict[f'model_{t}'] = results
-
-            #state, reward = env.step(action)
-            #agent.update(action, state, reward)
-            
-            #if env.done():
-            #    break
-            print('-'*20 + 'FINISHING TRAIN' + '-'*20)
+        self.nas_controller.select_best_config()
+        self.nas_controller.reset_memory()
         
-        print(f'memory_dict: {memory_dict}')
-        return memory_dict
     
     
     def create_model(self):

@@ -13,10 +13,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import load_model
 
-from model_creator import ModelCreator
-from model_train_visualizer import ModelTrainVisualizer
-from train_callbacks import *
-from neptune_utils import NeptuneUtils
+from base.model_creator import ModelCreator
+from base.model_train_visualizer import ModelTrainVisualizer
+from base.train_callbacks import *
+from base.neptune_utils import NeptuneUtils
 
 
 ## restrict memory growth -------------------
@@ -47,6 +47,8 @@ class ModelTrainer:
         self.is_training_model = self.prop_args['train_model']
         
         self.orig_model_experiment_id = self.prop_args['orig_model_experiment_id']
+
+        self.running_nas = False
         
         self.CHECKPOINT_PATH = os.path.join('training_ckpt', 'best_model.hdf5')
         self.TRAINED_MODEL_DIR_PATH = None
@@ -63,7 +65,10 @@ class ModelTrainer:
         self.cb_handler = CallbacksHandler(self.net_args, self.prop_args, self.use_neptune, self.neptune_run, self.CHECKPOINT_PATH, self.is_mtl_model)
         self.model_train_viz = ModelTrainVisualizer(self.prop_args, self.base_model, self.is_mtl_model)
         
-        
+
+    def set_running_nas_mode(self, running_nas):
+        self.running_nas = running_nas
+
     
     def __set_model_path(self):
         model_path = None
@@ -105,12 +110,12 @@ class ModelTrainer:
             os.remove(self.CHECKPOINT_PATH)
     
     
-    def create_model(self, train_gen=None, config=None):
+    def create_model(self, train_gen=None, config=None, running_nas=False):
         print('Creating model...')
         
         self.baseModel, self.model = self.model_creator.create_model(train_gen, config)
 
-        if self.use_neptune:
+        if self.use_neptune and not running_nas:
             self.model.summary(print_fn=lambda x: self.neptune_run['summary/train/model_summary'].log(x))
         
         print('Model created')
@@ -164,13 +169,13 @@ class ModelTrainer:
         self.model_summary(fine_tuned, print_fn=p_func)
             
 
-    def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs):
+    def train_model(self, train_gen, validation_gen, fine_tuned, n_epochs, running_nas):
         if self.is_training_model:
             print(f'Training {self.base_model.name} network')
             
             self.__setup_fine_tuning(fine_tuned)       
 
-            callbacks_list = self.cb_handler.get_callbacks_list()
+            callbacks_list = self.cb_handler.get_callbacks_list(running_nas)
             
             if n_epochs is None:
                 epchs = self.net_args['n_epochs']
