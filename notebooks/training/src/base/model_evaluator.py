@@ -45,6 +45,31 @@ class DataPredSelection(Enum):
     ONLY_TN = {'title': 'Only True Negatives images', 'abv': 'tn_only'}
 
 
+
+class FinalEvaluation:
+    def __init__(self, evals_list):
+        self.evals_list = evals_list
+        self.final_EER_mean = None
+        self.final_ACC = None
+    
+    def calculate_final_metrics(self):
+        final_EER_mean = np.sum([r_ev.EER_mean for r_ev in self.evals_list])/len(self.evals_list)
+        final_ACC = np.sum([r_ev.ACC for r_ev in self.evals_list])/len(self.evals_list)
+
+        self.final_EER_mean = round(final_EER_mean * 100, 2)
+        self.final_ACC = round(final_ACC * 100, 2)
+
+        return {'final_EER_mean':self.final_EER_mean, 'final_ACC':self.final_ACC}
+
+    def log_to_neptune(self, neptune_run, data_src):
+        neptune_run[f'metrics/{data_src.value}/final_EER_mean'] = self.final_EER_mean
+        neptune_run[f'metrics/{data_src.value}/final_ACC'] = self.final_ACC
+
+    def __str__(self):
+        return f'final_EER_mean: {self.final_EER_mean}% | final_ACC: {self.final_ACC}%'
+
+
+
 class RequisiteEvaluation:
     def __init__(self, req):
         self.req = req
@@ -84,7 +109,7 @@ class ModelEvaluator:
         self.data_src = None
         
         self.metrics_var_base_path = None  # base path of metrics-variables in Neptune
-        self.viz_var_base_path = None # base path of vizualizations-variables in Neptune
+        self.vis_var_base_path = None # base path of vizualizations-variables in Neptune
         
         self.y_test_true = None
         self.y_test_hat = None
@@ -99,7 +124,7 @@ class ModelEvaluator:
         if data_src.value in [item.value for item in DataSource]:
             self.data_src = data_src
             self.metrics_var_base_path = f'metrics/{self.data_src.value.lower()}'
-            self.viz_var_base_path = f'viz/{self.data_src.value.lower()}'
+            self.vis_var_base_path = f'viz/{self.data_src.value.lower()}'
         else:
             raise Exception(f'Error! Invalid data source. Valid Options: {list(DataSource)}')
     
@@ -148,7 +173,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.use_neptune:
-            self.neptune_run[f'{self.viz_var_base_path}/far_frr_curve.png'].upload(fig)
+            self.neptune_run[f'{self.vis_var_base_path}/far_frr_curve.png'].upload(fig)
 
 
     def __draw_roc_curve(self, fpr, tpr, eer, th, req):
@@ -161,7 +186,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.use_neptune:
-            self.neptune_run[f'{self.viz_var_base_path}/roc_curve.png'].upload(fig)
+            self.neptune_run[f'{self.vis_var_base_path}/roc_curve.png'].upload(fig)
     
     
     def calculate_eer(self, req, verbose, running_nas):
@@ -314,19 +339,28 @@ class ModelEvaluator:
         predIdxs = model.predict(data_gen, batch_size=self.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
-        self.req_evaluations = []
+        req_evaluations = []
         if self.is_mtl_model:
             for idx,req in enumerate(self.prop_args['reqs']):
                 if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
                     continue
                 print(f'Requisite: {req.value.upper()}') if verbose else None
                 self.y_test_true = np.array(data_gen.labels[idx])
-                self.req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req, verbose, running_nas))
+                req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req, verbose, running_nas))
         else:
             print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
             req = self.prop_args['reqs'][0]
-            self.req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req, verbose, running_nas))
+            req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req, verbose, running_nas))
+        
+        final_eval = FinalEvaluation(req_evaluations)
+        final_metrics = final_eval.calculate_final_metrics()
+        print(final_eval)
+
+        if self.use_neptune and not running_nas:
+            final_eval.log_to_neptune(self.neptune_run, self.data_src)
+
+        return final_metrics
     
     
     # Calculates heatmaps of GradCAM algorithm based on the following implementations:
@@ -400,7 +434,7 @@ class ModelEvaluator:
         #self.__log_imgs_sample(tmp_df, data_pred_selection)
         
         viz_title = f"{data_pred_selection.value['title']} - {self.data_src.value.upper()}" 
-        neptune_viz_path = f"{self.viz_var_base_path}/predictions_with_heatmaps/{data_pred_selection.value['abv']}"
+        neptune_viz_path = f"{self.vis_var_base_path}/predictions_with_heatmaps/{data_pred_selection.value['abv']}"
         
         return tmp_df, viz_title, neptune_viz_path
     
@@ -410,7 +444,7 @@ class ModelEvaluator:
     
     # sort 50 samples from test_df, calculates GradCAM heatmaps
     # and log the resulting images in a grid to neptune
-    def vizualize_predictions(self, base_model, model, data_gen, n_imgs, data_pred_selection):
+    def visualize_predictions(self, base_model, model, data_gen, n_imgs, data_pred_selection):
         preds = self.y_test_hat_discrete
         tmp_df,viz_title, neptune_viz_path = self.__select_viz_data(data_gen, preds, n_imgs, data_pred_selection)
         

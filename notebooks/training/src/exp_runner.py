@@ -14,6 +14,7 @@ from base.model_trainer import ModelTrainer
 from base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 from nas.nas_controller import NASController
 from base.fake_data_producer import FakeDataProducer
+from base.model_creator import NAS_MTLApproach
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -67,7 +68,9 @@ class ExperimentRunner:
         print(f'MTL Model: {self.is_mtl_model}')
         self.approach = self.prop_args['approach']
         print(f'Approach: {self.approach}')
+        self.is_nas_mtl_model = type(self.approach) is NAS_MTLApproach
         print('----')
+
         
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
         self.nas_controller = NASController(self.nas_params, self.neptune_run, self.use_neptune)
@@ -226,9 +229,9 @@ class ExperimentRunner:
         self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=n_epochs, running_nas=True)
         self.model_trainer.load_best_model()
         self.model_evaluator.set_data_src(DataSource.VALIDATION)
-        self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
+        final_eval = self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
 
-        self.nas_controller.evaluate_config(self.model_evaluator.req_evaluations)
+        self.nas_controller.set_config_eval(final_eval)
 
         if self.use_neptune:
             self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)
@@ -241,7 +244,7 @@ class ExperimentRunner:
 
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
-        
+
         if self.use_neptune:
             self.neptune_run['nas_parameters'] = self.nas_params
 
@@ -256,7 +259,10 @@ class ExperimentRunner:
     
     def create_model(self):
         self.__print_method_log_sig( 'create model')
-        self.model_trainer.create_model(self.train_gen)
+        if self.is_nas_mtl_model:
+            self.model_trainer.create_model(self.train_gen, config=self.nas_controller.best_config)
+        else:
+            self.model_trainer.create_model(self.train_gen)
     
     
     def visualize_model(self, outfile_path):
@@ -264,9 +270,9 @@ class ExperimentRunner:
         self.model_trainer.visualize_model(outfile_path)
     
     
-    def train_model(self, fine_tuned=False, n_epochs=None):
+    def train_model(self, fine_tuned=False, n_epochs=None, running_nas=False):
         self.__print_method_log_sig( 'train model')
-        self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned, n_epochs)
+        self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned, n_epochs, running_nas)
     
     
     def draw_training_history(self):
@@ -302,15 +308,15 @@ class ExperimentRunner:
         self.model_evaluator.set_data_src(data_src)
     
     
-    def test_model(self):
+    def test_model(self, verbose=True):
         if self.model_evaluator.data_src.value == DataSource.TEST.value:
-            self.model_evaluator.test_model(self.test_gen, self.model)
+            self.model_evaluator.test_model(data_gen=self.test_gen, model=self.model, verbose=verbose)
         if self.model_evaluator.data_src.value == DataSource.VALIDATION.value:
-            self.model_evaluator.test_model(self.validation_gen, self.model)
+            self.model_evaluator.test_model(data_gen=self.validation_gen, model=self.model, verbose=verbose)
             
     
-    def vizualize_predictions(self, n_imgs=40, data_pred_selection=DataPredSelection.ANY):
-        self.__print_method_log_sig( 'vizualize predictions')
+    def visualize_predictions(self, n_imgs=40, data_pred_selection=DataPredSelection.ANY):
+        self.__print_method_log_sig( 'visualize predictions')
         
         data_gen = None
         if self.model_evaluator.data_src.value == DataSource.TEST.value:
@@ -318,7 +324,7 @@ class ExperimentRunner:
         elif self.model_evaluator.data_src.value == DataSource.VALIDATION.value:
             data_gen = self.validation_gen
         
-        self.model_evaluator.vizualize_predictions(base_model=self.base_model, 
+        self.model_evaluator.visualize_predictions(base_model=self.base_model, 
                                                    model=self.model, 
                                                    data_gen=data_gen,
                                                    n_imgs=n_imgs, 
@@ -346,7 +352,7 @@ class ExperimentRunner:
             self.summary_labels_dist()
             self.summary_gen_labels_dist()
             self.create_model()
-            self.vizualize_model(outfile_path=f"figs/model_architecture.png")
+            self.visualize_model(outfile_path=f"figs/model_architecture.png")
             self.train_model()
             self.draw_training_history()
             self.load_best_model()
@@ -354,19 +360,19 @@ class ExperimentRunner:
             
             self.set_model_evaluator_data_src(DataSource.VALIDATION)
             self.test_model()
-            self.vizualize_predictions(n_imgs=50)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
+            self.visualize_predictions(n_imgs=50)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
             
             self.set_model_evaluator_data_src(DataSource.TEST)
             self.test_model()
-            self.vizualize_predictions(n_imgs=50)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
-            self.vizualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
+            self.visualize_predictions(n_imgs=50)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TP)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FP)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_FN)
+            self.visualize_predictions(n_imgs=50, data_pred_selection=DataPredSelection.ONLY_TN)
             return 0
         
         except Exception as e:

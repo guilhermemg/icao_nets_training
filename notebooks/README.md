@@ -35,6 +35,9 @@ kwargs = {
 
     # propriedades do experimento
     'properties': {
+        # approach de MLT ou NAS usada, pode ser do tipo MTL_Approach ou NAS_MTLApproach
+        'approach': NAS_MTLApproach.APPROACH_1,
+        
         # lista de requisitos
         'reqs': [cts.ICAO_REQ.MOUTH, cts.ICAO_REQ.L_AWAY],
         
@@ -102,6 +105,18 @@ kwargs = {
 
         # split para dataset de validação, precisa estar entre 0.0 e 1.0
         'validation_split': 0.15
+    },
+    
+    # parametros usados em neural architecture search
+    'nas_params': {
+        # numero maximo de blocos (dense layers) por branch
+        'max_blocks_per_branch': 5,  
+        
+        # numero de epochs de treino para cada trial
+        'n_epochs': 2,
+        
+        # numero de trials
+        'n_trials': 2
     }
 }
 ```

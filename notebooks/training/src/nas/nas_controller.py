@@ -16,32 +16,32 @@ class NASController:
 
         self.MAX_BLOCKS_PER_BRANCH = self.nas_params['max_blocks_per_branch']
 
+        self.best_config = None
+
 
     def create_new_trial(self, trial_num):
         self.cur_trial = Trial(trial_num)
 
     
-    def __gen_new_seed(self):
-        return (self.cur_trial.get_num() * SEED) + SEED
+    def __gen_new_seed(self, x):
+        return (self.cur_trial.get_num() * SEED) + SEED + x
 
 
     def select_config(self):
-        np.random.seed(self.__gen_new_seed())
-        config = {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=self.MAX_BLOCKS_PER_BRANCH+1, size=4))}  # n1,n2,n3,n4 
+        i = 0
+        np.random.seed(self.__gen_new_seed(x=i))
+        config = {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=self.MAX_BLOCKS_PER_BRANCH+1, size=4))}
+        while(self.memory.contains(config)):
+            print(' -- repeated config : selecting new one')
+            np.random.seed(self.__gen_new_seed(x=i))
+            config = {f'n_denses_{i}':x for i,x in enumerate(np.random.randint(low=1, high=self.MAX_BLOCKS_PER_BRANCH+1, size=4))}
+            i += 1
         self.cur_trial.set_config(config)
         return config
     
 
-    def evaluate_config(self, reqs_evals):
-        final_EER_mean = np.sum([r_ev.EER_mean for r_ev in reqs_evals])/len(reqs_evals)
-        final_ACC = np.sum([r_ev.ACC for r_ev in reqs_evals])/len(reqs_evals)
-
-        final_EER_mean = round(final_EER_mean * 100, 2)
-        final_ACC = round(final_ACC * 100, 2)
-
-        result = {'final_EER_mean': final_EER_mean, 'final_ACC': final_ACC}
-
-        self.cur_trial.set_result(result)
+    def set_config_eval(self, eval):
+        self.cur_trial.set_result(eval)
 
 
     def log_trial(self):
@@ -80,10 +80,8 @@ class NASController:
 
         self.log_best_trial(best_trial)
 
-        best_config = best_trial.get_config()
-        print(f'\nbest_config: {best_config}')
-
-        return best_config
+        self.best_config = best_trial.get_config()
+        print(f'\nbest_config: {self.best_config}')
 
     
     def reset_memory(self):
