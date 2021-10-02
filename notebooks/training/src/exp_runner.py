@@ -1,3 +1,4 @@
+
 import os
 import sys
 import yaml
@@ -12,9 +13,10 @@ if '../../../../notebooks/' not in sys.path:
 from base.data_processor import DataProcessor
 from base.model_trainer import ModelTrainer
 from base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
-from nas.nas_controller import NASController
 from base.fake_data_producer import FakeDataProducer
 from base.model_creator import NAS_MTLApproach
+from base.neptune_utils import NeptuneUtils
+from nas.nas_controller import NASController
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -69,12 +71,14 @@ class ExperimentRunner:
         self.approach = self.prop_args['approach']
         print(f'Approach: {self.approach}')
         self.is_nas_mtl_model = type(self.approach) is NAS_MTLApproach
+        self.exec_nas = self.prop_args['exec_nas']
         print('----')
 
-        
+        self.neptune_utils = NeptuneUtils(self.prop_args, self.is_mtl_model, self.neptune_run)
+
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
         self.nas_controller = NASController(self.nas_params, self.neptune_run, self.use_neptune)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run)
+        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run, self.neptune_utils)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
     
     
@@ -248,19 +252,26 @@ class ExperimentRunner:
         if self.use_neptune:
             self.neptune_run['nas_parameters'] = self.nas_params
 
-        n_trials = self.nas_params['n_trials']
-        for t in range(1,n_trials+1):
-            self.__run_nas_trial(t)
+        if self.exec_nas:
+            print(f'Executing neural architectural search')
+            n_trials = self.nas_params['n_trials']
+            for t in range(1,n_trials+1):
+                self.__run_nas_trial(t)
 
-        self.nas_controller.select_best_config()
-        self.nas_controller.reset_memory()
-        
+            self.nas_controller.select_best_config()
+            self.nas_controller.reset_memory()
+        else:
+            print(f'Not executing neural architecture search')
+            self.neptune_utils.get_nas_data(self.nas_params['n_trials'])
     
     
-    def create_model(self):
+    def create_model(self, config=None):
         self.__print_method_log_sig( 'create model')
         if self.is_nas_mtl_model:
-            self.model_trainer.create_model(self.train_gen, config=self.nas_controller.best_config)
+            if self.exec_nas:
+                self.model_trainer.create_model(self.train_gen, config=self.nas_controller.best_config)
+            else:
+                self.model_trainer.create_model(self.train_gen, config=config)
         else:
             self.model_trainer.create_model(self.train_gen)
     

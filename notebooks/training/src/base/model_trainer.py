@@ -33,7 +33,7 @@ except:
 
 
 class ModelTrainer:
-    def __init__(self, net_args, prop_args, base_model, is_mtl_model, approach, neptune_run):
+    def __init__(self, net_args, prop_args, base_model, is_mtl_model, approach, neptune_run, neptune_utils):
         self.net_args = net_args
         self.prop_args = prop_args
         self.is_mtl_model = is_mtl_model
@@ -41,7 +41,8 @@ class ModelTrainer:
         self.neptune_run = neptune_run
         self.use_neptune = True if neptune_run is not None else False
         self.base_model = base_model  # object of type enum BaseModel 
-        
+        self.neptune_utils = neptune_utils
+
         self.baseModel = None  # instance of base model keras/tensorflow
         
         self.is_training_model = self.prop_args['train_model']
@@ -54,9 +55,6 @@ class ModelTrainer:
         self.TRAINED_MODEL_DIR_PATH = None
         
         self.__set_model_path()
-
-        self.neptune_utils = NeptuneUtils(self.prop_args, self.orig_model_experiment_id, self.is_mtl_model, self.TRAINED_MODEL_DIR_PATH, self.is_training_model, self.neptune_run)
-
         self.__check_model_existence()
         self.__clear_checkpoints()
         self.__check_gpu_availability()
@@ -88,7 +86,7 @@ class ModelTrainer:
        
     
     def __check_model_existence(self):
-        self.neptune_utils.check_model_existence()
+        self.neptune_utils.check_model_existence(self.TRAINED_MODEL_DIR_PATH)
 
     
     def __check_gpu_availability(self):
@@ -195,7 +193,6 @@ class ModelTrainer:
         elif not self.is_training_model and self.use_neptune:
             print(f'Not training a model. Downloading data from Neptune')
             self.neptune_utils.get_acc_and_loss_data()
-        
         else:
             print(f'Not training a model and not using Neptune!')
        

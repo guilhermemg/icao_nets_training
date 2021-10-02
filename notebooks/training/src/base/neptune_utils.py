@@ -6,13 +6,13 @@ import neptune.new as neptune
 
 
 class NeptuneUtils:
-    def __init__(self, prop_args, orig_model_experiment_id, is_mtl_model, trained_model_dir_path, is_training_model, neptune_run):
+    def __init__(self, prop_args, is_mtl_model, neptune_run):
         self.prop_args = prop_args
-        self.orig_model_experiment_id = orig_model_experiment_id
         self.is_mtl_model = is_mtl_model
-        self.trained_model_dir_path = trained_model_dir_path
-        self.is_training_model = is_training_model
         self.neptune_run = neptune_run
+
+        self.orig_model_experiment_id = self.prop_args['orig_model_experiment_id']
+        self.is_training_model = self.prop_args['train_model']
 
 
     def __check_prev_run_fields(self):
@@ -64,18 +64,18 @@ class NeptuneUtils:
                 prev_run.stop()
     
     
-    def __download_model(self):
+    def __download_model(self, trained_model_dir_path):
         try:
-            print(f'Trained model dir path: {self.trained_model_dir_path}')
+            print(f'Trained model dir path: {trained_model_dir_path}')
             prev_run = None
             prev_run = neptune.init(run=self.orig_model_experiment_id)
 
             print(f'..Downloading model from Neptune')
             print(f'..Experiment ID: {self.orig_model_experiment_id}')
-            print(f'..Destination Folder: {self.trained_model_dir_path}')
+            print(f'..Destination Folder: {trained_model_dir_path}')
 
-            os.mkdir(self.trained_model_dir_path)
-            destination_folder = self.trained_model_dir_path
+            os.mkdir(trained_model_dir_path)
+            destination_folder = trained_model_dir_path
 
             prev_run['artifacts/trained_model'].download(destination_folder)
             print(' .. Download done!')
@@ -99,19 +99,19 @@ class NeptuneUtils:
                 prev_run.stop()
     
 
-    def check_model_existence(self):
+    def check_model_existence(self, trained_model_dir_path):
         print('----')   
         print('Checking model existence locally...')
         if self.is_training_model:
             print('Training a new model! Not checking model existence')
         else:
-            if os.path.exists(self.trained_model_dir_path):
+            if os.path.exists(trained_model_dir_path):
                 print('Model already exists locally. Not downloading!')
-                print(f'Trained model dir path: {self.trained_model_dir_path}')
+                print(f'Trained model dir path: {trained_model_dir_path}')
                 self.__check_prev_run_fields()
             else:
                 self.__check_prev_run_fields()
-                self.__download_model()
+                self.__download_model(trained_model_dir_path)
         print('----')
 
 
@@ -149,6 +149,7 @@ class NeptuneUtils:
                     self.neptune_run[f'epoch/total_loss'].log(ls)
 
                 for req in self.prop_args['reqs']:
+                    print(f' ..Requisite: {req}')
                     req = req.value
                     acc_series = prev_run[f'epoch/{req}/accuracy'].fetch_values()['value']
                     val_acc_series = prev_run[f'epoch/{req}/val_accuracy'].fetch_values()['value']
@@ -186,6 +187,36 @@ class NeptuneUtils:
             print(f' ..Upload finished')
         except Exception as e:
             print('Error in __get_training_curves()')
+            raise e
+        finally:
+            prev_run.stop()
+    
+
+    # download neural architecture search data from neptune
+    # (previous experiment) and log them to current experiment
+    def get_nas_data(self, n_trials):
+        try:
+            print(f' ..Experiment ID: {self.orig_model_experiment_id}')
+            print(f' ..Downloading data from previous experiment')
+            prev_run = neptune.init(run=self.orig_model_experiment_id)
+            
+            print('  ...fetching data from previous trials')
+            for i in range(1,n_trials+1):
+                for n in range(4):
+                    self.neptune_run[f'nas/trial/{i}/config/n_denses_{n}'] = prev_run[f'nas/trial/{i}/config/n_denses_{n}'].fetch()
+                self.neptune_run[f'nas/trial/{i}/result/final_ACC'] = prev_run[f'nas/trial/{i}/result/final_ACC'].fetch()
+                self.neptune_run[f'nas/trial/{i}/result/final_EER_mean'] = prev_run[f'nas/trial/{i}/result/final_EER_mean'].fetch()
+            
+            print('  ...fetching data from best trial')
+            self.neptune_run[f'nas/best_trial/final_EER_mean'] = prev_run[f'nas/best_trial/final_EER_mean'].fetch()
+            self.neptune_run[f'nas/best_trial/final_ACC'] = prev_run[f'nas/best_trial/final_ACC'].fetch()
+            self.neptune_run[f'nas/best_trial/num'] = prev_run[f'nas/best_trial/num'].fetch()
+            for n in range(4):
+                self.neptune_run[f'nas/best_trial/config/n_denses_{n}'] = prev_run[f'nas/best_trial/config/n_denses_{n}'].fetch()
+
+            print(f' ..Data uploaded to current experiment')
+        except Exception as e:
+            print('Error in get_nas_data()')
             raise e
         finally:
             prev_run.stop()

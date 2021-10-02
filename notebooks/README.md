@@ -64,6 +64,9 @@ kwargs = {
         # salvar modelo treinado localmente e no Neptune
         'save_trained_model': False,
         
+        # executar ou não neural architecture search
+        'exec_nas': False,
+        
         # nome do modelo previamente treinado e que deve estar na pasta prev_trained_models
         'model_name': 'modelo_01',
 
