@@ -88,8 +88,6 @@ class ExperimentRunner:
         
         if not has_experiment_id and not is_training_new_model:
             raise Exception('You must train a new model or provide an experiment ID')
-        if has_experiment_id and is_training_new_model:
-            raise Exception('You cannot train a new model and provide an experiment ID')
             
     
     def __start_neptune(self):

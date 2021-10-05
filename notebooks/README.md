@@ -68,7 +68,7 @@ kwargs = {
         'exec_nas': False,
         
         # nome do modelo previamente treinado e que deve estar na pasta prev_trained_models
-        'model_name': 'modelo_01',
+        'orig_model_experiment_id': 'ICAO-265',
 
         # fazer subamostragem de dataset de entrada para treinar modelo
         'sample_training_data': True,
