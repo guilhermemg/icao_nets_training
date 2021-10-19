@@ -9,8 +9,16 @@ class Memory:
         self.trials = []
 
 
+    def is_empty(self):
+        return len(self.trials) == 0
+
+
     def get_trials(self):
         return self.trials
+    
+
+    def get_last_trial(self):
+        return self.trials[-1]
     
 
     def add_trial(self, trial):

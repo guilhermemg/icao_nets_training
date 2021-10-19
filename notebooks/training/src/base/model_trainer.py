@@ -1,8 +1,6 @@
 import os
 import zipfile
 
-import neptune.new as neptune
-
 from pathlib import Path
 
 from IPython.display import display
@@ -16,7 +14,6 @@ from tensorflow.keras.models import load_model
 from base.model_creator import ModelCreator
 from base.model_train_visualizer import ModelTrainVisualizer
 from base.train_callbacks import *
-from base.neptune_utils import NeptuneUtils
 
 
 ## restrict memory growth -------------------
