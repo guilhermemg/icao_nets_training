@@ -243,7 +243,8 @@ class ExperimentRunner:
 
         self.nas_controller.set_config_eval(final_eval)
 
-        self.nas_controller.train_controller_rnn(controller_pred)
+        if self.approach.value == NAS_MTLApproach.APPROACH_2.value:
+            self.nas_controller.train_controller_rnn(controller_pred)
 
         if self.use_neptune:
             self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)

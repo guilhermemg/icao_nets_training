@@ -277,5 +277,6 @@ class ModelCreator:
                 return self.create_mtl_model_2()
             elif self.approach.value == MTLApproach.HAND_3.value:
                 return self.create_mtl_model_3()
-            elif self.approach.value == NAS_MTLApproach.APPROACH_1.value:
+            elif self.approach.value == NAS_MTLApproach.APPROACH_1.value or \
+                    self.approach.value == NAS_MTLApproach.APPROACH_2.value:
                 return self.create_nas_mtl_model_1(config)

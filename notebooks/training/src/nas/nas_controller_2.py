@@ -2,7 +2,7 @@
 import numpy as np
 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, RNN, LSTMCell, Reshape, Input, Activation
+from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 
@@ -20,11 +20,13 @@ class NASController_2(GenNASController):
         self.controller_batch_size = self.nas_params['controller_batch_size']
         self.controller_epochs = self.nas_params['controller_epochs']
 
-        self.input_x = np.array([[[SEED]]])
+        self.input_x = np.array([[[SEED,SEED,SEED,SEED]]])
 
         self.reward = 0
 
-        self.controller_rnn = self.__generate_controller_rnn()
+        self.controller_rnn = None
+        
+        self.__generate_controller_rnn()
 
 
     def __generate_controller_rnn(self):
@@ -54,13 +56,15 @@ class NASController_2(GenNASController):
 
 
     def train_controller_rnn(self, targets):
+        print(f' .. training controller rnn ..')
+        print(f'  .. targets: {targets}')
         self.__compile_controller_rnn()
         self.controller_rnn.fit(
             self.input_x,
             targets,
             epochs=self.controller_epochs,
             batch_size=self.controller_batch_size,
-            verbose=0)
+            verbose=1)
 
 
     def __softmax_predict(self):
@@ -68,29 +72,19 @@ class NASController_2(GenNASController):
         return self.controller_rnn.predict(self.input_x)
 
 
-    # TODO ajeitar conversão para n_denses_*
     def __convert_pred_to_ydict(self, controller_pred):
-        n_denses_0 = controller_pred[0][0]
-        n_denses_1 = controller_pred[0][1]
-        n_denses_2 = controller_pred[0][2]
-        n_denses_3 = controller_pred[0][3]
-        config = {f'n_denses_0': n_denses_0, f'n_denses_1': n_denses_1, f'n_denses_2': n_denses_2, f'n_denses_3': n_denses_3}
+        vals = controller_pred[0]
+        vals = np.interp(vals, (vals.min(), vals.max()), (1, self.MAX_BLOCKS_PER_BRANCH))
+        vals = vals.astype('int')
+        config = {f'n_denses_0': vals[0], f'n_denses_1': vals[1], f'n_denses_2': vals[2], f'n_denses_3': vals[3]}
         return config
 
 
-    def __convert_config_to_entry(self, config):
-        return np.array([config['n_denses_0'],config['n_denses_1'],config['n_denses_2'],config['n_denses_3']])
-
-
     def select_config(self):
-        controller_pred = None        
-        if self.memory.is_empty():
-            controller_pred = self.__softmax_predict(self.input_x)
-        else:
-            last_trial_conf = self.memory.get_last_trial().get_config()
-            entry = self.__convert_config_to_entry(last_trial_conf)
-            controller_pred = self.__softmax_predict(entry)
-        
+        print(' selecting new config...')
+        controller_pred = self.__softmax_predict()
+        print(f' controller_pred: {controller_pred}')
+
         config = self.__convert_pred_to_ydict(controller_pred)     
         
         self.cur_trial.set_config(config)
