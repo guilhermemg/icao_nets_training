@@ -16,8 +16,7 @@ from base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 from base.fake_data_producer import FakeDataProducer
 from base.model_creator import NAS_MTLApproach
 from base.neptune_utils import NeptuneUtils
-from nas.nas_controller_1 import NASController_1
-from nas.nas_controller_2 import NASController_2
+from nas.nas_controller_factory import NASControllerFactory
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -78,14 +77,11 @@ class ExperimentRunner:
         self.neptune_utils = NeptuneUtils(self.prop_args, self.is_mtl_model, self.neptune_run)
 
         self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
-        self.nas_controller = None
-        if self.approach.value == NAS_MTLApproach.APPROACH_1.value:
-            self.nas_controller = NASController_1(self.nas_params, self.neptune_run, self.use_neptune)
-        elif self.approach.value == NAS_MTLApproach.APPROACH_2.value:
-            self.nas_controller = NASController_2(self.nas_params, self.neptune_run, self.use_neptune)
-
         self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run, self.neptune_utils)
         self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
+
+        self.nas_controller = NASControllerFactory.create_controller(self.approach, self.model_trainer, self.model_evaluator, self.nas_params, self.neptune_run, self.use_neptune)       
+        
     
     
     def __kwargs_sanity_check(self):
@@ -219,41 +215,6 @@ class ExperimentRunner:
         else:
             print('Not using Neptune')
     
-    
-    def __run_nas_trial(self, trial_num):
-        print('+'*20 + ' STARTING NEW TRAIN ' + '+'*20)
-
-        self.nas_controller.create_new_trial(trial_num)
-
-        if self.approach.value == NAS_MTLApproach.APPROACH_1.value:
-            config = self.nas_controller.select_config()
-        elif self.approach.value == NAS_MTLApproach.APPROACH_2.value:
-            controller_pred, config = self.nas_controller.select_config()
-            
-        print(f' ----- Training {trial_num} | Config: {config} --------')
-        
-        vis_path = f'figs/nas/nas_model_{trial_num}.jpg'
-
-        self.model_trainer.create_model(config=config, running_nas=True)
-        self.model_trainer.visualize_model(vis_path, verbose=False)
-        self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned=False, n_epochs=1, running_nas=True)
-        self.model_trainer.load_best_model()
-        self.model_evaluator.set_data_src(DataSource.VALIDATION)
-        final_eval = self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
-
-        self.nas_controller.set_config_eval(final_eval)
-
-        if self.approach.value == NAS_MTLApproach.APPROACH_2.value:
-            self.nas_controller.train_controller_rnn(controller_pred)
-
-        if self.use_neptune:
-            self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)
-
-        self.nas_controller.log_trial()
-        self.nas_controller.finish_trial()
-
-        print('-'*20 + 'FINISHING TRAIN' + '-'*20)
-
 
     def run_neural_architeture_search(self):
         self.__print_method_log_sig( 'run neural architecture search' )
@@ -263,9 +224,9 @@ class ExperimentRunner:
 
         if self.exec_nas:
             print(f'Executing neural architectural search')
-            n_trials = self.nas_params['n_trials']
-            for t in range(1,n_trials+1):
-                self.__run_nas_trial(t)
+            
+            for t in range(1,self.nas_params['n_trials'] + 1):
+                self.nas_controller.run_nas_trial(t, self.train_gen, self.validation_gen)
 
             self.nas_controller.select_best_config()
             self.nas_controller.reset_memory()

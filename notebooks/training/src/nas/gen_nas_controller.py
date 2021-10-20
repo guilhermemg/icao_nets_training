@@ -1,9 +1,14 @@
 
+from abc import ABC, abstractclassmethod
 from nas.memory import Memory
 from nas.trial import Trial
+from base.model_evaluator import DataSource
 
-class GenNASController:
-    def __init__(self, nas_params, neptune_run, use_neptune):
+
+class GenNASController(ABC):
+    def __init__(self, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
+        self.model_trainer = model_trainer
+        self.model_evaluator = model_evaluator
         self.nas_params = nas_params
         self.use_neptune = use_neptune
         self.neptune_run = neptune_run
@@ -18,9 +23,41 @@ class GenNASController:
     def create_new_trial(self, trial_num):
         self.cur_trial = Trial(trial_num)
 
+
+    @abstractclassmethod    
+    def run_nas_trial(self, trial_num, train_gen, validation_gen):
+        raise NotImplemented()
+
     
+    @abstractclassmethod
+    def select_config(self):
+        raise NotImplemented()
+
+    
+    def train_child_architecture(self, trial_num, train_gen, validation_gen, config):
+        print(f' ----- Training {trial_num} | Config: {config} --------')
+        
+        vis_path = f'figs/nas/nas_model_{trial_num}.jpg'
+
+        self.model_trainer.create_model(config=config, running_nas=True)
+        self.model_trainer.visualize_model(vis_path, verbose=False)
+        self.model_trainer.train_model(train_gen, validation_gen, fine_tuned=False, n_epochs=1, running_nas=True)
+        self.model_trainer.load_best_model()
+        self.model_evaluator.set_data_src(DataSource.VALIDATION)
+        final_eval = self.model_evaluator.test_model(validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
+        
+        if self.use_neptune:
+            self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)
+
+        return final_eval
+
+
     def log_trial(self):
         self.cur_trial.log_neptune(self.neptune_run, self.use_neptune)
+
+
+    def set_config_eval(self, eval):
+        self.cur_trial.set_result(eval)
 
 
     def finish_trial(self):
