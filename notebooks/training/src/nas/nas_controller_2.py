@@ -9,6 +9,7 @@ from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 from nas.gen_nas_controller import GenNASController
 from utils.constants import SEED
 
+
 class NASController_2(GenNASController):
     def __init__(self, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
         super().__init__(model_trainer, model_evaluator, nas_params, neptune_run, use_neptune)       
@@ -64,7 +65,12 @@ class NASController_2(GenNASController):
             targets,
             epochs=self.controller_epochs,
             batch_size=self.controller_batch_size,
-            verbose=1)
+            verbose=0)
+        
+    
+    def __evaluate_training(self, targets):
+        loss = round(self.controller_rnn.evaluate(self.input_x, targets), 4)
+        print(f'  Loss: {loss}')
 
 
     def __softmax_predict(self):
@@ -74,9 +80,20 @@ class NASController_2(GenNASController):
 
     def __convert_pred_to_ydict(self, controller_pred):
         vals = controller_pred[0]
-        vals = np.interp(vals, (vals.min(), vals.max()), (1, self.MAX_BLOCKS_PER_BRANCH))
-        vals = vals.astype('int')
-        config = {f'n_denses_0': vals[0], f'n_denses_1': vals[1], f'n_denses_2': vals[2], f'n_denses_3': vals[3]}
+        final_vals = []
+        for v in vals:
+            if v < 0.2:
+                final_vals.append(1)
+            elif v >= 0.2 and v < 0.4:
+                final_vals.append(2)
+            elif v >= 0.4 and v < 0.6:
+                final_vals.append(3)
+            elif v >= 0.6 and v < 0.8:
+                final_vals.append(4)
+            elif v >= 0.8 and v < 1.0:
+                final_vals.append(5)
+
+        config = {f'n_denses_0': final_vals[0], f'n_denses_1': final_vals[1], f'n_denses_2': final_vals[2], f'n_denses_3': final_vals[3]}
         return config
 
 
@@ -101,6 +118,7 @@ class NASController_2(GenNASController):
         self.set_config_eval(final_eval)
 
         self.__train_controller_rnn(controller_pred)
+        self.__evaluate_training(controller_pred)
 
         self.log_trial()
         self.finish_trial()
