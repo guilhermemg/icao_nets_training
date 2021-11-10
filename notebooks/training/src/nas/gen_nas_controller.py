@@ -21,7 +21,7 @@ class GenNASController(ABC):
 
     
     def create_new_trial(self, trial_num):
-        self.cur_trial = Trial(trial_num)
+        return Trial(trial_num)
 
 
     @abstractclassmethod    
@@ -34,8 +34,11 @@ class GenNASController(ABC):
         raise NotImplemented()
 
     
-    def train_child_architecture(self, trial_num, train_gen, validation_gen, config):
-        print(f' ----- Training {trial_num} | Config: {config} --------')
+    def train_child_architecture(self, train_gen, validation_gen):
+        trial_num = self.cur_trial.get_num()
+        config = self.cur_trial.get_config()
+
+        print(f'\n\n ------ Training {trial_num} | Config: {config} -----\n')
         
         vis_path = f'figs/nas/nas_model_{trial_num}.jpg'
 

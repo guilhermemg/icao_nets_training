@@ -224,12 +224,13 @@ class ExperimentRunner:
 
         if self.exec_nas:
             print(f'Executing neural architectural search')
+            self.nas_controller.reset_memory()
+            print('  Memory reseted')
             
             for t in range(1,self.nas_params['n_trials'] + 1):
                 self.nas_controller.run_nas_trial(t, self.train_gen, self.validation_gen)
 
             self.nas_controller.select_best_config()
-            self.nas_controller.reset_memory()
         else:
             print(f'Not executing neural architecture search')
             self.neptune_utils.get_nas_data(self.nas_params['n_trials'])

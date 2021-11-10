@@ -178,6 +178,8 @@ class ModelTrainer:
                 epchs = n_epochs
                 if self.use_neptune:
                     self.neptune_run['parameters/n_epochs_fine_tuning'] = epchs
+            
+            vrb = 0 if running_nas else 1
 
             self.H = self.model.fit(
                     train_gen,
@@ -185,6 +187,7 @@ class ModelTrainer:
                     validation_data=validation_gen,
                     validation_steps=validation_gen.n // self.net_args['batch_size'],
                     epochs=epchs,
+                    verbose=vrb,
                     callbacks=callbacks_list)
         
         elif not self.is_training_model and self.use_neptune:
