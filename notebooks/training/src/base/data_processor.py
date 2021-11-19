@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -7,7 +8,17 @@ from data_loaders.data_loader import DLName
 from net_data_loaders.net_data_loader import NetDataLoader
 from net_data_loaders.net_gt_loader import NetGTLoader
 
-from utils.constants import SEED
+from m_utils.constants import SEED, BASE_PATH
+
+from enum import Enum
+
+
+class BenchmarkDataset(Enum):
+    MNIST = {'name': 'mnist', 'target_cols': [f'n_{x}' for x in range(10)]}
+    FASHION_MNIST = {'name': 'fashion_mnist'}
+    CIFAR_10 = {'name': 'cifar_10'}
+
+
 
 
 class DataProcessor:
@@ -16,74 +27,102 @@ class DataProcessor:
         self.net_args = net_args
         self.is_mtl_model = is_mtl_model
         self.neptune_run = neptune_run
+        
+        self.use_benchmark_data = self.prop_args['use_benchmark_data']
+        if self.use_benchmark_data:
+            self.benchmark_dataset = self.prop_args['benchmark_dataset']
+        
         self.use_neptune = True if neptune_run is not None else False
+        
         self.train_data, self.validation_data, self.test_data = None, None, None
-        
-    
-    def load_training_data(self):
-        print('Loading data')
-        
-        if self.prop_args['use_gt_data']:
-            if len(self.prop_args['gt_names']['train_validation_test']) == 0:
-                trainNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
+
+
+    def __load_gt_data(self):
+        is_many_datasets = len(self.prop_args['gt_names']['train_validation_test']) == 0
+        if is_many_datasets:
+            trainNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
                                                self.prop_args['reqs'], 
                                                self.prop_args['gt_names']['train_validation'], 
                                                self.is_mtl_model)
                 
-                self.train_data = trainNetGtLoader.load_gt_data(split='train')
-                self.validation_data = trainNetGtLoader.load_gt_data(split='validation')
+            self.train_data = trainNetGtLoader.load_gt_data(split='train')
+            self.validation_data = trainNetGtLoader.load_gt_data(split='validation')
                 
-                print(f'TrainData.shape: {self.train_data.shape}')
+            print(f'TrainData.shape: {self.train_data.shape}')
 
-                testNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
+            testNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
                                               self.prop_args['reqs'], 
                                               self.prop_args['gt_names']['test'], 
                                               self.is_mtl_model)
                 
-                self.test_data = testNetGtLoader.load_gt_data(split='test')
+            self.test_data = testNetGtLoader.load_gt_data(split='test')
                 
-                print(f'TestData.shape: {self.test_data.shape}')
+            print(f'TestData.shape: {self.test_data.shape}')
                 
-            else:
-                netGtLoader = NetGTLoader(self.prop_args['aligned'], 
+        else:
+            netGtLoader = NetGTLoader(self.prop_args['aligned'], 
                                           self.prop_args['reqs'], 
                                           self.prop_args['gt_names']['train_validation_test'], 
                                           self.is_mtl_model)
                 
-                self.train_data = netGtLoader.load_gt_data(split='train')
-                self.validation_data = netGtLoader.load_gt_data(split='validation')
-                self.test_data = netGtLoader.load_gt_data(split='test')
-                
-                #in_data = in_data.sample(frac=1.0, random_state=SEED)
-                #np.random.seed(SEED)
-                #train_prop = self.net_args['train_prop']
-                #valid_prop = self.net_args['validation_prop']
-                #self.train_data, self.validation_data, self.test_data = np.split(in_data, [int(train_prop*len(in_data)), 
-                #                                                                           int((train_prop+valid_prop)*len(in_data))])
-                
-                #self.train_data = in_data.sample(frac=self.net_args['train_prop']+self.net_args['validation_prop'], random_state=SEED)
-                #self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
-                
-        else:
-            netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
+            self.train_data = netGtLoader.load_gt_data(split='train')
+            self.validation_data = netGtLoader.load_gt_data(split='validation')
+            self.test_data = netGtLoader.load_gt_data(split='test')
+        
+        #in_data = in_data.sample(frac=1.0, random_state=SEED)
+        #np.random.seed(SEED)
+        #train_prop = self.net_args['train_prop']
+        #valid_prop = self.net_args['validation_prop']
+        #self.train_data, self.validation_data, self.test_data = np.split(in_data, [int(train_prop*len(in_data)), 
+        #                                                                           int((train_prop+valid_prop)*len(in_data))])
+        
+        #self.train_data = in_data.sample(frac=self.net_args['train_prop']+self.net_args['validation_prop'], random_state=SEED)
+        #self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
+
+
+    def __load_dl_data(self):
+        netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
                                                self.prop_args['reqs'], 
                                                self.prop_args['dl_names'], 
                                                self.prop_args['aligned'], 
                                                self.is_mtl_model)
-            self.train_data = netTrainDataLoader.load_data()
-            print(f'TrainData.shape: {self.train_data.shape}')
+        self.train_data = netTrainDataLoader.load_data()
+        print(f'TrainData.shape: {self.train_data.shape}')
             
-            test_dataset = DLName.COLOR_FERET
-            netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
+        test_dataset = DLName.COLOR_FERET
+        netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
                                               self.prop_args['reqs'], 
                                               [test_dataset], 
                                               self.prop_args['aligned'], 
                                               self.is_mtl_model)
-            self.test_data = netTestDataLoader.load_data()
-            print(f'Test Dataset: {test_dataset.name.upper()}')
-            print(f'TestData.shape: {self.test_data.shape}')
+        self.test_data = netTestDataLoader.load_data()
+        print(f'Test Dataset: {test_dataset.name.upper()}')
+        print(f'TestData.shape: {self.test_data.shape}')
+
+
+    def __load_benchmark_data(self):
+        self.train_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'train_data.csv'))
+        print(f'TrainData.shape: {self.train_data.shape}')
+
+        self.validation_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'valid_data.csv'))
+        print(f'ValidationData.shape: {self.validation_data.shape}')
+
+        self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'test_data.csv'))
+        print(f'TestData.shape: {self.test_data.shape}')
+
+    
+    def load_training_data(self):
+        print('Loading data')
+
+        if self.use_benchmark_data:
+            self.__load_benchmark_data()
+        else:
+            if self.prop_args['use_gt_data']:
+                self.__load_gt_data()               
+            else:
+                self.__load_dl_data()
         
-        print('Data loaded')
+        print('Data loaded')  
 
     
     def sample_training_data(self, sample_prop):
@@ -134,23 +173,7 @@ class DataProcessor:
         print('Input dataset balanced')
         
     
-    
-    def setup_data_generators(self, base_model):
-        print('Starting data generators')
-        
-        train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'], 
-                                     horizontal_flip=True,
-#                                      rotation_range=20,
-                                     zoom_range=0.15,
-                                     width_shift_range=0.1,
-                                     height_shift_range=0.1,
-                                     shear_range=0.15,
-                                     fill_mode="nearest")
-        
-        validation_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'])
-        
-        test_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'])
-        
+    def __setup_fvc_class_mode(self):
         _class_mode, _y_col = None, None
         if self.is_mtl_model:  
             _y_col = [req.value for req in self.prop_args['reqs']]
@@ -158,7 +181,50 @@ class DataProcessor:
         else:    
             _y_col = self.prop_args['reqs'][0].value
             _class_mode = 'categorical'
+        return _class_mode,_y_col
+
+
+    def __setup_benchmark_class_mode(self):
+        _class_mode, _y_col = None, None
+        if self.is_mtl_model:  
+            _y_col = [col for col in self.benchmark_dataset.value['target_cols']]
+            _class_mode = 'multi_output'
+        else:    
+            raise NotImplemented()
+        return _class_mode,_y_col
+
+
+    def __setup_data_generators(self, base_model):
+        train_datagen = None
+        if not self.use_benchmark_data:
+            train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'], 
+                                        horizontal_flip=True,
+                                        #rotation_range=20,
+                                        zoom_range=0.15,
+                                        width_shift_range=0.1,
+                                        height_shift_range=0.1,
+                                        shear_range=0.15,
+                                        fill_mode="nearest")
+        else:
+            train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'])
         
+        validation_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'])
+        test_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'])
+        
+        return train_datagen, validation_datagen, test_datagen
+
+
+    def setup_data_generators(self, base_model):
+        print('Starting data generators')
+        
+        train_datagen, validation_datagen, test_datagen,  = self.__setup_data_generators(base_model)
+
+        if not self.use_benchmark_data:    
+            _class_mode, _y_col = self.__setup_fvc_class_mode()
+        else:
+            _class_mode, _y_col = self.__setup_benchmark_class_mode()
+
+
         self.train_gen = train_datagen.flow_from_dataframe(self.train_data, 
                                                 x_col="img_name", 
                                                 y_col=_y_col,

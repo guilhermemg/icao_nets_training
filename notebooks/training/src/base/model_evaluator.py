@@ -26,10 +26,9 @@ from tensorflow.keras.preprocessing.image import load_img
 
 from gt_loaders.gen_gt import Eval
 
-import utils.constants as cts
 import utils.draw_utils as dr
 
-from utils.constants import SEED
+from m_utils.constants import SEED, ICAO_REQ
 
 
 class DataSource(Enum):
@@ -342,7 +341,7 @@ class ModelEvaluator:
         req_evaluations = []
         if self.is_mtl_model:
             for idx,req in enumerate(self.prop_args['reqs']):
-                if req == cts.ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
+                if req == ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
                     continue
                 print(f'Requisite: {req.value.upper()}') if verbose else None
                 self.y_test_true = np.array(data_gen.labels[idx])
