@@ -23,6 +23,7 @@ from enum import Enum
 from utils.constants import SEED, ICAO_REQ
 from base.base_models import BaseModel
 from base.optimizers import Optimizer
+from base.data_processor import BenchmarkDataset
 
 
 class MTLApproach(Enum):
@@ -43,6 +44,8 @@ class ModelCreator:
         self.approach = approach
         self.is_mtl_model = is_mtl_model
         self.base_model = base_model   # enum tpe BaseModel
+        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
+        self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
     
 
     def __get_optimizer(self):
@@ -152,6 +155,16 @@ class ModelCreator:
         y = Dense(2, activation='softmax', name=req_name)(y)
         return y
     
+
+    def __create_branches_list_mtl_model(self, initializer, x):
+        branches_list = None
+        if not self.use_benchmark_data:
+            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.prop_args['reqs']]
+        else:
+            if self.benchmark_dataset.value == BenchmarkDataset.MNIST.value:
+                branches_list = [self.__create_branch_1(x, f'n_{i}', 2, initializer) for i in range(10)]
+        return branches_list
+
     
     def create_mtl_model(self):
         baseModel = self.__create_base_model()
@@ -165,11 +178,13 @@ class ModelCreator:
         x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
         x = Dropout(self.net_args['dropout'])(x)
         
-        branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.prop_args['reqs']]
+        branches_list = self.__create_branches_list_mtl_model(initializer, x)
         
         model = self.__compile_mtl_model(baseModel.input, branches_list)
 
         return baseModel, model
+
+    
     
     
     def create_mtl_model_2(self):

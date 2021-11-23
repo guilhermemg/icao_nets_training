@@ -28,9 +28,9 @@ class DataProcessor:
         self.is_mtl_model = is_mtl_model
         self.neptune_run = neptune_run
         
-        self.use_benchmark_data = self.prop_args['use_benchmark_data']
+        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
         if self.use_benchmark_data:
-            self.benchmark_dataset = self.prop_args['benchmark_dataset']
+            self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
         
         self.use_neptune = True if neptune_run is not None else False
         
@@ -302,142 +302,146 @@ class DataProcessor:
         non_comp_val = Eval.NON_COMPLIANT.value if self.is_mtl_model else str(Eval.NON_COMPLIANT.value)
         dummy_val = Eval.DUMMY_CLS.value if self.is_mtl_model else str(Eval.DUMMY_CLS.value)
         
-        for req in self.prop_args['reqs']:
-            print(f'Requisite: {req.value.upper()}')
-            
-            total_train = self.train_data.shape[0]
-            n_train_comp = self.train_data[self.train_data[req.value] == comp_val].shape[0]
-            n_train_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
-            n_train_dummy = self.train_data[self.train_data[req.value] == dummy_val].shape[0]
-            
-            prop_n_train_comp = round((n_train_comp/total_train)*100,2)
-            prop_n_train_not_comp = round((n_train_not_comp/total_train)*100,2)
-            prop_n_train_dummy = round((n_train_dummy/total_train)*100,2)
-            
-            print(f'N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
-            print(f'N_TRAIN_NOT_COMP: {n_train_not_comp} ({prop_n_train_not_comp}%)')
-            print(f'N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
-            
-            total_validation = self.validation_data.shape[0]
-            n_validation_comp = self.validation_data[self.validation_data[req.value] == comp_val].shape[0]
-            n_validation_not_comp = self.validation_data[self.validation_data[req.value] == non_comp_val].shape[0]
-            n_validation_dummy = self.validation_data[self.validation_data[req.value] == dummy_val].shape[0]
+        if not self.use_benchmark_data:
+            for req in self.prop_args['reqs']:
+                print(f'Requisite: {req.value.upper()}')
+                
+                total_train = self.train_data.shape[0]
+                n_train_comp = self.train_data[self.train_data[req.value] == comp_val].shape[0]
+                n_train_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
+                n_train_dummy = self.train_data[self.train_data[req.value] == dummy_val].shape[0]
+                
+                prop_n_train_comp = round((n_train_comp/total_train)*100,2)
+                prop_n_train_not_comp = round((n_train_not_comp/total_train)*100,2)
+                prop_n_train_dummy = round((n_train_dummy/total_train)*100,2)
+                
+                print(f'N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
+                print(f'N_TRAIN_NOT_COMP: {n_train_not_comp} ({prop_n_train_not_comp}%)')
+                print(f'N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
+                
+                total_validation = self.validation_data.shape[0]
+                n_validation_comp = self.validation_data[self.validation_data[req.value] == comp_val].shape[0]
+                n_validation_not_comp = self.validation_data[self.validation_data[req.value] == non_comp_val].shape[0]
+                n_validation_dummy = self.validation_data[self.validation_data[req.value] == dummy_val].shape[0]
 
-            prop_n_validation_comp = round(n_validation_comp/total_validation*100,2)
-            prop_n_validation_not_comp = round(n_validation_not_comp/total_validation*100,2)
-            prop_n_validation_dummy = round(n_validation_dummy/total_validation*100,2)
-            
-            print(f'N_VALIDATION_COMP: {n_validation_comp} ({prop_n_validation_comp}%)')
-            print(f'N_VALIDATION_NOT_COMP: {n_validation_not_comp} ({prop_n_validation_not_comp}%)')
-            print(f'N_VALIDATION_DUMMY: {n_validation_dummy} ({prop_n_validation_dummy}%)')
-            
-            total_test = self.test_data.shape[0]
-            n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
-            n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
-            n_test_dummy = self.test_data[self.test_data[req.value] == dummy_val].shape[0]
+                prop_n_validation_comp = round(n_validation_comp/total_validation*100,2)
+                prop_n_validation_not_comp = round(n_validation_not_comp/total_validation*100,2)
+                prop_n_validation_dummy = round(n_validation_dummy/total_validation*100,2)
+                
+                print(f'N_VALIDATION_COMP: {n_validation_comp} ({prop_n_validation_comp}%)')
+                print(f'N_VALIDATION_NOT_COMP: {n_validation_not_comp} ({prop_n_validation_not_comp}%)')
+                print(f'N_VALIDATION_DUMMY: {n_validation_dummy} ({prop_n_validation_dummy}%)')
+                
+                total_test = self.test_data.shape[0]
+                n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
+                n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
+                n_test_dummy = self.test_data[self.test_data[req.value] == dummy_val].shape[0]
 
-            prop_n_test_comp = round(n_test_comp/total_test*100,2)
-            prop_n_test_not_comp = round(n_test_not_comp/total_test*100,2)
-            prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
-            
-            print(f'N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
-            print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({prop_n_test_not_comp}%)')
-            print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
-            
-            if self.use_neptune:
-                neptune_vars_base_path = f'data_props/{req.value}'
+                prop_n_test_comp = round(n_test_comp/total_test*100,2)
+                prop_n_test_not_comp = round(n_test_not_comp/total_test*100,2)
+                prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
                 
-                self.neptune_run[f'{neptune_vars_base_path}/total_train'] = total_train
-                self.neptune_run[f'{neptune_vars_base_path}/n_train_comp'] = n_train_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_train_not_comp'] = n_train_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_train_dummy'] = n_train_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_comp'] = prop_n_train_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_not_comp'] = prop_n_train_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_dummy'] = prop_n_train_dummy
+                print(f'N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
+                print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({prop_n_test_not_comp}%)')
+                print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
                 
-                self.neptune_run[f'{neptune_vars_base_path}/total_validation'] = total_validation
-                self.neptune_run[f'{neptune_vars_base_path}/n_validation_comp'] = n_validation_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_validation_not_comp'] = n_validation_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_validation_dummy'] = n_validation_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_comp'] = prop_n_validation_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_not_comp'] = prop_n_validation_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_dummy'] = prop_n_validation_dummy
+                if self.use_neptune:
+                    neptune_vars_base_path = f'data_props/{req.value}'
+                    
+                    self.neptune_run[f'{neptune_vars_base_path}/total_train'] = total_train
+                    self.neptune_run[f'{neptune_vars_base_path}/n_train_comp'] = n_train_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_train_not_comp'] = n_train_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_train_dummy'] = n_train_dummy
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_comp'] = prop_n_train_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_not_comp'] = prop_n_train_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_dummy'] = prop_n_train_dummy
+                    
+                    self.neptune_run[f'{neptune_vars_base_path}/total_validation'] = total_validation
+                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_comp'] = n_validation_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_not_comp'] = n_validation_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_dummy'] = n_validation_dummy
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_comp'] = prop_n_validation_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_not_comp'] = prop_n_validation_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_dummy'] = prop_n_validation_dummy
+                    
+                    self.neptune_run[f'{neptune_vars_base_path}/total_test'] = total_test
+                    self.neptune_run[f'{neptune_vars_base_path}/n_test_comp'] = n_test_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_test_not_comp'] = n_test_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/n_test_dummy'] = n_test_dummy
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_comp'] = prop_n_test_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_not_comp'] = prop_n_test_not_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_dummy'] = prop_n_test_dummy
                 
-                self.neptune_run[f'{neptune_vars_base_path}/total_test'] = total_test
-                self.neptune_run[f'{neptune_vars_base_path}/n_test_comp'] = n_test_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_test_not_comp'] = n_test_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/n_test_dummy'] = n_test_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_comp'] = prop_n_test_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_not_comp'] = prop_n_test_not_comp
-                self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_dummy'] = prop_n_test_dummy
-            
-            print('----')
-    
+                print('----')
+        else:
+            print('Using benchmark data. Not doing summary_labels_dist()')
     
     def summary_gen_labels_dist(self):
-        total_train = self.train_gen.n
-        n_train_comp = len([x for x in self.train_gen.labels if x == Eval.COMPLIANT.value])
-        n_train_non_comp = len([x for x in self.train_gen.labels if x == Eval.NON_COMPLIANT.value])
-        n_train_dummy = len([x for x in self.train_gen.labels if x == Eval.DUMMY_CLS.value])
-        
-        prop_n_train_comp = round(n_train_comp/total_train*100,2)
-        prop_n_train_non_comp = round(n_train_non_comp/total_train*100,2)
-        prop_n_train_dummy =  round(n_train_dummy/total_train*100,2)     
+        if not self.use_benchmark_data:    
+            total_train = self.train_gen.n
+            n_train_comp = len([x for x in self.train_gen.labels if x == Eval.COMPLIANT.value])
+            n_train_non_comp = len([x for x in self.train_gen.labels if x == Eval.NON_COMPLIANT.value])
+            n_train_dummy = len([x for x in self.train_gen.labels if x == Eval.DUMMY_CLS.value])
+            
+            prop_n_train_comp = round(n_train_comp/total_train*100,2)
+            prop_n_train_non_comp = round(n_train_non_comp/total_train*100,2)
+            prop_n_train_dummy =  round(n_train_dummy/total_train*100,2)     
 
-        total_valid = self.validation_gen.n
-        n_valid_comp = len([x for x in self.validation_gen.labels if x == Eval.COMPLIANT.value])
-        n_valid_non_comp = len([x for x in self.validation_gen.labels if x == Eval.NON_COMPLIANT.value])
-        n_valid_dummy = len([x for x in self.validation_gen.labels if x == Eval.DUMMY_CLS.value])
-        
-        prop_n_valid_comp = round(n_valid_comp/total_valid*100,2)
-        prop_n_valid_non_comp = round(n_valid_non_comp/total_valid*100,2)
-        prop_n_valid_dummy = round(n_valid_dummy/total_valid*100,2)
-        
-        total_test = self.test_gen.n
-        n_test_comp= len([x for x in self.test_gen.labels if x == Eval.COMPLIANT.value])
-        n_test_non_comp = len([x for x in self.test_gen.labels if x == Eval.NON_COMPLIANT.value])
-        n_test_dummy = len([x for x in self.test_gen.labels if x == Eval.DUMMY_CLS.value])
-        
-        prop_n_test_comp = round(n_test_comp/total_test*100,2)
-        prop_n_test_non_comp = round(n_test_non_comp/total_test*100,2)
-        prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
+            total_valid = self.validation_gen.n
+            n_valid_comp = len([x for x in self.validation_gen.labels if x == Eval.COMPLIANT.value])
+            n_valid_non_comp = len([x for x in self.validation_gen.labels if x == Eval.NON_COMPLIANT.value])
+            n_valid_dummy = len([x for x in self.validation_gen.labels if x == Eval.DUMMY_CLS.value])
+            
+            prop_n_valid_comp = round(n_valid_comp/total_valid*100,2)
+            prop_n_valid_non_comp = round(n_valid_non_comp/total_valid*100,2)
+            prop_n_valid_dummy = round(n_valid_dummy/total_valid*100,2)
+            
+            total_test = self.test_gen.n
+            n_test_comp= len([x for x in self.test_gen.labels if x == Eval.COMPLIANT.value])
+            n_test_non_comp = len([x for x in self.test_gen.labels if x == Eval.NON_COMPLIANT.value])
+            n_test_dummy = len([x for x in self.test_gen.labels if x == Eval.DUMMY_CLS.value])
+            
+            prop_n_test_comp = round(n_test_comp/total_test*100,2)
+            prop_n_test_non_comp = round(n_test_non_comp/total_test*100,2)
+            prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
 
-        print(f'GEN_N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
-        print(f'GEN_N_TRAIN_NON_COMP: {n_train_non_comp} ({prop_n_train_non_comp}%)')
-        print(f'GEN_N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
-        
-        print(f'GEN_N_VALID_COMP: {n_valid_comp} ({prop_n_valid_comp}%)')
-        print(f'GEN_N_VALID_NON_COMP: {n_valid_non_comp} ({prop_n_valid_non_comp}%)')
-        print(f'GEN_N_VALID_DUMMY: {n_valid_dummy} ({prop_n_valid_dummy}%)')
+            print(f'GEN_N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
+            print(f'GEN_N_TRAIN_NON_COMP: {n_train_non_comp} ({prop_n_train_non_comp}%)')
+            print(f'GEN_N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
+            
+            print(f'GEN_N_VALID_COMP: {n_valid_comp} ({prop_n_valid_comp}%)')
+            print(f'GEN_N_VALID_NON_COMP: {n_valid_non_comp} ({prop_n_valid_non_comp}%)')
+            print(f'GEN_N_VALID_DUMMY: {n_valid_dummy} ({prop_n_valid_dummy}%)')
 
-        print(f'GEN_N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
-        print(f'GEN_N_TEST_NON_COMP: {n_test_non_comp} ({prop_n_test_non_comp}%)')
-        print(f'GEN_N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
-        
-        if self.use_neptune:
-            neptune_vars_base_path = f'data_props/generators'
+            print(f'GEN_N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
+            print(f'GEN_N_TEST_NON_COMP: {n_test_non_comp} ({prop_n_test_non_comp}%)')
+            print(f'GEN_N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
             
-            self.neptune_run[f'{neptune_vars_base_path}/gen_total_train'] = total_train
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_comp'] = n_train_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_non_comp'] = n_train_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_dummy'] = n_train_dummy
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_comp'] = prop_n_train_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_non_comp'] = prop_n_train_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_dummy'] = prop_n_train_dummy
-            
-            self.neptune_run[f'{neptune_vars_base_path}/gen_total_valid'] = total_valid
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_comp'] = n_valid_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_non_comp'] = n_valid_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_dummy'] = n_valid_dummy
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_comp'] = prop_n_valid_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_non_comp'] = prop_n_valid_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_dummy'] = prop_n_valid_dummy
-            
-            self.neptune_run[f'{neptune_vars_base_path}/gen_total_test'] = total_test
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_comp'] = n_test_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_non_comp'] = n_test_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_dummy'] = n_test_dummy
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_comp'] = prop_n_test_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_non_comp'] = prop_n_test_non_comp
-            self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_dummy'] = prop_n_test_dummy
-            
+            if self.use_neptune:
+                neptune_vars_base_path = f'data_props/generators'
+                
+                self.neptune_run[f'{neptune_vars_base_path}/gen_total_train'] = total_train
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_comp'] = n_train_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_non_comp'] = n_train_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_dummy'] = n_train_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_comp'] = prop_n_train_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_non_comp'] = prop_n_train_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_dummy'] = prop_n_train_dummy
+                
+                self.neptune_run[f'{neptune_vars_base_path}/gen_total_valid'] = total_valid
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_comp'] = n_valid_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_non_comp'] = n_valid_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_dummy'] = n_valid_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_comp'] = prop_n_valid_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_non_comp'] = prop_n_valid_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_dummy'] = prop_n_valid_dummy
+                
+                self.neptune_run[f'{neptune_vars_base_path}/gen_total_test'] = total_test
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_comp'] = n_test_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_non_comp'] = n_test_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_dummy'] = n_test_dummy
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_comp'] = prop_n_test_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_non_comp'] = prop_n_test_non_comp
+                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_dummy'] = prop_n_test_dummy
+        else:
+            print('Using benchmark data. Not doing summary_gen_labels_dist()')
