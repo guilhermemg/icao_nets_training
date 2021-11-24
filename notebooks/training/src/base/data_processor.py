@@ -8,13 +8,13 @@ from data_loaders.data_loader import DLName
 from net_data_loaders.net_data_loader import NetDataLoader
 from net_data_loaders.net_gt_loader import NetGTLoader
 
-from m_utils.constants import SEED, BASE_PATH
+from m_utils.constants import SEED, BASE_PATH, MNIST_TASK
 
 from enum import Enum
 
 
 class BenchmarkDataset(Enum):
-    MNIST = {'name': 'mnist', 'target_cols': [f'n_{x}' for x in range(10)]}
+    MNIST = {'name': 'mnist', 'target_cols': MNIST_TASK.list_reqs_names()}
     FASHION_MNIST = {'name': 'fashion_mnist'}
     CIFAR_10 = {'name': 'cifar_10'}
 

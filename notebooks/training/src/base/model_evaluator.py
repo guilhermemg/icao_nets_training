@@ -19,16 +19,16 @@ from sklearn.metrics import confusion_matrix
 
 import tensorflow.keras.backend as K
 
-from tensorflow.keras import preprocessing
 from tensorflow.keras import models
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
 
 from gt_loaders.gen_gt import Eval
-
 import utils.draw_utils as dr
 
-from m_utils.constants import SEED, ICAO_REQ
+from m_utils.constants import SEED
+from m_utils.constants import MNIST_TASK, ICAO_REQ
+from base.data_processor import BenchmarkDataset
 
 
 class DataSource(Enum):
@@ -69,9 +69,9 @@ class FinalEvaluation:
 
 
 
-class RequisiteEvaluation:
-    def __init__(self, req):
-        self.req = req
+class TaskEvaluation:
+    def __init__(self, task):
+        self.task = task
         self.TP = None
         self.FP = None
         self.TN = None
@@ -84,7 +84,7 @@ class RequisiteEvaluation:
         self.ACC = None
     
     def __str__(self) -> str:
-        return f'Requisite: {self.req}\n' + \
+        return f'Task: {self.task}\n' + \
                 f' TP: {self.TP} | ' + \
                 f' TN: {self.TN} | ' + \
                 f' FP: {self.FP} | ' + \
@@ -104,6 +104,10 @@ class ModelEvaluator:
         self.is_mtl_model = is_mtl_model
         self.neptune_run = neptune_run
         self.use_neptune = True if neptune_run is not None else False
+
+        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
+        if self.use_benchmark_data:
+            self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
         
         self.data_src = None
         
@@ -158,7 +162,7 @@ class ModelEvaluator:
         return frr
     
 
-    def __draw_far_frr_curve(self, th_range, frr, far, eer, req, best_th):
+    def __draw_far_frr_curve(self, th_range, frr, far, eer, task, best_th):
         fig = plt.figure(1)
         plt.plot(th_range, frr,'-r')
         plt.plot(th_range, far,'-b')
@@ -167,7 +171,7 @@ class ModelEvaluator:
         plt.ylabel('FAR/FRR %')
         plt.xlim([0, 1.02])
         plt.ylim([0, 100])
-        plt.title(f'Req: {req.upper()} - EER = {round(eer,4)} - {self.data_src.value.upper()}')
+        plt.title(f'Task: {task.upper()} - EER = {round(eer,4)} - {self.data_src.value.upper()}')
         plt.legend(['FRR','FAR'], loc='upper center')
         plt.show()
         
@@ -175,20 +179,20 @@ class ModelEvaluator:
             self.neptune_run[f'{self.vis_var_base_path}/far_frr_curve.png'].upload(fig)
 
 
-    def __draw_roc_curve(self, fpr, tpr, eer, th, req):
+    def __draw_roc_curve(self, fpr, tpr, eer, th, task):
         fig = plt.figure(1)
         plt.plot([0, 1], [0, 1], 'k--')
         plt.plot(fpr, tpr)
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
-        plt.title('ROC - Req: {} | EER: {:.4f} | Thresh: {:.4f} | {}'.format(req.upper(), eer, th, self.data_src.value.upper()))
+        plt.title('ROC - Task: {} | EER: {:.4f} | Thresh: {:.4f} | {}'.format(task.upper(), eer, th, self.data_src.value.upper()))
         plt.show()
         
         if self.use_neptune:
             self.neptune_run[f'{self.vis_var_base_path}/roc_curve.png'].upload(fig)
     
     
-    def calculate_eer(self, req, verbose, running_nas):
+    def calculate_eer(self, task, verbose, running_nas):
         if self.y_test_true is None or self.y_test_hat is None:
             raise Exception('Call method make_predictions() before calculate_eer()!')
         
@@ -204,14 +208,14 @@ class ModelEvaluator:
         best_th = interp1d(fpr, ths)(EER_interp)
         
         if verbose:
-            self.__draw_roc_curve(fpr, tpr, EER_interp, best_th, req)
-            self.__draw_far_frr_curve(th_range, frr, far, EER_interp, req, best_th)
+            self.__draw_roc_curve(fpr, tpr, EER_interp, best_th, task)
+            self.__draw_far_frr_curve(th_range, frr, far, EER_interp, task, best_th)
 
         best_th = best_th.tolist()
         EER_interp = round(EER_interp, 4)
 
         if verbose:
-            print(f'Requisite: {req.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
+            print(f'Task: {task.upper()} - EER_interp: {EER_interp*100}% - Best Threshold: {best_th}')
 
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
         
@@ -220,8 +224,8 @@ class ModelEvaluator:
                 self.neptune_run[f'{self.metrics_var_base_path}/EER_interp'] = EER_interp
                 self.neptune_run[f'{self.metrics_var_base_path}/best_th'] = best_th
             else:
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_interp'] = EER_interp
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/best_th'] = best_th
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/EER_interp'] = EER_interp
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/best_th'] = best_th
         
         return EER_interp, best_th
 
@@ -245,7 +249,7 @@ class ModelEvaluator:
                                         target_names=target_names, 
                                         labels=labels))
 
-    def calculate_accuracy(self, req, verbose, runnning_nas):
+    def calculate_accuracy(self, task, verbose, runnning_nas):
         if self.y_test_true is None or self.y_test_hat_discrete is None:
             raise Exception('Call method make_predictions() and calculate_eer() before calculate_accuracy()!')
         
@@ -260,12 +264,12 @@ class ModelEvaluator:
             if not self.is_mtl_model:
                 self.neptune_run[f'{self.metrics_var_base_path}/ACC'] = ACC
             else:
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/ACC'] = ACC
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/ACC'] = ACC
         
         return ACC
 
 
-    def get_confusion_matrix(self, req, verbose, running_nas):
+    def get_confusion_matrix(self, task, verbose, running_nas):
         if self.y_test_true is None or self.y_test_hat is None:
             raise Exception('Call method make_predictions() before calculate_confusion_matrix()!')
         
@@ -290,43 +294,43 @@ class ModelEvaluator:
                 self.neptune_run[f'{self.metrics_var_base_path}/FRR'] = FRR
                 self.neptune_run[f'{self.metrics_var_base_path}/EER_mean'] = EER_mean
             else:
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/TP'] = TP
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/TN'] = TN
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FP'] = FP
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FN'] = FN
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FAR'] = FAR
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/FRR'] = FRR
-                self.neptune_run[f'{self.metrics_var_base_path}/{req}/EER_mean'] = EER_mean
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/TP'] = TP
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/TN'] = TN
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FP'] = FP
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FN'] = FN
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FAR'] = FAR
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FRR'] = FRR
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/EER_mean'] = EER_mean
         
         return TN,TP,FN,FP,FAR,FRR,EER_mean
 
     
-    def __calculate_metrics(self, predIdxs, data_gen, req, verbose, running_nas):
+    def __calculate_metrics(self, predIdxs, data_gen, task, verbose, running_nas):
         self.y_test_hat = np.array([y1 for (_,y1) in predIdxs])  # COMPLIANT label predictions (class==1.0) (positive class)
         
-        req_eval = RequisiteEvaluation(req)
+        task_eval = TaskEvaluation(task)
 
-        req = req.value.lower()
+        task = task.value.lower()
         
-        EER_interp, best_thresh = self.calculate_eer(req, verbose, running_nas)
-        req_eval.EER_interp = EER_interp
-        req_eval.best_th = best_thresh
+        EER_interp, best_thresh = self.calculate_eer(task, verbose, running_nas)
+        task_eval.EER_interp = EER_interp
+        task_eval.best_th = best_thresh
         
         self.get_classification_report(data_gen, verbose)
 
-        TN,TP,FN,FP,FAR,FRR,EER_mean = self.get_confusion_matrix(req, verbose, running_nas)
-        req_eval.TP = TP
-        req_eval.TN = TN
-        req_eval.FP = FP
-        req_eval.FN = FN
-        req_eval.FAR = FAR
-        req_eval.FRR = FRR
-        req_eval.EER_mean = EER_mean
+        TN,TP,FN,FP,FAR,FRR,EER_mean = self.get_confusion_matrix(task, verbose, running_nas)
+        task_eval.TP = TP
+        task_eval.TN = TN
+        task_eval.FP = FP
+        task_eval.FN = FN
+        task_eval.FAR = FAR
+        task_eval.FRR = FRR
+        task_eval.EER_mean = EER_mean
 
-        acc = self.calculate_accuracy(req, verbose, running_nas)
-        req_eval.ACC = acc
+        acc = self.calculate_accuracy(task, verbose, running_nas)
+        task_eval.ACC = acc
 
-        return req_eval
+        return task_eval
         
         
     
@@ -338,21 +342,28 @@ class ModelEvaluator:
         predIdxs = model.predict(data_gen, batch_size=self.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
-        req_evaluations = []
+        evaluations = []
         if self.is_mtl_model:
-            for idx,req in enumerate(self.prop_args['reqs']):
-                if req == ICAO_REQ.INK_MARK:    # TODO corrigir esse problema!!
-                    continue
-                print(f'Requisite: {req.value.upper()}') if verbose else None
+            tasks_list = []
+            if not self.use_benchmark_data:
+                tasks_list = self.prop_args['reqs']
+                tasks_list = [x for x in tasks_list if x.value != ICAO_REQ.INK_MARK.value] # TODO corrigir esse problema!!
+            else:
+                if self.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
+                    tasks_list = list(MNIST_TASK)
+            
+            for idx,task in enumerate(tasks_list):
+                print(f'Task: {task.value.upper()}') if verbose else None
                 self.y_test_true = np.array(data_gen.labels[idx])
-                req_evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, req, verbose, running_nas))
+                evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, task, verbose, running_nas))
+
         else:
-            print(f'Requisite: {self.prop_args["reqs"][0].value.upper()}') if verbose else None
+            print(f'Task: {self.prop_args["reqs"][0].value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
-            req = self.prop_args['reqs'][0]
-            req_evaluations.append(self.__calculate_metrics(predIdxs, data_gen, req, verbose, running_nas))
+            task = self.prop_args['reqs'][0]
+            evaluations.append(self.__calculate_metrics(predIdxs, data_gen, task, verbose, running_nas))
         
-        final_eval = FinalEvaluation(req_evaluations)
+        final_eval = FinalEvaluation(evaluations)
         final_metrics = final_eval.calculate_final_metrics()
         print(final_eval)
 

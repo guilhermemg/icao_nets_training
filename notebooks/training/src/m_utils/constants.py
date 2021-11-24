@@ -129,8 +129,19 @@ class OUTPUT_PATH(Enum):
     
 #     CLOSE_YOLOV3_2 = 'yolov3_close_2'
     
+
+
+class TASK(Enum):
+    @classmethod
+    def list_reqs_names(cls):
+        return [v.value for k,v in cls.__members__.items()]
     
-class ICAO_REQ(Enum):
+    @classmethod
+    def list_reqs(cls):
+        return [v for k,v in cls.__members__.items()]
+
+
+class ICAO_REQ(TASK):
     MOUTH = 'mouth'
     ROTATION = 'rotation'
     L_AWAY = 'l_away'
@@ -154,13 +165,17 @@ class ICAO_REQ(Enum):
     HAIR_EYES = 'hair_eyes'
     BACKGROUND = 'background'
     RED_EYES = 'red_eyes'
-    
-    
-    @classmethod
-    def list_reqs_names(cls):
-        return [v.value for k,v in cls.__members__.items()]
-    
-    @classmethod
-    def list_reqs(cls):
-        return [v for k,v in cls.__members__.items()]
 
+
+class MNIST_TASK(TASK):
+    N_0 = 'n_0'
+    N_1 = 'n_1'
+    N_2 = 'n_2'
+    N_3 = 'n_3'
+    N_4 = 'n_4'
+    N_5 = 'n_5'
+    N_6 = 'n_6'
+    N_7 = 'n_7'
+    N_8 = 'n_8'
+    N_9 = 'n_9'
+    

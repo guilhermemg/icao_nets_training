@@ -1,12 +1,16 @@
 
 import matplotlib.pyplot as plt
 
+from base.data_processor import BenchmarkDataset
 
 class ModelTrainVisualizer:
     def __init__(self, prop_args, base_model, is_mtl_model):
         self.prop_args = prop_args
         self.base_model = base_model
         self.is_mtl_model = is_mtl_model
+        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
+        if self.use_benchmark_data:
+            self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
 
     
     def visualize_history(self, history):
@@ -33,12 +37,22 @@ class ModelTrainVisualizer:
             f,ax = plt.subplots(2,2, figsize=(20,25))
             f.suptitle(f'-----{self.base_model.name}-----')
 
-            for _,req in enumerate(self.prop_args['reqs']):
-                ax[0][0].plot(history.history[f'{req.value}_accuracy'])
-                ax[0][1].plot(history.history[f'val_{req.value}_accuracy'])
+            if not self.use_benchmark_data:
+                for _,req in enumerate(self.prop_args['reqs']):
+                    ax[0][0].plot(history.history[f'{req.value}_accuracy'])
+                    ax[0][1].plot(history.history[f'val_{req.value}_accuracy'])
 
-                ax[1][0].plot(history.history[f'{req.value}_loss'])
-                ax[1][1].plot(history.history[f'val_{req.value}_loss'])
+                    ax[1][0].plot(history.history[f'{req.value}_loss'])
+                    ax[1][1].plot(history.history[f'val_{req.value}_loss'])
+            else:
+                if self.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
+                    for _,cls in enumerate(BenchmarkDataset.MNIST.value['target_cols']):
+                        ax[0][0].plot(history.history[f'{cls}_accuracy'])
+                        ax[0][1].plot(history.history[f'val_{cls}_accuracy'])
+
+                        ax[1][0].plot(history.history[f'{cls}_loss'])
+                        ax[1][1].plot(history.history[f'val_{cls}_loss'])
+
 
             ax[1][0].plot(history.history['loss'], color='red', linewidth=2.0) # total loss
 
@@ -65,7 +79,13 @@ class ModelTrainVisualizer:
             ax[1][0].set_ylim([0,1.5])
             ax[1][1].set_ylim([0,1.5])
 
-            legends = [r.value for r in self.prop_args['reqs']]
+            legends = None
+            if not self.use_benchmark_data:
+                legends = [r.value for r in self.prop_args['reqs']]
+            else:
+                if self.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
+                    legends = BenchmarkDataset.MNIST.value['target_cols']
+
             ax[0][0].legend(legends, ncol=4)
             ax[0][1].legend(legends, ncol=4)
             ax[1][0].legend(legends, ncol=4)
