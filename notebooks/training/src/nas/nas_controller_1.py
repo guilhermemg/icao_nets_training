@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from utils.constants import SEED
+from m_utils.constants import SEED
 from nas.gen_nas_controller import GenNASController
 
 

@@ -27,16 +27,27 @@ class CallbacksHandler:
             train_loss_list = []
             val_loss_list = []
 
-            for req in self.prop_args['reqs']:
-                self.neptune_run[f'epoch/{req.value}/accuracy'].log(logs[f'{req.value}_accuracy'])
-                self.neptune_run[f'epoch/{req.value}/val_accuracy'].log(logs[f'val_{req.value}_accuracy'])
-                self.neptune_run[f'epoch/{req.value}/loss'].log(logs[f'{req.value}_loss'])
-                self.neptune_run[f'epoch/{req.value}/val_loss'].log(logs[f'val_{req.value}_loss'])
+            tasks_list = None
+            if self.prop_args['benchmarking']['use_benchmark_data']:
+                tasks_list = self.prop_args['benchmarking']['tasks']
+            elif self.prop_args['icao_data']['use_icao_gt']:
+                tasks_list = self.prop_args['icao_data']['reqs']
+
+            for task in tasks_list:
+                task_acc = logs[f'{task.value}_accuracy']
+                task_val_acc = logs[f'val_{task.value}_accuracy']
+                task_loss = logs[f'{task.value}_loss']
+                task_val_loss = logs[f'val_{task.value}_loss']
+
+                self.neptune_run[f'epoch/{task.value}/accuracy'].log(task_acc)
+                self.neptune_run[f'epoch/{task.value}/val_accuracy'].log(task_val_acc)
+                self.neptune_run[f'epoch/{task.value}/loss'].log(task_loss)
+                self.neptune_run[f'epoch/{task.value}/val_loss'].log(task_val_loss)
                 
-                train_acc_list.append(logs[f'{req.value}_accuracy'])
-                val_acc_list.append(logs[f'val_{req.value}_accuracy'])
-                train_loss_list.append(logs[f'loss'])
-                val_loss_list.append(logs[f'val_loss'])
+                train_acc_list.append(task_acc)
+                val_acc_list.append(task_val_acc)
+                train_loss_list.append(task_loss)
+                val_loss_list.append(task_val_loss)
             
             total_acc, total_val_acc = np.mean(train_acc_list), np.mean(val_acc_list)
             total_loss, total_val_loss = np.mean(train_loss_list), np.mean(val_loss_list)

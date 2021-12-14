@@ -57,6 +57,10 @@ class ExperimentRunner:
         
         self.__kwargs_sanity_check()
         
+        self.use_icao_gt = self.prop_args['icao_data']['icao_gt']['use_gt_data']
+        self.use_icao_dl = self.prop_args['icao_data']['icao_dl']['use_dl_data']
+        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
+
         self.base_model = self.net_args['base_model']
         print('----')
         print('Base Model Name: ', self.base_model)
@@ -66,12 +70,16 @@ class ExperimentRunner:
         self.__start_neptune()
         
         print('----')
-        self.is_mtl_model = len(self.prop_args['reqs']) > 1
+
+        self.is_mtl_model = self.__check_is_mtl_model()
         print(f'MTL Model: {self.is_mtl_model}')
+        
         self.approach = self.prop_args['approach']
         print(f'Approach: {self.approach}')
+
         self.is_nas_mtl_model = type(self.approach) is NAS_MTLApproach
         self.exec_nas = self.prop_args['exec_nas']
+        
         print('----')
 
         self.neptune_utils = NeptuneUtils(self.prop_args, self.is_mtl_model, self.neptune_run)
@@ -90,7 +98,16 @@ class ExperimentRunner:
         
         if not has_experiment_id and not is_training_new_model:
             raise Exception('You must train a new model or provide an experiment ID')
-            
+
+
+    def __check_is_mtl_model(self):
+        if self.use_icao_gt:
+            return len(self.prop_args['icao_data']['icao_gt']['reqs']) > 1
+        elif self.use_benchmark_data:
+            return len(self.prop_args['benchmarking']['tasks']) > 1
+        elif self.use_icao_dl:
+            raise NotImplemented('MTL model is not implemented for ICAO DL!')
+
     
     def __start_neptune(self):
         self.__print_method_log_sig( 'start neptune')
@@ -148,7 +165,7 @@ class ExperimentRunner:
     def balance_input_data(self):
         self.__print_method_log_sig( 'balance input data')
         if self.prop_args['balance_input_data']:
-            req_name = self.prop_args['reqs'][0].value
+            req_name = self.prop_args['icao_gt']['reqs'][0].value
             self.data_processor.balance_input_data(req_name)
             self.train_data = self.data_processor.train_data
         else:
@@ -184,21 +201,26 @@ class ExperimentRunner:
             params['n_test'] = self.test_gen.n
             
             props = {}
-            if self.prop_args['use_gt_data']:
-                gt_names_formatted = {
-                    'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
-                    'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
-                    'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
-                }
-                props = {'gt_names': str(gt_names_formatted)}
-            else:
-                props = {
-                    'dl_names': str([dl_n.value for dl_n in self.prop_args['dl_names']]),
-                    'tagger_model': self.prop_args['tagger_model'].get_model_name().value
-                }
-
-            props['aligned'] = self.prop_args['aligned']
-            props['icao_reqs'] = str([r.value for r in self.prop_args['reqs']])
+            
+            if self.use_icao_gt:
+                icao_gt = self.prop_args['icao_data']['icao_gt']
+                props['use_icao_gt'] = self.use_icao_gt
+                props['aligned'] = icao_gt['aligned']
+                props['icao_reqs'] = str([r.value for r in icao_gt['reqs']])
+                props['gt_names'] = str({
+                    'train_validation': [x.value.lower() for x in icao_gt['gt_names']['train_validation']],
+                    'test': [x.value.lower() for x in icao_gt['gt_names']['test']],
+                    'train_validation_test': [x.value.lower() for x in icao_gt['gt_names']['train_validation_test']]
+                })
+            elif self.use_benchmark_data:
+                props['use_benchmark_data'] = self.use_benchmark_data
+                props['benchmark_dataset'] = str(self.prop_args['benchmarking']['benchmark_dataset'].name)
+                props['benchmark_tasks'] = str([x.name for x in self.prop_args['benchmarking']['tasks']])
+            elif self.use_icao_dl:
+                props['use_icao_dl'] = self.use_icao_dl
+                props['dl_names'] = str([dl_n.value for dl_n in self.prop_args['dl_names']])
+                props['tagger_model'] = self.prop_args['tagger_model'].get_model_name().value
+            
             props['balance_input_data'] = self.prop_args['balance_input_data']
             props['train_model'] = self.prop_args['train_model']
             props['orig_model_experiment_id'] = self.prop_args['orig_model_experiment_id']

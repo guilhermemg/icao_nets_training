@@ -11,6 +11,7 @@ from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input
+from tensorflow.keras import Input as Inp
 from tensorflow.keras.layers import Lambda
 from tensorflow.keras.models import Model
 from tensorflow.keras.initializers import RandomNormal
@@ -18,23 +19,13 @@ from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 
 import tensorflow as tf
 
-from enum import Enum
-
-from utils.constants import SEED, ICAO_REQ
+from m_utils.constants import SEED, ICAO_REQ, MNIST_TASK
+from m_utils.mtl_approach import MTLApproach
+from m_utils.nas_mtl_approach import NAS_MTLApproach
 from base.base_models import BaseModel
 from base.optimizers import Optimizer
 from base.data_processor import BenchmarkDataset
-
-
-class MTLApproach(Enum):
-    HAND_1 = 'handcrafted_1'
-    HAND_2 = 'handcrafted_2'
-    HAND_3 = 'handcrafted_3'
-
-
-class NAS_MTLApproach(Enum):
-    APPROACH_1 = 'approach_1'
-    APPROACH_2 = 'approach_2'
+from base.custom_base_model import CustomBaseModel
 
 
 class ModelCreator:
@@ -43,7 +34,7 @@ class ModelCreator:
         self.prop_args = prop_args
         self.approach = approach
         self.is_mtl_model = is_mtl_model
-        self.base_model = base_model   # enum tpe BaseModel
+        self.base_model = base_model   # enum type BaseModel
         self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
         self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
     
@@ -80,6 +71,8 @@ class ModelCreator:
             baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
         elif self.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
+        elif self.base_model.name == BaseModel.CUSTOM.name:
+            baseModel = CustomBaseModel(input_tensor=Inp(shape=(W,H,3)), input_shape=(W,H,3))
         return baseModel
     
         
@@ -114,11 +107,17 @@ class ModelCreator:
     def __compile_mtl_model(self, input_layer, output_layers):
         model = Model(inputs=input_layer, outputs=output_layers)
         
+        n_tasks = None
+        if self.use_benchmark_data:
+            if self.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+                n_tasks = len(list(MNIST_TASK))
+        else:
+            n_tasks = len(list(ICAO_REQ))
+
         opt = self.__get_optimizer()
-        n_reqs = len(self.prop_args['reqs'])
-        loss_list = ['sparse_categorical_crossentropy' for x in range(n_reqs)]
+        loss_list = ['sparse_categorical_crossentropy' for _ in range(n_tasks)]
         metrics_list = ['accuracy']
-        loss_weights = [.1 for x in range(n_reqs)]
+        loss_weights = [.1 for _ in range(n_tasks)]
  
         model.compile(loss=loss_list, loss_weights=loss_weights, optimizer=opt, metrics=metrics_list)
 
@@ -183,9 +182,7 @@ class ModelCreator:
         model = self.__compile_mtl_model(baseModel.input, branches_list)
 
         return baseModel, model
-
-    
-    
+   
     
     def create_mtl_model_2(self):
         baseModel = self.__create_base_model()

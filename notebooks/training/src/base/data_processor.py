@@ -38,32 +38,33 @@ class DataProcessor:
 
 
     def __load_gt_data(self):
-        is_many_datasets = len(self.prop_args['gt_names']['train_validation_test']) == 0
+        icao_gt = self.prop_args['icao_data']['icao_gt']
+        is_many_datasets = len(icao_gt['train_validation_test']) == 0
         if is_many_datasets:
-            trainNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
-                                               self.prop_args['reqs'], 
-                                               self.prop_args['gt_names']['train_validation'], 
-                                               self.is_mtl_model)
+            trainNetGtLoader = NetGTLoader(icao_gt['aligned'], 
+                                           icao_gt['reqs'], 
+                                           icao_gt['gt_names']['train_validation'], 
+                                           self.is_mtl_model)
                 
             self.train_data = trainNetGtLoader.load_gt_data(split='train')
             self.validation_data = trainNetGtLoader.load_gt_data(split='validation')
                 
             print(f'TrainData.shape: {self.train_data.shape}')
 
-            testNetGtLoader = NetGTLoader(self.prop_args['aligned'], 
-                                              self.prop_args['reqs'], 
-                                              self.prop_args['gt_names']['test'], 
-                                              self.is_mtl_model)
+            testNetGtLoader = NetGTLoader(icao_gt['aligned'], 
+                                          icao_gt['reqs'], 
+                                          icao_gt['gt_names']['test'], 
+                                          self.is_mtl_model)
                 
             self.test_data = testNetGtLoader.load_gt_data(split='test')
                 
             print(f'TestData.shape: {self.test_data.shape}')
                 
         else:
-            netGtLoader = NetGTLoader(self.prop_args['aligned'], 
-                                          self.prop_args['reqs'], 
-                                          self.prop_args['gt_names']['train_validation_test'], 
-                                          self.is_mtl_model)
+            netGtLoader = NetGTLoader(icao_gt['aligned'], 
+                                      icao_gt['reqs'], 
+                                      icao_gt['gt_names']['train_validation_test'], 
+                                      self.is_mtl_model)
                 
             self.train_data = netGtLoader.load_gt_data(split='train')
             self.validation_data = netGtLoader.load_gt_data(split='validation')
@@ -81,20 +82,21 @@ class DataProcessor:
 
 
     def __load_dl_data(self):
-        netTrainDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
-                                               self.prop_args['reqs'], 
-                                               self.prop_args['dl_names'], 
-                                               self.prop_args['aligned'], 
-                                               self.is_mtl_model)
+        icao_data = self.prop_args['icao_data']['icao_dl']
+        netTrainDataLoader = NetDataLoader(icao_data['tagger_model'], 
+                                           icao_data['reqs'], 
+                                           icao_data['dl_names'], 
+                                           icao_data['aligned'], 
+                                           self.is_mtl_model)
         self.train_data = netTrainDataLoader.load_data()
         print(f'TrainData.shape: {self.train_data.shape}')
             
         test_dataset = DLName.COLOR_FERET
-        netTestDataLoader = NetDataLoader(self.prop_args['tagger_model'], 
-                                              self.prop_args['reqs'], 
-                                              [test_dataset], 
-                                              self.prop_args['aligned'], 
-                                              self.is_mtl_model)
+        netTestDataLoader = NetDataLoader(icao_data['tagger_model'], 
+                                          icao_data['reqs'], 
+                                          [test_dataset], 
+                                          icao_data['aligned'], 
+                                          self.is_mtl_model)
         self.test_data = netTestDataLoader.load_data()
         print(f'Test Dataset: {test_dataset.name.upper()}')
         print(f'TestData.shape: {self.test_data.shape}')
@@ -117,7 +119,7 @@ class DataProcessor:
         if self.use_benchmark_data:
             self.__load_benchmark_data()
         else:
-            if self.prop_args['use_gt_data']:
+            if self.prop_args['icao_data']['icao_gt']['use_gt_data']:
                 self.__load_gt_data()               
             else:
                 self.__load_dl_data()

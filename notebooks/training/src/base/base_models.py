@@ -9,8 +9,9 @@ from tensorflow.keras.applications.resnet_v2 import preprocess_input as prep_inp
 from enum import Enum
 
 class BaseModel(Enum):
-    MOBILENET_V2 = { 'target_size' : (224,224), 'prep_function': prep_input_mobilenetv2 }
-    INCEPTION_V3 = { 'target_size' : (299,299), 'prep_function': prep_input_inceptionv3 }
-    VGG19 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg19 }
-    VGG16 =        { 'target_size' : (224,224), 'prep_function': prep_input_vgg16 }
-    RESNET50_V2 =  { 'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
+    MOBILENET_V2 = { 'name':'mobilnet_v2',  'target_size' : (224,224), 'prep_function': prep_input_mobilenetv2 }
+    INCEPTION_V3 = { 'name':'inception_v3', 'target_size' : (299,299), 'prep_function': prep_input_inceptionv3 }
+    VGG19 =        { 'name':'vgg19',        'target_size' : (224,224), 'prep_function': prep_input_vgg19 }
+    VGG16 =        { 'name':'vgg16',        'target_size' : (224,224), 'prep_function': prep_input_vgg16 }
+    RESNET50_V2 =  { 'name':'resnet_v2',    'target_size' : (224,224), 'prep_function': prep_input_resnet50v2 }
+    CUSTOM =       { 'name':'custom',       'target_size' : (224,224), 'prep_function': prep_input_vgg16}
