@@ -37,6 +37,7 @@ class ModelCreator:
         self.base_model = base_model   # enum type BaseModel
         self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
         self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
+        self.use_icao_data = self.prop_args['icao_data']['icao_gt']['use_gt_data']
     
 
     def __get_optimizer(self):
@@ -251,26 +252,38 @@ class ModelCreator:
         return baseModel, model
 
 
+    def __get_tasks_groups(self):
+        tasks_groups = {'g0':[], 'g1':[], 'g2':[], 'g3':[]}
+        if self.use_icao_data:
+            tasks_groups['g0'] = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
+                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
+            tasks_groups['g1'] = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
+            tasks_groups['g2'] = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
+                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
+            tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
+        elif self.use_benchmark_data:
+            if self.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+                tasks_groups['g0'] = [MNIST_TASK.N_0]
+                tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
+                tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
+                tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
+        else:
+            raise NotImplemented()
+        return tasks_groups
+
+
     def create_nas_mtl_model_1(self, config):
         baseModel = self.__create_base_model()
         
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)
         
-        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
-                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
-        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], req.value) for req in reqs_g0]
+        tasks_groups = self.__get_tasks_groups()
         
-        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
-        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], req.value) for req in reqs_g1]
-        
-        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
-                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
-        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], req.value) for req in reqs_g2]
-        
-        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
-                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], req.value) for req in reqs_g3]
+        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], req.value) for req in tasks_groups['g0']]
+        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], req.value) for req in tasks_groups['g1']]
+        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], req.value) for req in tasks_groups['g2']]
+        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], req.value) for req in tasks_groups['g3']]
         
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         
