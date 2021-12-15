@@ -28,7 +28,7 @@ import utils.draw_utils as dr
 
 from m_utils.constants import SEED
 from m_utils.constants import MNIST_TASK, ICAO_REQ
-from base.data_processor import BenchmarkDataset
+from base.benchmark_dataset import BenchmarkDataset
 
 
 class DataSource(Enum):
@@ -98,16 +98,9 @@ class TaskEvaluation:
 
 
 class ModelEvaluator:
-    def __init__(self, net_args, prop_args, is_mtl_model, neptune_run):
-        self.net_args = net_args
-        self.prop_args = prop_args
-        self.is_mtl_model = is_mtl_model
-        self.neptune_run = neptune_run
-        self.use_neptune = True if neptune_run is not None else False
-
-        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
-        if self.use_benchmark_data:
-            self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
+    def __init__(self, config_interp, neptune_utils):
+        self.config_interp = config_interp
+        self.neptune_run = neptune_utils.neptune_run
         
         self.data_src = None
         
@@ -175,7 +168,7 @@ class ModelEvaluator:
         plt.legend(['FRR','FAR'], loc='upper center')
         plt.show()
         
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             self.neptune_run[f'{self.vis_var_base_path}/far_frr_curve.png'].upload(fig)
 
 
@@ -188,7 +181,7 @@ class ModelEvaluator:
         plt.title('ROC - Task: {} | EER: {:.4f} | Thresh: {:.4f} | {}'.format(task.upper(), eer, th, self.data_src.value.upper()))
         plt.show()
         
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             self.neptune_run[f'{self.vis_var_base_path}/roc_curve.png'].upload(fig)
     
     
@@ -219,8 +212,8 @@ class ModelEvaluator:
 
         self.y_test_hat_discrete = np.where(self.y_test_hat < best_th, 0, 1)
         
-        if self.use_neptune and not running_nas:
-            if not self.is_mtl_model:
+        if self.config_interp.use_neptune and not running_nas:
+            if not self.config_interp.is_mtl_model:
                 self.neptune_run[f'{self.metrics_var_base_path}/EER_interp'] = EER_interp
                 self.neptune_run[f'{self.metrics_var_base_path}/best_th'] = best_th
             else:
@@ -235,7 +228,7 @@ class ModelEvaluator:
             raise Exception('Call method make_predictions() and calculate_eer() before __get_classification_report()!')
         
         target_names,labels = None,None
-        if self.is_mtl_model:
+        if self.config_interp.is_mtl_model:
             target_names = [Eval.NON_COMPLIANT.name, Eval.COMPLIANT.name]
             labels = [Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]
         else:
@@ -249,6 +242,7 @@ class ModelEvaluator:
                                         target_names=target_names, 
                                         labels=labels))
 
+
     def calculate_accuracy(self, task, verbose, runnning_nas):
         if self.y_test_true is None or self.y_test_hat_discrete is None:
             raise Exception('Call method make_predictions() and calculate_eer() before calculate_accuracy()!')
@@ -260,8 +254,8 @@ class ModelEvaluator:
             print(f'Model Accuracy: {ACC*100}%')
             print('---------------------------------------------------------')
         
-        if self.use_neptune and not runnning_nas:
-            if not self.is_mtl_model:
+        if self.config_interp.use_neptune and not runnning_nas:
+            if not self.config_interp.is_mtl_model:
                 self.neptune_run[f'{self.metrics_var_base_path}/ACC'] = ACC
             else:
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/ACC'] = ACC
@@ -284,8 +278,8 @@ class ModelEvaluator:
             print('Confusion matrix ----------------------------------------')
             print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
-        if self.use_neptune and not running_nas:
-            if not self.is_mtl_model:
+        if self.config_interp.use_neptune and not running_nas:
+            if not self.config_interp.is_mtl_model:
                 self.neptune_run[f'{self.metrics_var_base_path}/TP'] = TP
                 self.neptune_run[f'{self.metrics_var_base_path}/TN'] = TN
                 self.neptune_run[f'{self.metrics_var_base_path}/FP'] = FP
@@ -331,25 +325,24 @@ class ModelEvaluator:
         task_eval.ACC = acc
 
         return task_eval
-        
-        
+             
     
     def test_model(self, data_gen, model, verbose=True, running_nas=False):
         print("Testing Trained Model")
         
         print('Predicting labels....')
         data_gen.reset()
-        predIdxs = model.predict(data_gen, batch_size=self.net_args['batch_size'], verbose=1)
+        predIdxs = model.predict(data_gen, batch_size=self.config_interp.net_args['batch_size'], verbose=1)
         print('Prediction finished!')
         
         evaluations = []
-        if self.is_mtl_model:
+        if self.config_interp.is_mtl_model:
             tasks_list = []
-            if not self.use_benchmark_data:
-                tasks_list = self.prop_args['reqs']
+            if not self.config_interp.use_benchmark_data:
+                tasks_list = self.config_interp.prop_args['reqs']
                 tasks_list = [x for x in tasks_list if x.value != ICAO_REQ.INK_MARK.value] # TODO corrigir esse problema!!
             else:
-                if self.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
+                if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
                     tasks_list = list(MNIST_TASK)
             
             for idx,task in enumerate(tasks_list):
@@ -358,16 +351,16 @@ class ModelEvaluator:
                 evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, task, verbose, running_nas))
 
         else:
-            print(f'Task: {self.prop_args["reqs"][0].value.upper()}') if verbose else None
+            print(f'Task: {self.config_interp.prop_args["reqs"][0].value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
-            task = self.prop_args['reqs'][0]
+            task = self.config_interp.prop_args['reqs'][0]
             evaluations.append(self.__calculate_metrics(predIdxs, data_gen, task, verbose, running_nas))
         
         final_eval = FinalEvaluation(evaluations)
         final_metrics = final_eval.calculate_final_metrics()
         print(final_eval)
 
-        if self.use_neptune and not running_nas:
+        if self.config_interp.use_neptune and not running_nas:
             final_eval.log_to_neptune(self.neptune_run, self.data_src)
 
         return final_metrics
@@ -411,7 +404,7 @@ class ModelEvaluator:
         
     
     def __log_imgs_sample(self, data_df, data_pred_selection):
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             print(f"Logging sample of {data_pred_selection.value['abv'].upper()} images to Neptune")
             for index, row in data_df.iterrows():
                 self.neptune_run[f"images/{self.data_src.value.lower()}/{data_pred_selection.value['abv']}"].log(File(row['img_name']))
@@ -468,6 +461,6 @@ class ModelEvaluator:
         
         f = dr.draw_imgs(imgs, title=viz_title, labels=labels, predictions=preds, heatmaps=heatmaps)
         
-        if self.use_neptune and f is not None:
+        if self.config_interp.use_neptune and f is not None:
             self.neptune_run[neptune_viz_path].upload(f)
     

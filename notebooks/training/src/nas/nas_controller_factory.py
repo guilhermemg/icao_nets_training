@@ -5,8 +5,8 @@ from base.model_creator import NAS_MTLApproach
 
 class NASControllerFactory:
     @staticmethod
-    def create_controller(approach, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
-        if approach.value == NAS_MTLApproach.APPROACH_1.value:
-            return NASController_1(model_trainer, model_evaluator, nas_params, neptune_run, use_neptune)
-        elif approach.value == NAS_MTLApproach.APPROACH_2.value:
-            return NASController_2(model_trainer, model_evaluator, nas_params, neptune_run, use_neptune)
+    def create_controller(config_interp, model_trainer, model_evaluator, neptune_utils):
+        if config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value:
+            return NASController_1(model_trainer, model_evaluator, config_interp, neptune_utils)
+        elif config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
+            return NASController_2(model_trainer, model_evaluator, config_interp, neptune_utils)

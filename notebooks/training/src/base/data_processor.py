@@ -8,43 +8,25 @@ from data_loaders.data_loader import DLName
 from net_data_loaders.net_data_loader import NetDataLoader
 from net_data_loaders.net_gt_loader import NetGTLoader
 
-from m_utils.constants import SEED, BASE_PATH, MNIST_TASK
-
-from enum import Enum
-
-
-class BenchmarkDataset(Enum):
-    MNIST = {'name': 'mnist', 'target_cols': MNIST_TASK.list_reqs_names()}
-    FASHION_MNIST = {'name': 'fashion_mnist'}
-    CIFAR_10 = {'name': 'cifar_10'}
-
-
+from m_utils.constants import SEED, BASE_PATH
 
 
 class DataProcessor:
-    def __init__(self, prop_args, net_args, is_mtl_model, neptune_run):
-        self.prop_args = prop_args
-        self.net_args = net_args
-        self.is_mtl_model = is_mtl_model
-        self.neptune_run = neptune_run
-        
-        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
-        if self.use_benchmark_data:
-            self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
-        
-        self.use_neptune = True if neptune_run is not None else False
+    def __init__(self, config_interp, neptune_utils):
+        self.config_interp = config_interp
+        self.neptune_run = neptune_utils.neptune_run
         
         self.train_data, self.validation_data, self.test_data = None, None, None
 
 
     def __load_gt_data(self):
-        icao_gt = self.prop_args['icao_data']['icao_gt']
+        icao_gt = self.config_interp.prop_args['icao_data']['icao_gt']
         is_many_datasets = len(icao_gt['train_validation_test']) == 0
         if is_many_datasets:
             trainNetGtLoader = NetGTLoader(icao_gt['aligned'], 
                                            icao_gt['reqs'], 
                                            icao_gt['gt_names']['train_validation'], 
-                                           self.is_mtl_model)
+                                           self.config_interp.is_mtl_model)
                 
             self.train_data = trainNetGtLoader.load_gt_data(split='train')
             self.validation_data = trainNetGtLoader.load_gt_data(split='validation')
@@ -54,7 +36,7 @@ class DataProcessor:
             testNetGtLoader = NetGTLoader(icao_gt['aligned'], 
                                           icao_gt['reqs'], 
                                           icao_gt['gt_names']['test'], 
-                                          self.is_mtl_model)
+                                          self.config_interp.is_mtl_model)
                 
             self.test_data = testNetGtLoader.load_gt_data(split='test')
                 
@@ -64,7 +46,7 @@ class DataProcessor:
             netGtLoader = NetGTLoader(icao_gt['aligned'], 
                                       icao_gt['reqs'], 
                                       icao_gt['gt_names']['train_validation_test'], 
-                                      self.is_mtl_model)
+                                      self.config_interp.is_mtl_model)
                 
             self.train_data = netGtLoader.load_gt_data(split='train')
             self.validation_data = netGtLoader.load_gt_data(split='validation')
@@ -72,22 +54,22 @@ class DataProcessor:
         
         #in_data = in_data.sample(frac=1.0, random_state=SEED)
         #np.random.seed(SEED)
-        #train_prop = self.net_args['train_prop']
-        #valid_prop = self.net_args['validation_prop']
+        #train_prop = self.config_interp.net_args['train_prop']
+        #valid_prop = self.config_interp.net_args['validation_prop']
         #self.train_data, self.validation_data, self.test_data = np.split(in_data, [int(train_prop*len(in_data)), 
         #                                                                           int((train_prop+valid_prop)*len(in_data))])
         
-        #self.train_data = in_data.sample(frac=self.net_args['train_prop']+self.net_args['validation_prop'], random_state=SEED)
+        #self.train_data = in_data.sample(frac=self.config_interp.net_args['train_prop']+self.config_interp.net_args['validation_prop'], random_state=SEED)
         #self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
 
 
     def __load_dl_data(self):
-        icao_data = self.prop_args['icao_data']['icao_dl']
+        icao_data = self.config_interp.prop_args['icao_data']['icao_dl']
         netTrainDataLoader = NetDataLoader(icao_data['tagger_model'], 
                                            icao_data['reqs'], 
                                            icao_data['dl_names'], 
                                            icao_data['aligned'], 
-                                           self.is_mtl_model)
+                                           self.config_interp.is_mtl_model)
         self.train_data = netTrainDataLoader.load_data()
         print(f'TrainData.shape: {self.train_data.shape}')
             
@@ -96,30 +78,30 @@ class DataProcessor:
                                           icao_data['reqs'], 
                                           [test_dataset], 
                                           icao_data['aligned'], 
-                                          self.is_mtl_model)
+                                          self.config_interp.is_mtl_model)
         self.test_data = netTestDataLoader.load_data()
         print(f'Test Dataset: {test_dataset.name.upper()}')
         print(f'TestData.shape: {self.test_data.shape}')
 
 
     def __load_benchmark_data(self):
-        self.train_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'train_data.csv'))
+        self.train_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'train_data.csv'))
         print(f'TrainData.shape: {self.train_data.shape}')
 
-        self.validation_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'valid_data.csv'))
+        self.validation_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'valid_data.csv'))
         print(f'ValidationData.shape: {self.validation_data.shape}')
 
-        self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.benchmark_dataset.value['name'], 'test_data.csv'))
+        self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'test_data.csv'))
         print(f'TestData.shape: {self.test_data.shape}')
 
     
     def load_training_data(self):
         print('Loading data')
 
-        if self.use_benchmark_data:
+        if self.config_interp.use_benchmark_data:
             self.__load_benchmark_data()
         else:
-            if self.prop_args['icao_data']['icao_gt']['use_gt_data']:
+            if self.config_interp.prop_args['icao_data']['icao_gt']['use_gt_data']:
                 self.__load_gt_data()               
             else:
                 self.__load_dl_data()
@@ -131,13 +113,13 @@ class DataProcessor:
         print('Applying subsampling in training data')
         total_train = self.train_data.shape[0]
         print(f"..Sampling proportion: {sample_prop} ({int(sample_prop * total_train)}/{total_train})")
-        self.train_data = self.train_data.sample(frac=self.prop_args['sample_prop'], random_state=SEED)
+        self.train_data = self.train_data.sample(frac=self.config_interp.prop_args['sample_prop'], random_state=SEED)
         print(self.train_data.shape)
 
         print('Applying subsampling in validation data')
         total_valid = self.validation_data.shape[0]
         print(f"..Sampling proportion: {sample_prop} ({int(sample_prop * total_valid)}/{total_valid})")
-        self.validation_data = self.validation_data.sample(frac=self.prop_args['sample_prop'], random_state=SEED)
+        self.validation_data = self.validation_data.sample(frac=self.config_interp.prop_args['sample_prop'], random_state=SEED)
         print(self.validation_data.shape)
     
     
@@ -177,19 +159,19 @@ class DataProcessor:
     
     def __setup_fvc_class_mode(self):
         _class_mode, _y_col = None, None
-        if self.is_mtl_model:  
-            _y_col = [req.value for req in self.prop_args['reqs']]
+        if self.config_interp.is_mtl_model:  
+            _y_col = [req.value for req in self.config_interp.prop_args['reqs']]
             _class_mode = 'multi_output'
         else:    
-            _y_col = self.prop_args['reqs'][0].value
+            _y_col = self.config_interp.prop_args['reqs'][0].value
             _class_mode = 'categorical'
         return _class_mode,_y_col
 
 
     def __setup_benchmark_class_mode(self):
         _class_mode, _y_col = None, None
-        if self.is_mtl_model:  
-            _y_col = [col for col in self.benchmark_dataset.value['target_cols']]
+        if self.config_interp.is_mtl_model:  
+            _y_col = [col for col in self.config_interp.benchmark_dataset.value['target_cols']]
             _class_mode = 'multi_output'
         else:    
             raise NotImplemented()
@@ -198,7 +180,7 @@ class DataProcessor:
 
     def __setup_data_generators(self, base_model):
         train_datagen = None
-        if not self.use_benchmark_data:
+        if not self.config_interp.use_benchmark_data:
             train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'], 
                                         horizontal_flip=True,
                                         #rotation_range=20,
@@ -221,7 +203,7 @@ class DataProcessor:
         
         train_datagen, validation_datagen, test_datagen,  = self.__setup_data_generators(base_model)
 
-        if not self.use_benchmark_data:    
+        if not self.config_interp.use_benchmark_data:    
             _class_mode, _y_col = self.__setup_fvc_class_mode()
         else:
             _class_mode, _y_col = self.__setup_benchmark_class_mode()
@@ -232,7 +214,7 @@ class DataProcessor:
                                                 y_col=_y_col,
                                                 target_size=base_model.value['target_size'],
                                                 class_mode=_class_mode,
-                                                batch_size=self.net_args['batch_size'], 
+                                                batch_size=self.config_interp.net_args['batch_size'], 
                                                 shuffle=True,
                                                 seed=SEED)
 
@@ -241,7 +223,7 @@ class DataProcessor:
                                                 y_col=_y_col,
                                                 target_size=base_model.value['target_size'],
                                                 class_mode=_class_mode,
-                                                batch_size=self.net_args['batch_size'],
+                                                batch_size=self.config_interp.net_args['batch_size'],
                                                 shuffle=False)
 
         self.test_gen = test_datagen.flow_from_dataframe(self.test_data,
@@ -249,7 +231,7 @@ class DataProcessor:
                                                y_col=_y_col,
                                                target_size=base_model.value['target_size'],
                                                class_mode=_class_mode,
-                                               batch_size=self.net_args['batch_size'],
+                                               batch_size=self.config_interp.net_args['batch_size'],
                                                shuffle=False)
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')
@@ -262,7 +244,7 @@ class DataProcessor:
         print('')
         print('Logging class indices')
         
-        if not self.is_mtl_model:
+        if not self.config_interp.is_mtl_model:
         
             train_class_indices = self.train_gen.class_indices
             valid_class_indices = self.validation_gen.class_indices
@@ -272,7 +254,7 @@ class DataProcessor:
             print(f' ..Valid Generator: {valid_class_indices}')
             print(f' ..Test Generator: {test_class_indices}')
 
-            if self.use_neptune:
+            if self.config_interp.use_neptune:
                 self.neptune_run['properties/class_indices_train'] = str(train_class_indices)
                 self.neptune_run['properties/class_indices_valid'] = str(valid_class_indices)
                 self.neptune_run['properties/class_indices_test'] = str(test_class_indices)
@@ -291,7 +273,7 @@ class DataProcessor:
         print(f' DUMMY_CLS label: {Eval.DUMMY_CLS.value}')
         print(f' NO_ANSWER label: {Eval.NO_ANSWER.value}')
         
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             self.neptune_run['properties/labels'] = str({'compliant':Eval.COMPLIANT.value, 
                                                          'non_compliant':Eval.NON_COMPLIANT.value,
                                                          'dummy':Eval.DUMMY.value,
@@ -300,12 +282,12 @@ class DataProcessor:
     
     
     def summary_labels_dist(self):
-        comp_val = Eval.COMPLIANT.value if self.is_mtl_model else str(Eval.COMPLIANT.value)
-        non_comp_val = Eval.NON_COMPLIANT.value if self.is_mtl_model else str(Eval.NON_COMPLIANT.value)
-        dummy_val = Eval.DUMMY_CLS.value if self.is_mtl_model else str(Eval.DUMMY_CLS.value)
+        comp_val = Eval.COMPLIANT.value if self.config_interp.is_mtl_model else str(Eval.COMPLIANT.value)
+        non_comp_val = Eval.NON_COMPLIANT.value if self.config_interp.is_mtl_model else str(Eval.NON_COMPLIANT.value)
+        dummy_val = Eval.DUMMY_CLS.value if self.config_interp.is_mtl_model else str(Eval.DUMMY_CLS.value)
         
-        if not self.use_benchmark_data:
-            for req in self.prop_args['reqs']:
+        if not self.config_interp.use_benchmark_data:
+            for req in self.config_interp.prop_args['reqs']:
                 print(f'Requisite: {req.value.upper()}')
                 
                 total_train = self.train_data.shape[0]
@@ -347,7 +329,7 @@ class DataProcessor:
                 print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({prop_n_test_not_comp}%)')
                 print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
                 
-                if self.use_neptune:
+                if self.config_interp.use_neptune:
                     neptune_vars_base_path = f'data_props/{req.value}'
                     
                     self.neptune_run[f'{neptune_vars_base_path}/total_train'] = total_train
@@ -378,8 +360,9 @@ class DataProcessor:
         else:
             print('Using benchmark data. Not doing summary_labels_dist()')
     
+    
     def summary_gen_labels_dist(self):
-        if not self.use_benchmark_data:    
+        if not self.config_interp.use_benchmark_data:    
             total_train = self.train_gen.n
             n_train_comp = len([x for x in self.train_gen.labels if x == Eval.COMPLIANT.value])
             n_train_non_comp = len([x for x in self.train_gen.labels if x == Eval.NON_COMPLIANT.value])
@@ -419,7 +402,7 @@ class DataProcessor:
             print(f'GEN_N_TEST_NON_COMP: {n_test_non_comp} ({prop_n_test_non_comp}%)')
             print(f'GEN_N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
             
-            if self.use_neptune:
+            if self.config_interp.use_neptune:
                 neptune_vars_base_path = f'data_props/generators'
                 
                 self.neptune_run[f'{neptune_vars_base_path}/gen_total_train'] = total_train

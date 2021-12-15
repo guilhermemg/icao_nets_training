@@ -4,15 +4,30 @@ import zipfile
 
 import neptune.new as neptune
 
+from m_utils.utils import print_method_log_sig
 
 class NeptuneUtils:
-    def __init__(self, prop_args, is_mtl_model, neptune_run):
-        self.prop_args = prop_args
-        self.is_mtl_model = is_mtl_model
-        self.neptune_run = neptune_run
+    def __init__(self, config_interp):
+        self.config_interp = config_interp
 
-        self.orig_model_experiment_id = self.prop_args['orig_model_experiment_id']
-        self.is_training_model = self.prop_args['train_model']
+        self.orig_model_experiment_id = self.config_interp.prop_args['orig_model_experiment_id']
+        self.is_training_model = self.config_interp.prop_args['train_model']
+
+        self.neptune_run = None
+        self.__start_neptune()
+
+
+    def __start_neptune(self):
+        print_method_log_sig(' starting neptune ')
+        if self.config_interp.use_neptune:
+            print('Starting Neptune')
+            self.neptune_run = neptune.init(name=self.config_interp.exp_args['name'],
+                                            description=self.config_interp.exp_args['description'],
+                                            tags=self.config_interp.exp_args['tags'],
+                                            source_files=self.config_interp.exp_args['src_files'])    
+            print('----')
+        else:
+            print('Not using Neptune to record Experiment Metadata')
 
 
     def __check_prev_run_fields(self):
@@ -31,15 +46,15 @@ class NeptuneUtils:
             print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
             print(f' ...Prev Exp | DS: {prev_run_ds}')
             
-            if not self.is_mtl_model:
-                cur_run_req = str([self.prop_args['reqs'][0].value])
+            if not self.config_interp.is_mtl_model:
+                cur_run_req = str([self.config_interp.prop_args['reqs'][0].value])
             else:
-                cur_run_req = str([req.value for req in self.prop_args['reqs']])
-            cur_run_aligned = float(int(self.prop_args['aligned']))
+                cur_run_req = str([req.value for req in self.config_interp.prop_args['reqs']])
+            cur_run_aligned = float(int(self.config_interp.prop_args['aligned']))
             gt_names_formatted = {
-                'train_validation': [x.value.lower() for x in self.prop_args['gt_names']['train_validation']],
-                'test': [x.value.lower() for x in self.prop_args['gt_names']['test']],
-                'train_validation_test': [x.value.lower() for x in self.prop_args['gt_names']['train_validation_test']]
+                'train_validation': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['train_validation']],
+                'test': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['test']],
+                'train_validation_test': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['train_validation_test']]
             }
             cur_run_ds = str({'gt_names': str(gt_names_formatted)})
 
@@ -123,7 +138,7 @@ class NeptuneUtils:
             print(f' ..Downloading data from previous experiment')
             prev_run = neptune.init(run=self.orig_model_experiment_id)
             
-            if not self.is_mtl_model:
+            if not self.config_interp.is_mtl_model:
                 acc_series = prev_run['epoch/accuracy'].fetch_values()['value']
                 val_acc_series = prev_run['epoch/val_accuracy'].fetch_values()['value']
                 loss_series = prev_run['epoch/loss'].fetch_values()['value']
@@ -148,7 +163,7 @@ class NeptuneUtils:
                 for ls in total_loss_series:
                     self.neptune_run[f'epoch/total_loss'].log(ls)
 
-                for req in self.prop_args['reqs']:
+                for req in self.config_interp.prop_args['reqs']:
                     print(f' ..Requisite: {req}')
                     req = req.value
                     acc_series = prev_run[f'epoch/{req}/accuracy'].fetch_values()['value']

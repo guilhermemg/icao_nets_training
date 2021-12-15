@@ -9,12 +9,12 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 
 from nas.gen_nas_controller import GenNASController
-from utils.constants import SEED
+from m_utils.constants import SEED
 
 
 class NASController_2(GenNASController):
-    def __init__(self, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
-        super().__init__(model_trainer, model_evaluator, nas_params, neptune_run, use_neptune)       
+    def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
+        super().__init__(model_trainer, model_evaluator, config_interp, neptune_utils)       
         
         self.baseline = None
         self.lstm_cell_units = 32

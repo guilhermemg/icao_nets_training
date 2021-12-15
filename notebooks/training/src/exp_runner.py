@@ -1,11 +1,6 @@
-
 import os
 import sys
-import yaml
-import pprint
 import argparse
-
-import neptune.new as neptune
 
 if '../../../../notebooks/' not in sys.path:
     sys.path.insert(0, '../../../../notebooks/')
@@ -14,9 +9,10 @@ from base.data_processor import DataProcessor
 from base.model_trainer import ModelTrainer
 from base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 from base.fake_data_producer import FakeDataProducer
-from base.model_creator import NAS_MTLApproach
 from base.neptune_utils import NeptuneUtils
 from nas.nas_controller_factory import NASControllerFactory
+from m_utils.utils import print_method_log_sig
+from conf_interp import ConfigInterpreter
 
 if '..' not in sys.path:
     sys.path.insert(0, '..')
@@ -30,119 +26,33 @@ os.environ['NEPTUNE_PROJECT'] = cfg.NEPTUNE_PROJECT
 
 class ExperimentRunner:
     def __init__(self, yaml_config_file=None, **kwargs):
-        self.__print_method_log_sig( 'Init ExperimentRunner')
-        
-        if yaml_config_file != None:
-            kwargs = self.__load_exp_config(yaml_config_file)
+        print_method_log_sig( 'Init ExperimentRunner')
         
         print('---------------------------')
         print('Parent Process ID:', os.getppid())
         print('Process ID:', os.getpid())
         print('---------------------------')
-        
-        self.use_neptune = kwargs['use_neptune']
-        print('-----')
-        print('Use Neptune: ', self.use_neptune)
-        print('-----')
-        
-        print('-------------------')
-        print('Args: ')
-        pprint.pprint(kwargs)
-        print('-------------------')
-        
-        self.exp_args = kwargs['exp_params']
-        self.prop_args = kwargs['properties']
-        self.net_args = kwargs['net_train_params']
-        self.nas_params = kwargs['nas_params']
-        
-        self.__kwargs_sanity_check()
-        
-        self.use_icao_gt = self.prop_args['icao_data']['icao_gt']['use_gt_data']
-        self.use_icao_dl = self.prop_args['icao_data']['icao_dl']['use_dl_data']
-        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
 
-        self.base_model = self.net_args['base_model']
-        print('----')
-        print('Base Model Name: ', self.base_model)
-        print('----')
-        
-        self.neptune_run = None
-        self.__start_neptune()
-        
-        print('----')
+        self.config_interp = ConfigInterpreter(kwargs, yaml_config_file)
 
-        self.is_mtl_model = self.__check_is_mtl_model()
-        print(f'MTL Model: {self.is_mtl_model}')
-        
-        self.approach = self.prop_args['approach']
-        print(f'Approach: {self.approach}')
+        self.neptune_utils = NeptuneUtils(self.config_interp)
 
-        self.is_nas_mtl_model = type(self.approach) is NAS_MTLApproach
-        self.exec_nas = self.prop_args['exec_nas']
-        
-        print('----')
+        self.data_processor = DataProcessor(self.config_interp, self.neptune_utils)
+        self.model_trainer = ModelTrainer(self.config_interp, self.neptune_utils)
+        self.model_evaluator = ModelEvaluator(self.config_interp, self.neptune_utils)
 
-        self.neptune_utils = NeptuneUtils(self.prop_args, self.is_mtl_model, self.neptune_run)
-
-        self.data_processor = DataProcessor(self.prop_args, self.net_args, self.is_mtl_model, self.neptune_run)
-        self.model_trainer = ModelTrainer(self.net_args, self.prop_args, self.base_model, self.is_mtl_model, self.approach, self.neptune_run, self.neptune_utils)
-        self.model_evaluator = ModelEvaluator(self.net_args, self.prop_args, self.is_mtl_model, self.neptune_run)
-
-        self.nas_controller = NASControllerFactory.create_controller(self.approach, self.model_trainer, self.model_evaluator, self.nas_params, self.neptune_run, self.use_neptune)       
-        
-    
-    
-    def __kwargs_sanity_check(self):
-        has_experiment_id = True if self.prop_args['orig_model_experiment_id'] != '' else False
-        is_training_new_model = self.prop_args['train_model']
-        
-        if not has_experiment_id and not is_training_new_model:
-            raise Exception('You must train a new model or provide an experiment ID')
-
-
-    def __check_is_mtl_model(self):
-        if self.use_icao_gt:
-            return len(self.prop_args['icao_data']['icao_gt']['reqs']) > 1
-        elif self.use_benchmark_data:
-            return len(self.prop_args['benchmarking']['tasks']) > 1
-        elif self.use_icao_dl:
-            raise NotImplemented('MTL model is not implemented for ICAO DL!')
-
-    
-    def __start_neptune(self):
-        self.__print_method_log_sig( 'start neptune')
-        if self.use_neptune:
-            print('Starting Neptune')
-            self.neptune_run = neptune.init(name=self.exp_args['name'],
-                                            description=self.exp_args['description'],
-                                            tags=self.exp_args['tags'],
-                                            source_files=self.exp_args['src_files'])    
-        else:
-            print('Not using Neptune to record Experiment Metadata')
-    
-    
-    def __print_method_log_sig(self, msg):
-        print(f'-------------------- {msg} -------------------')
-    
-    
-    def __load_exp_config(self, yaml_config_file):
-        self.__print_method_log_sig('load experiment configs')
-        print(f'Loading experiment config from {yaml_config_file}')
-        with open(yaml_config_file, 'r') as f:
-            cnt = yaml.load(f, Loader=yaml.Loader)[0]
-            print('..Experiment configs loaded with success!')
-            return cnt
+        self.nas_controller = NASControllerFactory.create_controller(self.config_interp, self.model_trainer, self.model_evaluator, self.neptune_utils)
     
     
     def load_training_data(self):
-        self.__print_method_log_sig( 'load training data')
+        print_method_log_sig( 'load training data')
         self.data_processor.load_training_data()
         self.train_data = self.data_processor.train_data
         self.test_data = self.data_processor.test_data
 
 
     def produce_fake_data(self):
-        self.__print_method_log_sig( 'producing fake data for experimental purposes')
+        print_method_log_sig( 'producing fake data for experimental purposes')
         faker = FakeDataProducer(self.data_processor.train_data, 
                                  self.data_processor.validation_data,
                                  self.data_processor.test_data)
@@ -154,18 +64,18 @@ class ExperimentRunner:
 
     
     def sample_training_data(self):
-        self.__print_method_log_sig( 'sample training data')
-        if self.prop_args['sample_training_data']:
-            self.data_processor.sample_training_data(self.prop_args['sample_prop'])
+        print_method_log_sig( 'sample training data')
+        if self.config_interp.prop_args['sample_training_data']:
+            self.data_processor.sample_training_data(self.config_interp.prop_args['sample_prop'])
             self.train_data = self.data_processor.train_data
         else:
             print('Not applying subsampling in training data!')
     
         
     def balance_input_data(self):
-        self.__print_method_log_sig( 'balance input data')
-        if self.prop_args['balance_input_data']:
-            req_name = self.prop_args['icao_gt']['reqs'][0].value
+        print_method_log_sig( 'balance input data')
+        if self.config_interp.prop_args['balance_input_data']:
+            req_name = self.config_interp.prop_args['icao_gt']['reqs'][0].value
             self.data_processor.balance_input_data(req_name)
             self.train_data = self.data_processor.train_data
         else:
@@ -173,38 +83,38 @@ class ExperimentRunner:
         
     
     def setup_data_generators(self):
-        self.__print_method_log_sig( 'setup data generators')
-        self.data_processor.setup_data_generators(self.base_model)
+        print_method_log_sig( 'setup data generators')
+        self.data_processor.setup_data_generators(self.config_interp.base_model)
         self.train_gen = self.data_processor.train_gen
         self.validation_gen = self.data_processor.validation_gen
         self.test_gen = self.data_processor.test_gen
 
     
     def summary_labels_dist(self):
-        self.__print_method_log_sig( 'summary labels dist')
+        print_method_log_sig( 'summary labels dist')
         self.data_processor.summary_labels_dist()
 
     
     def summary_gen_labels_dist(self):
-        self.__print_method_log_sig( 'summary gen labels dist')
+        print_method_log_sig( 'summary gen labels dist')
         self.data_processor.summary_gen_labels_dist()    
     
        
     def setup_experiment(self):
-        self.__print_method_log_sig( 'create experiment')
-        if self.use_neptune:
+        print_method_log_sig( 'create experiment')
+        if self.config_interp.use_neptune:
             print('Setup neptune properties and parameters')
 
-            params = self.net_args
+            params = self.config_interp.net_args
             params['n_train'] = self.train_gen.n
             params['n_validation'] = self.validation_gen.n
             params['n_test'] = self.test_gen.n
             
             props = {}
             
-            if self.use_icao_gt:
-                icao_gt = self.prop_args['icao_data']['icao_gt']
-                props['use_icao_gt'] = self.use_icao_gt
+            if self.config_interp.use_icao_gt:
+                icao_gt = self.config_interp.prop_args['icao_data']['icao_gt']
+                props['use_icao_gt'] = self.config_interp.use_icao_gt
                 props['aligned'] = icao_gt['aligned']
                 props['icao_reqs'] = str([r.value for r in icao_gt['reqs']])
                 props['gt_names'] = str({
@@ -212,26 +122,26 @@ class ExperimentRunner:
                     'test': [x.value.lower() for x in icao_gt['gt_names']['test']],
                     'train_validation_test': [x.value.lower() for x in icao_gt['gt_names']['train_validation_test']]
                 })
-            elif self.use_benchmark_data:
-                props['use_benchmark_data'] = self.use_benchmark_data
-                props['benchmark_dataset'] = str(self.prop_args['benchmarking']['benchmark_dataset'].name)
-                props['benchmark_tasks'] = str([x.name for x in self.prop_args['benchmarking']['tasks']])
-            elif self.use_icao_dl:
-                props['use_icao_dl'] = self.use_icao_dl
-                props['dl_names'] = str([dl_n.value for dl_n in self.prop_args['dl_names']])
-                props['tagger_model'] = self.prop_args['tagger_model'].get_model_name().value
+            elif self.config_interp.use_benchmark_data:
+                props['use_benchmark_data'] = self.config_interp.use_benchmark_data
+                props['benchmark_dataset'] = str(self.config_interp.prop_args['benchmarking']['benchmark_dataset'].name)
+                props['benchmark_tasks'] = str([x.name for x in self.config_interp.prop_args['benchmarking']['tasks']])
+            elif self.config_interp.use_icao_dl:
+                props['use_icao_dl'] = self.config_interp.use_icao_dl
+                props['dl_names'] = str([dl_n.value for dl_n in self.config_interp.prop_args['dl_names']])
+                props['tagger_model'] = self.config_interp.prop_args['tagger_model'].get_model_name().value
             
-            props['balance_input_data'] = self.prop_args['balance_input_data']
-            props['train_model'] = self.prop_args['train_model']
-            props['orig_model_experiment_id'] = self.prop_args['orig_model_experiment_id']
-            props['save_trained_model'] = self.prop_args['save_trained_model']
-            props['sample_training_data'] = self.prop_args['sample_training_data']
-            props['sample_prop'] = self.prop_args['sample_prop']
-            props['is_mtl_model'] = self.is_mtl_model
-            props['approach'] = self.prop_args['approach']
+            props['balance_input_data'] = self.config_interp.prop_args['balance_input_data']
+            props['train_model'] = self.config_interp.prop_args['train_model']
+            props['orig_model_experiment_id'] = self.config_interp.prop_args['orig_model_experiment_id']
+            props['save_trained_model'] = self.config_interp.prop_args['save_trained_model']
+            props['sample_training_data'] = self.config_interp.prop_args['sample_training_data']
+            props['sample_prop'] = self.config_interp.prop_args['sample_prop']
+            props['is_mtl_model'] = self.config_interp.is_mtl_model
+            props['approach'] = self.config_interp.prop_args['approach']
             
-            self.neptune_run['parameters'] = params
-            self.neptune_run['properties'] = props
+            self.neptune_utils.neptune_run['parameters'] = params
+            self.neptune_utils.neptune_run['properties'] = props
             
             print('Properties and parameters setup done!')
         else:
@@ -239,29 +149,29 @@ class ExperimentRunner:
     
 
     def run_neural_architeture_search(self):
-        self.__print_method_log_sig( 'run neural architecture search' )
+        print_method_log_sig( 'run neural architecture search' )
 
-        if self.use_neptune:
-            self.neptune_run['nas_parameters'] = self.nas_params
+        if self.config_interp.use_neptune:
+            self.neptune_utils.neptune_run['nas_parameters'] = self.config_interp.nas_params
 
-        if self.exec_nas:
+        if self.config_interp.exec_nas:
             print(f'Executing neural architectural search')
             self.nas_controller.reset_memory()
             print('  Memory reseted')
             
-            for t in range(1,self.nas_params['n_trials'] + 1):
+            for t in range(1,self.config_interp.nas_params['n_trials'] + 1):
                 self.nas_controller.run_nas_trial(t, self.train_gen, self.validation_gen)
 
             self.nas_controller.select_best_config()
         else:
             print(f'Not executing neural architecture search')
-            self.neptune_utils.get_nas_data(self.nas_params['n_trials'])
+            self.neptune_utils.get_nas_data(self.config_interp.nas_params['n_trials'])
     
     
     def create_model(self, config=None):
-        self.__print_method_log_sig( 'create model')
-        if self.is_nas_mtl_model:
-            if self.exec_nas:
+        print_method_log_sig( 'create model')
+        if self.config_interp.is_nas_mtl_model:
+            if self.config_interp.exec_nas:
                 self.model_trainer.create_model(self.train_gen, config=self.nas_controller.best_config)
             else:
                 self.model_trainer.create_model(self.train_gen, config=config)
@@ -270,17 +180,17 @@ class ExperimentRunner:
     
     
     def visualize_model(self, outfile_path):
-        self.__print_method_log_sig( 'vizualize model')
+        print_method_log_sig( 'vizualize model')
         self.model_trainer.visualize_model(outfile_path)
     
     
     def train_model(self, fine_tuned=False, n_epochs=None, running_nas=False):
-        self.__print_method_log_sig( 'train model')
+        print_method_log_sig( 'train model')
         self.model_trainer.train_model(self.train_gen, self.validation_gen, fine_tuned, n_epochs, running_nas)
     
     
     def draw_training_history(self):
-        self.__print_method_log_sig( 'draw training history')
+        print_method_log_sig( 'draw training history')
         self.model_trainer.draw_training_history()
     
     
@@ -289,20 +199,20 @@ class ExperimentRunner:
     
     
     def load_checkpoint(self, chkp_name):
-        self.__print_method_log_sig( 'load checkpoint')
+        print_method_log_sig( 'load checkpoint')
         self.model_trainer.load_checkpoint(chkp_name)
         self.model = self.model_trainer.model
     
 
     def load_best_model(self):
-        self.__print_method_log_sig( 'load best model')
+        print_method_log_sig( 'load best model')
         self.model_trainer.load_best_model()
         self.model = self.model_trainer.model
     
     
     def save_model(self):
-        self.__print_method_log_sig( 'save model')
-        if self.prop_args['save_trained_model']:
+        print_method_log_sig( 'save model')
+        if self.config_interp.prop_args['save_trained_model']:
             self.model_trainer.save_trained_model()
         else:
             print('Not saving model!')
@@ -320,7 +230,7 @@ class ExperimentRunner:
             
     
     def visualize_predictions(self, n_imgs=40, data_pred_selection=DataPredSelection.ANY):
-        self.__print_method_log_sig( 'visualize predictions')
+        print_method_log_sig( 'visualize predictions')
         
         data_gen = None
         if self.model_evaluator.data_src.value == DataSource.TEST.value:
@@ -328,7 +238,7 @@ class ExperimentRunner:
         elif self.model_evaluator.data_src.value == DataSource.VALIDATION.value:
             data_gen = self.validation_gen
         
-        self.model_evaluator.visualize_predictions(base_model=self.base_model, 
+        self.model_evaluator.visualize_predictions(base_model=self.config_interp.base_model, 
                                                    model=self.model, 
                                                    data_gen=data_gen,
                                                    n_imgs=n_imgs, 
@@ -336,17 +246,17 @@ class ExperimentRunner:
     
 
     def finish_experiment(self):
-        self.__print_method_log_sig( 'finish experiment')
-        if self.use_neptune:
+        print_method_log_sig( 'finish experiment')
+        if self.config_interp.use_neptune:
             print('Finishing Neptune')
-            self.neptune_run.stop()
-            self.use_neptune = False
+            self.neptune_utils.neptune_run.stop()
+            self.config_interp.use_neptune = False
         else:
             print('Not using Neptune')
 
         
     def run(self):
-        self.__print_method_log_sig( 'run experiment')
+        print_method_log_sig( 'run experiment')
         self.load_training_data()
         self.sample_training_data()
         self.balance_input_data()

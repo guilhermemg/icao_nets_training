@@ -24,55 +24,48 @@ from m_utils.mtl_approach import MTLApproach
 from m_utils.nas_mtl_approach import NAS_MTLApproach
 from base.base_models import BaseModel
 from base.optimizers import Optimizer
-from base.data_processor import BenchmarkDataset
+from base.benchmark_dataset import BenchmarkDataset
 from base.custom_base_model import CustomBaseModel
 
 
 class ModelCreator:
-    def __init__(self, net_args, prop_args, base_model, approach, is_mtl_model):
-        self.net_args = net_args
-        self.prop_args = prop_args
-        self.approach = approach
-        self.is_mtl_model = is_mtl_model
-        self.base_model = base_model   # enum type BaseModel
-        self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
-        self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
-        self.use_icao_data = self.prop_args['icao_data']['icao_gt']['use_gt_data']
-    
+    def __init__(self, config_interp):
+        self.config_interp = config_interp
+
 
     def __get_optimizer(self):
         opt = None
-        if self.net_args['optimizer'].name == Optimizer.ADAM.name:
-            opt = Adam(learning_rate=self.net_args['learning_rate'], decay=self.net_args['learning_rate'] / self.net_args['n_epochs'])
-        elif self.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
-            opt = Adam(learning_rate=self.net_args['learning_rate'])
-        elif self.net_args['optimizer'].name == Optimizer.SGD.name:
-            opt = SGD(learning_rate=self.net_args['learning_rate'])
-        elif self.net_args['optimizer'].name == Optimizer.SGD_NESTEROV.name:
-            opt = SGD(learning_rate=self.net_args['learning_rate'], nesterov=True)
-        elif self.net_args['optimizer'].name == Optimizer.ADAGRAD.name:
-            opt = Adagrad(learning_rate=self.net_args['learning_rate'])
-        elif self.net_args['optimizer'].name == Optimizer.ADAMAX.name:
-            opt = Adamax(learning_rate=self.net_args['learning_rate'])
-        elif self.net_args['optimizer'].name == Optimizer.ADADELTA.name:
-            opt = Adadelta(learning_rate=self.net_args['learning_rate'])
+        if self.config_interp.net_args['optimizer'].name == Optimizer.ADAM.name:
+            opt = Adam(learning_rate=self.config_interp.net_args['learning_rate'], decay=self.config_interp.net_args['learning_rate'] / self.config_interp.net_args['n_epochs'])
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
+            opt = Adam(learning_rate=self.config_interp.net_args['learning_rate'])
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.SGD.name:
+            opt = SGD(learning_rate=self.config_interp.net_args['learning_rate'])
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.SGD_NESTEROV.name:
+            opt = SGD(learning_rate=self.config_interp.net_args['learning_rate'], nesterov=True)
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAGRAD.name:
+            opt = Adagrad(learning_rate=self.config_interp.net_args['learning_rate'])
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAMAX.name:
+            opt = Adamax(learning_rate=self.config_interp.net_args['learning_rate'])
+        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADADELTA.name:
+            opt = Adadelta(learning_rate=self.config_interp.net_args['learning_rate'])
         return opt
 
 
     def __create_base_model(self):
         baseModel = None
-        W,H = self.base_model.value['target_size']
-        if self.base_model.name == BaseModel.MOBILENET_V2.name:
+        W,H = self.config_interp.base_model.value['target_size']
+        if self.config_interp.base_model.name == BaseModel.MOBILENET_V2.name:
             baseModel = MobileNetV2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-        elif self.base_model.name == BaseModel.VGG19.name:
+        elif self.config_interp.base_model.name == BaseModel.VGG19.name:
             baseModel = VGG19(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-        elif self.base_model.name == BaseModel.VGG16.name:
+        elif self.config_interp.base_model.name == BaseModel.VGG16.name:
             baseModel = VGG16(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-        elif self.base_model.name == BaseModel.RESNET50_V2.name:
+        elif self.config_interp.base_model.name == BaseModel.RESNET50_V2.name:
             baseModel = ResNet50V2(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-        elif self.base_model.name == BaseModel.INCEPTION_V3.name:
+        elif self.config_interp.base_model.name == BaseModel.INCEPTION_V3.name:
             baseModel = InceptionV3(weights="imagenet", include_top=False, input_tensor=Input(shape=(W,H,3)), input_shape=(W,H,3))
-        elif self.base_model.name == BaseModel.CUSTOM.name:
+        elif self.config_interp.base_model.name == BaseModel.CUSTOM.name:
             baseModel = CustomBaseModel(input_tensor=Inp(shape=(W,H,3)), input_shape=(W,H,3))
         return baseModel
     
@@ -81,9 +74,9 @@ class ModelCreator:
         baseModel = self.__create_base_model()
         
         headModel = None
-        if self.base_model.name != BaseModel.INCEPTION_V3.name:
+        if self.config_interp.base_model.name != BaseModel.INCEPTION_V3.name:
             headModel = baseModel.output
-        elif self.base_model.name == BaseModel.INCEPTION_V3.name:
+        elif self.config_interp.base_model.name == BaseModel.INCEPTION_V3.name:
             headModel = baseModel.output
             headModel = AveragePooling2D(pool_size=(8, 8))(headModel)
 
@@ -109,8 +102,8 @@ class ModelCreator:
         model = Model(inputs=input_layer, outputs=output_layers)
         
         n_tasks = None
-        if self.use_benchmark_data:
-            if self.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+        if self.config_interp.use_benchmark_data:
+            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
                 n_tasks = len(list(MNIST_TASK))
         else:
             n_tasks = len(list(ICAO_REQ))
@@ -127,7 +120,7 @@ class ModelCreator:
     
     def __create_branch_1(self, prev_layer, req_name, n_out, initializer):
         y = Dense(64, activation='relu', kernel_initializer=initializer)(prev_layer)
-        y = Dropout(self.net_args['dropout'])(y)
+        y = Dropout(self.config_interp.net_args['dropout'])(y)
         y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
         return y
     
@@ -159,7 +152,7 @@ class ModelCreator:
     def __create_branches_list_mtl_model(self, initializer, x):
         branches_list = None
         if not self.use_benchmark_data:
-            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.prop_args['reqs']]
+            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['reqs']]
         else:
             if self.benchmark_dataset.value == BenchmarkDataset.MNIST.value:
                 branches_list = [self.__create_branch_1(x, f'n_{i}', 2, initializer) for i in range(10)]
@@ -174,9 +167,9 @@ class ModelCreator:
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)
         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.net_args['dropout'])(x)
+        x = Dropout(self.config_interp.net_args['dropout'])(x)
         x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.net_args['dropout'])(x)
+        x = Dropout(self.config_interp.net_args['dropout'])(x)
         
         branches_list = self.__create_branches_list_mtl_model(initializer, x)
         
@@ -254,15 +247,15 @@ class ModelCreator:
 
     def __get_tasks_groups(self):
         tasks_groups = {'g0':[], 'g1':[], 'g2':[], 'g3':[]}
-        if self.use_icao_data:
+        if self.config_interp.use_icao_gt:
             tasks_groups['g0'] = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
                    ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
             tasks_groups['g1'] = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
             tasks_groups['g2'] = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
                    ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
             tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        elif self.use_benchmark_data:
-            if self.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+        elif self.config_interp.use_benchmark_data:
+            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
                 tasks_groups['g0'] = [MNIST_TASK.N_0]
                 tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
                 tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
@@ -293,15 +286,15 @@ class ModelCreator:
 
 
     def create_model(self, train_gen=None, config=None):
-        if not self.is_mtl_model:
+        if not self.config_interp.is_mtl_model:
             return self.create_stl_model(train_gen)
         else:
-            if self.approach.value == MTLApproach.HAND_1.value:
+            if self.config_interp.approach.value == MTLApproach.HAND_1.value:
                 return self.create_mtl_model()
-            elif self.approach.value == MTLApproach.HAND_2.value:
+            elif self.config_interp.approach.value == MTLApproach.HAND_2.value:
                 return self.create_mtl_model_2()
-            elif self.approach.value == MTLApproach.HAND_3.value:
+            elif self.config_interp.approach.value == MTLApproach.HAND_3.value:
                 return self.create_mtl_model_3()
-            elif self.approach.value == NAS_MTLApproach.APPROACH_1.value or \
-                    self.approach.value == NAS_MTLApproach.APPROACH_2.value:
+            elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
+                    self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
                 return self.create_nas_mtl_model_1(config)

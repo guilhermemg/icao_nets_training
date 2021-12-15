@@ -6,16 +6,15 @@ from base.model_evaluator import DataSource
 
 
 class GenNASController(ABC):
-    def __init__(self, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
+    def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
         self.model_trainer = model_trainer
         self.model_evaluator = model_evaluator
-        self.nas_params = nas_params
-        self.use_neptune = use_neptune
-        self.neptune_run = neptune_run
+        self.config_interp = config_interp
+        self.neptune_run = neptune_utils.neptune_run
         self.memory = Memory()
         self.cur_trial = None
 
-        self.MAX_BLOCKS_PER_BRANCH = self.nas_params['max_blocks_per_branch']
+        self.MAX_BLOCKS_PER_BRANCH = self.config_interp.nas_params['max_blocks_per_branch']
 
         self.best_config = None
 
@@ -49,14 +48,14 @@ class GenNASController(ABC):
         self.model_evaluator.set_data_src(DataSource.VALIDATION)
         final_eval = self.model_evaluator.test_model(validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
         
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             self.neptune_run[f'viz/nas/model_architectures/nas_model_{trial_num}.jpg'].upload(vis_path)
 
         return final_eval
 
 
     def log_trial(self):
-        self.cur_trial.log_neptune(self.neptune_run, self.use_neptune)
+        self.cur_trial.log_neptune(self.neptune_run, self.config_interp.use_neptune)
 
 
     def set_config_eval(self, eval):
@@ -70,7 +69,7 @@ class GenNASController(ABC):
 
     def log_best_trial(self, best_trial):
         print(f'\nbest_trial: {best_trial}')
-        if self.use_neptune:
+        if self.config_interp.use_neptune:
             self.neptune_run['nas/best_trial/num'] = best_trial.get_num()
             self.neptune_run['nas/best_trial/config'] = best_trial.get_config()
             self.neptune_run['nas/best_trial/final_EER_mean'] = best_trial.get_result()['final_EER_mean']

@@ -6,8 +6,8 @@ from nas.gen_nas_controller import GenNASController
 
 
 class NASController_1(GenNASController):
-    def __init__(self, model_trainer, model_evaluator, nas_params, neptune_run, use_neptune):
-        super().__init__(model_trainer, model_evaluator, nas_params, neptune_run, use_neptune)
+    def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
+        super().__init__(model_trainer, model_evaluator, config_interp, neptune_utils)
 
     
     def __gen_new_seed(self, x):
