@@ -20,11 +20,12 @@ class DataProcessor:
 
 
     def __load_gt_data(self):
-        icao_gt = self.config_interp.prop_args['icao_data']['icao_gt']
-        is_many_datasets = len(icao_gt['train_validation_test']) == 0
+        icao_data = self.config_interp.prop_args['icao_data']
+        aligned, reqs, icao_gt = icao_data['aligned'], icao_data['reqs'], icao_data['icao_gt']
+        is_many_datasets = len(icao_gt['gt_names']['train_validation_test']) == 0
         if is_many_datasets:
-            trainNetGtLoader = NetGTLoader(icao_gt['aligned'], 
-                                           icao_gt['reqs'], 
+            trainNetGtLoader = NetGTLoader(aligned, 
+                                           reqs, 
                                            icao_gt['gt_names']['train_validation'], 
                                            self.config_interp.is_mtl_model)
                 
@@ -33,8 +34,8 @@ class DataProcessor:
                 
             print(f'TrainData.shape: {self.train_data.shape}')
 
-            testNetGtLoader = NetGTLoader(icao_gt['aligned'], 
-                                          icao_gt['reqs'], 
+            testNetGtLoader = NetGTLoader(aligned, 
+                                          reqs, 
                                           icao_gt['gt_names']['test'], 
                                           self.config_interp.is_mtl_model)
                 
@@ -43,8 +44,8 @@ class DataProcessor:
             print(f'TestData.shape: {self.test_data.shape}')
                 
         else:
-            netGtLoader = NetGTLoader(icao_gt['aligned'], 
-                                      icao_gt['reqs'], 
+            netGtLoader = NetGTLoader(aligned, 
+                                      reqs, 
                                       icao_gt['gt_names']['train_validation_test'], 
                                       self.config_interp.is_mtl_model)
                 
@@ -159,11 +160,12 @@ class DataProcessor:
     
     def __setup_fvc_class_mode(self):
         _class_mode, _y_col = None, None
+        reqs = self.config_interp.prop_args['icao_data']['reqs']
         if self.config_interp.is_mtl_model:  
-            _y_col = [req.value for req in self.config_interp.prop_args['reqs']]
+            _y_col = [req.value for req in reqs]
             _class_mode = 'multi_output'
-        else:    
-            _y_col = self.config_interp.prop_args['reqs'][0].value
+        else: 
+            _y_col = reqs[0].value
             _class_mode = 'categorical'
         return _class_mode,_y_col
 
@@ -287,7 +289,7 @@ class DataProcessor:
         dummy_val = Eval.DUMMY_CLS.value if self.config_interp.is_mtl_model else str(Eval.DUMMY_CLS.value)
         
         if not self.config_interp.use_benchmark_data:
-            for req in self.config_interp.prop_args['reqs']:
+            for req in self.config_interp.prop_args['icao_data']['reqs']:
                 print(f'Requisite: {req.value.upper()}')
                 
                 total_train = self.train_data.shape[0]

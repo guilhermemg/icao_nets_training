@@ -68,7 +68,7 @@ class ConfigInterpreter:
 
     def __check_is_mtl_model(self):
         if self.use_icao_gt:
-            return len(self.prop_args['icao_data']['icao_gt']['reqs']) > 1
+            return len(self.prop_args['icao_data']['reqs']) > 1
         elif self.use_benchmark_data:
             return len(self.prop_args['benchmarking']['tasks']) > 1
         elif self.use_icao_dl:

@@ -20,8 +20,8 @@ class NASController_2(GenNASController):
         self.lstm_cell_units = 32
         self.baseline_decay = 0.999
         self.opt = Adam(lr=0.00035, decay=1e-3, amsgrad=True)
-        self.controller_batch_size = self.nas_params['controller_batch_size']
-        self.controller_epochs = self.nas_params['controller_epochs']
+        self.controller_batch_size = self.config_interp.nas_params['controller_batch_size']
+        self.controller_epochs = self.config_interp.nas_params['controller_epochs']
 
         self.input_x = np.array([[[SEED,SEED,SEED,SEED]]])
 

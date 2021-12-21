@@ -113,10 +113,11 @@ class ExperimentRunner:
             props = {}
             
             if self.config_interp.use_icao_gt:
-                icao_gt = self.config_interp.prop_args['icao_data']['icao_gt']
+                icao_data = self.config_interp.prop_args['icao_data']
+                icao_gt, reqs, aligned = icao_data['icao_gt'], icao_data['reqs'], icao_data['aligned']
                 props['use_icao_gt'] = self.config_interp.use_icao_gt
-                props['aligned'] = icao_gt['aligned']
-                props['icao_reqs'] = str([r.value for r in icao_gt['reqs']])
+                props['aligned'] = aligned
+                props['icao_reqs'] = str([r.value for r in reqs])
                 props['gt_names'] = str({
                     'train_validation': [x.value.lower() for x in icao_gt['gt_names']['train_validation']],
                     'test': [x.value.lower() for x in icao_gt['gt_names']['test']],
