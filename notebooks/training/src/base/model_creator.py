@@ -151,8 +151,8 @@ class ModelCreator:
 
     def __create_branches_list_mtl_model(self, initializer, x):
         branches_list = None
-        if not self.use_benchmark_data:
-            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['reqs']]
+        if not self.config_interp.use_benchmark_data:
+            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['icao_data']['reqs']]
         else:
             if self.benchmark_dataset.value == BenchmarkDataset.MNIST.value:
                 branches_list = [self.__create_branch_1(x, f'n_{i}', 2, initializer) for i in range(10)]

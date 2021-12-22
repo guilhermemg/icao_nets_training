@@ -134,7 +134,10 @@ class ModelEvaluator:
             for tr_val,pred in zip(y_true,y_pred):
                 if pred >= th and tr_val == Eval.NON_COMPLIANT.value:
                     num += 1
-            far.append(round((num/n_non_comp) * 100, 2))
+            if n_non_comp != 0:
+                far.append(round((num/n_non_comp) * 100, 2))
+            else:
+                far.append(100.)
 
         far = np.array(far) 
         return far
@@ -149,7 +152,10 @@ class ModelEvaluator:
             for tr_val,pred in zip(y_true,y_pred):
                 if pred < th and tr_val == Eval.COMPLIANT.value:
                     num += 1
-            frr.append(round((num/n_comp) * 100, 2))
+            if n_comp != 0:
+                frr.append(round((num/n_comp) * 100, 2))
+            else:
+                frr.append(100.)
 
         frr = np.array(frr)    
         return frr
@@ -339,7 +345,7 @@ class ModelEvaluator:
         if self.config_interp.is_mtl_model:
             tasks_list = []
             if not self.config_interp.use_benchmark_data:
-                tasks_list = self.config_interp.prop_args['reqs']
+                tasks_list = self.config_interp.prop_args['icao_data']['reqs']
                 tasks_list = [x for x in tasks_list if x.value != ICAO_REQ.INK_MARK.value] # TODO corrigir esse problema!!
             else:
                 if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
@@ -351,9 +357,9 @@ class ModelEvaluator:
                 evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, task, verbose, running_nas))
 
         else:
-            print(f'Task: {self.config_interp.prop_args["reqs"][0].value.upper()}') if verbose else None
+            print(f'Task: {self.config_interp.prop_args["icao_data"]["reqs"][0].value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
-            task = self.config_interp.prop_args['reqs'][0]
+            task = self.config_interp.prop_args['icao_data']['reqs'][0]
             evaluations.append(self.__calculate_metrics(predIdxs, data_gen, task, verbose, running_nas))
         
         final_eval = FinalEvaluation(evaluations)

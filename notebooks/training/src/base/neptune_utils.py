@@ -47,10 +47,10 @@ class NeptuneUtils:
             print(f' ...Prev Exp | DS: {prev_run_ds}')
             
             if not self.config_interp.is_mtl_model:
-                cur_run_req = str([self.config_interp.prop_args['reqs'][0].value])
+                cur_run_req = str([self.config_interp.prop_args['icao_data']['reqs'][0].value])
             else:
-                cur_run_req = str([req.value for req in self.config_interp.prop_args['reqs']])
-            cur_run_aligned = float(int(self.config_interp.prop_args['aligned']))
+                cur_run_req = str([req.value for req in self.config_interp.prop_args['icao_data']['reqs']])
+            cur_run_aligned = float(int(self.config_interp.prop_args['icao_data']['aligned']))
             gt_names_formatted = {
                 'train_validation': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['train_validation']],
                 'test': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['test']],
@@ -163,7 +163,7 @@ class NeptuneUtils:
                 for ls in total_loss_series:
                     self.neptune_run[f'epoch/total_loss'].log(ls)
 
-                for req in self.config_interp.prop_args['reqs']:
+                for req in self.config_interp.prop_args['icao_data']['reqs']:
                     print(f' ..Requisite: {req}')
                     req = req.value
                     acc_series = prev_run[f'epoch/{req}/accuracy'].fetch_values()['value']

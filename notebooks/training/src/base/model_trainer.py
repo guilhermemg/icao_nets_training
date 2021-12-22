@@ -63,9 +63,9 @@ class ModelTrainer:
         model_path = None
         if self.orig_model_experiment_id != '':
             ds = self.config_interp.prop_args['gt_names']['train_validation_test'][0].value
-            aligned = 'aligned' if self.config_interp.prop_args['aligned'] else 'not_aligned'
+            aligned = 'aligned' if self.config_interp.prop_args['icao_data']['aligned'] else 'not_aligned'
             model_type = 'single_task' if not self.config_interp.is_mtl_model else 'multi_task'
-            req = self.config_interp.prop_args['reqs'][0].value if not self.config_interp.is_mtl_model else 'multi_reqs'
+            req = self.config_interp.prop_args['icao_data']['reqs'][0].value if not self.config_interp.is_mtl_model else 'multi_reqs'
             model_path = os.path.join('prev_trained_models', f'{model_type}', f'{ds}_{aligned}', f'{req}', f'{self.orig_model_experiment_id}')
         else:
             if not self.is_training_model:

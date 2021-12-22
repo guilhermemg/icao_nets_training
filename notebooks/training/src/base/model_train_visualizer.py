@@ -33,7 +33,7 @@ class ModelTrainVisualizer:
             f.suptitle(f'-----{self.config_interp.base_model.name}-----')
 
             if not self.config_interp.use_benchmark_data:
-                for _,req in enumerate(self.config_interp.prop_args['reqs']):
+                for _,req in enumerate(self.config_interp.prop_args['icao_data']['reqs']):
                     ax[0][0].plot(history.history[f'{req.value}_accuracy'])
                     ax[0][1].plot(history.history[f'val_{req.value}_accuracy'])
 
@@ -76,7 +76,7 @@ class ModelTrainVisualizer:
 
             legends = None
             if not self.config_interp.use_benchmark_data:
-                legends = [r.value for r in self.config_interp.prop_args['reqs']]
+                legends = [r.value for r in self.config_interp.prop_args['icao_data']['reqs']]
             else:
                 if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
                     legends = BenchmarkDataset.MNIST.value['target_cols']
