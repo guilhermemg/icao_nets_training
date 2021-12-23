@@ -30,44 +30,75 @@ class NeptuneUtils:
             print('Not using Neptune to record Experiment Metadata')
 
 
+    def __check_prev_run_fields_benchmark(self, prev_run):
+        prev_run_ds = prev_run['properties/benchmark_dataset'].fetch()
+        prev_run_tasks = prev_run['properties/benchmark_tasks'].fetch()
+
+        cur_run_ds = str(self.config_interp.prop_args['benchmarking']['benchmark_dataset'].name)
+        cur_run_tasks = str([x.name for x in self.config_interp.prop_args['benchmarking']['tasks']])
+
+        print(f' ...Prev Exp | Dataset: {prev_run_ds}')
+        print(f' ...Prev Exp | Tasks: {prev_run_tasks}')
+        print(f'')
+        print(f' ...Current Exp | Dataset: {cur_run_ds}')
+        print(f' ...Current Exp | Tasks: {cur_run_tasks}')
+
+        if prev_run_ds != cur_run_ds:
+            raise Exception('Previous experiment Dataset field does not match current experiment Dataset field!')
+        if prev_run_tasks != cur_run_tasks:
+            raise Exception('Previous experiment Tasks field does not match current experiment Tasks field!')
+
+
+    def __check_prev_run_fields_icao(self, prev_run):
+        icao_data = self.config_interp.prop_args['icao_data']
+        icao_gt, reqs, aligned = icao_data['icao_gt'], icao_data['reqs'], icao_data['aligned']
+        
+        prev_run_req = prev_run['properties/icao_reqs'].fetch()
+        prev_run_aligned = float(prev_run['properties/aligned'].fetch())
+        prev_run_ds = prev_run['properties/gt_names'].fetch()
+
+        print(f' ...Prev Exp | Req: {prev_run_req}')
+        print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
+        print(f' ...Prev Exp | DS: {prev_run_ds}')
+        
+        if not self.config_interp.is_mtl_model:
+            cur_run_req = str([reqs[0].value])
+        else:
+            cur_run_req = str([req.value for req in reqs])
+        cur_run_aligned = float(int(aligned))
+        gt_names_formatted = {
+            'train_validation': [x.value.lower() for x in icao_gt['gt_names']['train_validation']],
+            'test': [x.value.lower() for x in icao_gt['gt_names']['test']],
+            'train_validation_test': [x.value.lower() for x in icao_gt['gt_names']['train_validation_test']]
+        }
+        cur_run_ds = str({'gt_names': str(gt_names_formatted)})
+
+        print(f' ...Current Exp | Req: {cur_run_req}')
+        print(f' ...Current Exp | Aligned: {cur_run_aligned}')
+        print(f' ...Current Exp | DS: {cur_run_ds}')
+
+        if prev_run_req != cur_run_req:
+            raise Exception('Previous experiment Requisite field does not match current experiment Requisite field!')
+        if prev_run_aligned != cur_run_aligned:
+            raise Exception('Previous experiment Aligned field does not match current experiment Aligned field!')
+        if prev_run_req != cur_run_req:
+            raise Exception('Previous experiment DS fields does not match current experiment DS field!')
+
+
     def __check_prev_run_fields(self):
         try:
             print('-----')
             print(' ..Checking previous experiment metadata')
-            
+
             prev_run = None
             prev_run = neptune.init(run=self.orig_model_experiment_id)
-            
-            prev_run_req = prev_run['properties/icao_reqs'].fetch()
-            prev_run_aligned = float(prev_run['properties/aligned'].fetch())
-            prev_run_ds = prev_run['properties/gt_names'].fetch()
 
-            print(f' ...Prev Exp | Req: {prev_run_req}')
-            print(f' ...Prev Exp | Aligned: {prev_run_aligned}')
-            print(f' ...Prev Exp | DS: {prev_run_ds}')
-            
-            if not self.config_interp.is_mtl_model:
-                cur_run_req = str([self.config_interp.prop_args['icao_data']['reqs'][0].value])
-            else:
-                cur_run_req = str([req.value for req in self.config_interp.prop_args['icao_data']['reqs']])
-            cur_run_aligned = float(int(self.config_interp.prop_args['icao_data']['aligned']))
-            gt_names_formatted = {
-                'train_validation': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['train_validation']],
-                'test': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['test']],
-                'train_validation_test': [x.value.lower() for x in self.config_interp.prop_args['gt_names']['train_validation_test']]
-            }
-            cur_run_ds = str({'gt_names': str(gt_names_formatted)})
-
-            print(f' ...Current Exp | Req: {cur_run_req}')
-            print(f' ...Current Exp | Aligned: {cur_run_aligned}')
-            print(f' ...Current Exp | DS: {cur_run_ds}')
-
-            if prev_run_req != cur_run_req:
-                raise Exception('Previous experiment Requisite field does not match current experiment Requisite field!')
-            if prev_run_aligned != cur_run_aligned:
-                raise Exception('Previous experiment Aligned field does not match current experiment Aligned field!')
-            if prev_run_req != cur_run_req:
-                raise Exception('Previous experiment DS fields does not match current experiment DS field!')
+            if self.config_interp.use_icao_gt:
+                self.__check_prev_run_fields_icao(prev_run)
+            elif self.config_interp.use_benchmark_data:
+                self.__check_prev_run_fields_benchmark(prev_run)
+            elif self.config_interp.use_icao_dl:
+                raise NotImplemented()
 
             print(' ..All checked!')
             print('-----')
