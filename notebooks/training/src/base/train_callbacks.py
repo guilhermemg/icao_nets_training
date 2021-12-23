@@ -25,9 +25,9 @@ class CallbacksHandler:
             val_loss_list = []
 
             tasks_list = None
-            if self.config_interp.prop_args['benchmarking']['use_benchmark_data']:
+            if self.config_interp.use_benchmark_data:
                 tasks_list = self.config_interp.prop_args['benchmarking']['tasks']
-            elif self.config_interp.prop_args['icao_data']['use_icao_gt']:
+            elif self.config_interp.use_icao_gt:
                 tasks_list = self.config_interp.prop_args['icao_data']['reqs']
 
             for task in tasks_list:
