@@ -273,10 +273,10 @@ class ModelCreator:
         
         tasks_groups = self.__get_tasks_groups()
         
-        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], req.value) for req in tasks_groups['g0']]
-        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], req.value) for req in tasks_groups['g1']]
-        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], req.value) for req in tasks_groups['g2']]
-        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], req.value) for req in tasks_groups['g3']]
+        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], t.value) for t in tasks_groups['g0']]
+        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], t.value) for t in tasks_groups['g1']]
+        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], t.value) for t in tasks_groups['g2']]
+        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], t.value) for t in tasks_groups['g3']]
         
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         

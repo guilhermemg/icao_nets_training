@@ -52,6 +52,10 @@ class FinalEvaluation:
         self.final_ACC = None
     
     def calculate_final_metrics(self):
+        for idx,t_eval in enumerate(self.evals_list):
+            print('  Task {:2}: {:15} | EER_mean: {:>2.5F} | EER_interp: {:>2.5F} | ACC: {:>2.5F}'.format(idx, t_eval.task.value,\
+                 t_eval.EER_interp, t_eval.EER_mean, t_eval.ACC))
+
         final_EER_mean = np.sum([r_ev.EER_mean for r_ev in self.evals_list])/len(self.evals_list)
         final_ACC = np.sum([r_ev.ACC for r_ev in self.evals_list])/len(self.evals_list)
 
@@ -175,7 +179,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.config_interp.use_neptune:
-            self.neptune_run[f'{self.vis_var_base_path}/far_frr_curve.png'].upload(fig)
+            self.neptune_run[f'{self.vis_var_base_path}/far_frr_curve_{task.value}.png'].upload(fig)
 
 
     def __draw_roc_curve(self, fpr, tpr, eer, th, task):
@@ -188,7 +192,7 @@ class ModelEvaluator:
         plt.show()
         
         if self.config_interp.use_neptune:
-            self.neptune_run[f'{self.vis_var_base_path}/roc_curve.png'].upload(fig)
+            self.neptune_run[f'{self.vis_var_base_path}/roc_curve_{task.value}.png'].upload(fig)
     
     
     def calculate_eer(self, task, verbose, running_nas):
@@ -276,13 +280,15 @@ class ModelEvaluator:
         TN,FP,FN,TP = confusion_matrix(self.y_test_true, 
                                        self.y_test_hat_discrete, 
                                        labels=[Eval.NON_COMPLIANT.value, Eval.COMPLIANT.value]).ravel()
-        FAR = round(FP/(FP+TN),4)
-        FRR = round(FN/(FN+TP),4)
-        EER_mean = round((FAR+FRR)/2.,4)
         
+        FAR = round(FP/(FP+TN),4) if (FP > 0) and (TN > 0) * 100 else None
+        FRR = round(FN/(FN+TP),4) if (FN > 0) and (TP > 0) * 100 else None
+
+        EER_mean = round((FAR+FRR)/2.,4) if (FAR is not None) and (FRR is not None) * 100 else 0.0
+
         if verbose:
             print('Confusion matrix ----------------------------------------')
-            print(f'FAR: {FAR*100}% | FRR: {FRR*100}% | EER_mean: {EER_mean*100}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
+            print(f'FAR: {FAR}% | FRR: {FRR}% | EER_mean: {EER_mean}% | TP: {TP} | TN: {TN} | FP: {FP} | FN: {FN}')
         
         if self.config_interp.use_neptune and not running_nas:
             if not self.config_interp.is_mtl_model:

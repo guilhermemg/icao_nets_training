@@ -165,8 +165,11 @@ class ExperimentRunner:
 
             self.nas_controller.select_best_config()
         else:
-            print(f'Not executing neural architecture search')
-            self.neptune_utils.get_nas_data(self.config_interp.nas_params['n_trials'])
+            if self.config_interp.use_neptune:
+                print(f'Not executing neural architecture search')
+                self.neptune_utils.get_nas_data(self.config_interp.nas_params['n_trials'])
+            else:
+                print(f'Not executing neural architecture search and not using Neptune')
     
     
     def create_model(self, config=None):
