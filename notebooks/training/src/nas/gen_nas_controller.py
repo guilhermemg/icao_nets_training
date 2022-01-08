@@ -15,6 +15,7 @@ class GenNASController(ABC):
         self.cur_trial = None
 
         self.MAX_BLOCKS_PER_BRANCH = self.config_interp.nas_params['max_blocks_per_branch']
+        self.N_CHILD_EPOCHS = self.config_interp.nas_params['n_child_epochs']
 
         self.best_config = None
 
@@ -43,7 +44,7 @@ class GenNASController(ABC):
 
         self.model_trainer.create_model(config=config, running_nas=True)
         self.model_trainer.visualize_model(vis_path, verbose=False)
-        self.model_trainer.train_model(train_gen, validation_gen, fine_tuned=False, n_epochs=1, running_nas=True)
+        self.model_trainer.train_model(train_gen, validation_gen, fine_tuned=False, n_epochs=self.N_CHILD_EPOCHS, running_nas=True)
         self.model_trainer.load_best_model()
         self.model_evaluator.set_data_src(DataSource.VALIDATION)
         final_eval = self.model_evaluator.test_model(validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
