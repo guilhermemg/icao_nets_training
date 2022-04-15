@@ -1,8 +1,8 @@
 import yaml
 import pprint
 
-from m_utils.nas_mtl_approach import NAS_MTLApproach
-from m_utils.utils import print_method_log_sig
+from src.m_utils.nas_mtl_approach import NAS_MTLApproach
+from src.m_utils.utils import print_method_log_sig
 
 class ConfigInterpreter:
     def __init__(self, kwargs, yaml_config_file=None):

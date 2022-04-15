@@ -1,21 +1,13 @@
-import os
 import sys
-import pprint
-
 import pandas as pd
-
-if '../../../../notebooks/' not in sys.path:
-    sys.path.insert(0, '../../../../notebooks/')
-
-import utils.constants as cts
 
 if '.' not in sys.path:
     sys.path.insert(0, '.')
 
-from data_loaders.data_loader import DLName
-from gt_loaders.gt_names import GTName
-from exp_runner import ExperimentRunner
-from model_trainer import BaseModel, Optimizer
+from src.m_utils import constants as cts
+from src.base.gt_loaders.gt_names import GTName
+from src.exp_runner import ExperimentRunner
+from src.base.experiment.model_trainer import BaseModel, Optimizer
 
 
 def get_experiment_id(req, aligned, ds):

@@ -20,28 +20,20 @@ etc/
 etc/jupyter/jupyter_notebook_config.d/
 
 **/.neptune/
-
-**/prev_trained_models
-
 **/src/configs/config.py
-
-**/notebooks/model.h5
-**/notebooks/train.png
-**/notebooks/figs
-**/notebooks/models
-**/notebooks/tensorboard_out
-**/notebooks/model_weights/
-**/notebooks/prev_trained_models/
-**/notebooks/trained_model/
-**/notebooks/training_ckpt/
-**/notebooks/config.py
-**/notebooks/exp_config.yaml
-**/notebooks/exp_logs/
-**/notebooks/training/figs/
-**/notebooks/training/trained_model/
-**/notebooks/training/training_ckpt/
-**/notebooks/training/trained_model.zip
-**/notebooks/training/training_curves.png
+**/model.h5
+**/train.png
+**/figs/
+**/models/
+**/tensorboard_out/
+**/model_weights/
+**/prev_trained_models/
+**/trained_model/
+**/training_ckpt/
+**/exp_config.yaml
+**/exp_logs/
+**/trained_model.zip
+**/training_curves.png
 
 
 

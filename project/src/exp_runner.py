@@ -1,19 +1,15 @@
 import os
-import sys
 import argparse
 
-if '../../../../notebooks/' not in sys.path:
-    sys.path.insert(0, '../../../../notebooks/')
-    
-from src.base.data_processor import DataProcessor
-from src.base.model_trainer import ModelTrainer
-from src.base.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
-from src.base.fake_data_producer import FakeDataProducer
-from src.base.neptune_utils import NeptuneUtils
+from src.base.experiment.data_processor import DataProcessor
+from src.base.experiment.model_trainer import ModelTrainer
+from src.base.experiment.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
+from src.base.experiment.fake_data_producer import FakeDataProducer
+from src.base.experiment.neptune_utils import NeptuneUtils
 from src.nas.nas_controller_factory import NASControllerFactory
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
-import src.configs.config as cfg
+from src.configs import config as cfg
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 os.environ['NEPTUNE_API_TOKEN'] = cfg.NEPTUNE_API_TOKEN

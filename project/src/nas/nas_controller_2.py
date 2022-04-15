@@ -1,15 +1,13 @@
 
 import numpy as np
 
-import tensorflow as tf
-
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 
-from nas.gen_nas_controller import GenNASController
-from m_utils.constants import SEED
+from src.nas.gen_nas_controller import GenNASController
+from src.m_utils.constants import SEED
 
 
 class NASController_2(GenNASController):

@@ -1,8 +1,8 @@
 
 import numpy as np
 
-from m_utils.constants import SEED
-from nas.gen_nas_controller import GenNASController
+from src.m_utils.constants import SEED
+from src.nas.gen_nas_controller import GenNASController
 
 
 class NASController_1(GenNASController):

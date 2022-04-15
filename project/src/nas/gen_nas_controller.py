@@ -1,8 +1,9 @@
 
 from abc import ABC, abstractclassmethod
-from nas.memory import Memory
-from nas.trial import Trial
-from base.model_evaluator import DataSource
+
+from src.nas.memory import Memory
+from src.nas.trial import Trial
+from src.base.experiment.model_evaluator import DataSource
 
 
 class GenNASController(ABC):
