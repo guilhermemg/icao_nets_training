@@ -120,7 +120,7 @@ class NeptuneUtils:
             print(f'..Experiment ID: {self.orig_model_experiment_id}')
             print(f'..Destination Folder: {trained_model_dir_path}')
 
-            os.mkdir(trained_model_dir_path)
+            os.makedirs(trained_model_dir_path, exist_ok=True)
             destination_folder = trained_model_dir_path
 
             prev_run['artifacts/trained_model'].download(destination_folder)

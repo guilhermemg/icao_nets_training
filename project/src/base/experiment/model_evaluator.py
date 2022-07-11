@@ -295,16 +295,16 @@ class ModelEvaluator:
                 self.neptune_run[f'{self.metrics_var_base_path}/TN'] = TN
                 self.neptune_run[f'{self.metrics_var_base_path}/FP'] = FP
                 self.neptune_run[f'{self.metrics_var_base_path}/FN'] = FN
-                self.neptune_run[f'{self.metrics_var_base_path}/FAR'] = FAR
-                self.neptune_run[f'{self.metrics_var_base_path}/FRR'] = FRR
+                self.neptune_run[f'{self.metrics_var_base_path}/FAR'] = FAR if not (FAR is None) else -1
+                self.neptune_run[f'{self.metrics_var_base_path}/FRR'] = FRR if not (FRR is None) else -1
                 self.neptune_run[f'{self.metrics_var_base_path}/EER_mean'] = EER_mean
             else:
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/TP'] = TP
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/TN'] = TN
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/FP'] = FP
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/FN'] = FN
-                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FAR'] = FAR
-                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FRR'] = FRR
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FAR'] = FAR if not (FAR is None) else -1
+                self.neptune_run[f'{self.metrics_var_base_path}/{task}/FRR'] = FRR if not (FRR is None) else -1
                 self.neptune_run[f'{self.metrics_var_base_path}/{task}/EER_mean'] = EER_mean
         
         return TN,TP,FN,FP,FAR,FRR,EER_mean
