@@ -127,13 +127,16 @@ class ModelTrainer:
            
     
     def visualize_model(self, outfile_path=None, verbose=True):
-        if verbose:
-            display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
+        if self.is_training_model:
+            if verbose:
+                display(plot_model(self.model, show_shapes=True, to_file=outfile_path))
+            else:
+                plot_model(self.model, show_shapes=True, to_file=outfile_path)
+            
+            if self.config_interp.use_neptune:
+                self.neptune_utils.neptune_run['viz/model_architecture'].upload(outfile_path)
         else:
-            plot_model(self.model, show_shapes=True, to_file=outfile_path)
-        
-        if self.config_interp.use_neptune:
-            self.neptune_utils.neptune_run['viz/model_architecture'].upload(outfile_path)
+            print('Not training a model! No model to exhibit!')
 
             
     def __setup_fine_tuning(self, fine_tuned):

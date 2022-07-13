@@ -11,8 +11,8 @@ from neptune.new.types import File
 
 from scipy.optimize import brentq
 from scipy.interpolate import interp1d
-from sklearn.metrics import roc_curve
 
+from sklearn.metrics import roc_curve
 from sklearn.metrics import classification_report
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix
@@ -55,20 +55,27 @@ class FinalEvaluation:
             print('  Task {:2}: {:15} | EER_mean: {:>2.5F} | EER_interp: {:>2.5F} | ACC: {:>2.5F}'.format(idx, t_eval.task.value,\
                  t_eval.EER_interp, t_eval.EER_mean, t_eval.ACC))
 
-        final_EER_mean = np.sum([r_ev.EER_mean for r_ev in self.evals_list])/len(self.evals_list)
-        final_ACC = np.sum([r_ev.ACC for r_ev in self.evals_list])/len(self.evals_list)
+        eers_mean_list = [r_ev.EER_mean for r_ev in self.evals_list]
+        accs_list = [r_ev.ACC for r_ev in self.evals_list]
 
-        self.final_EER_mean = round(final_EER_mean * 100, 2)
-        self.final_ACC = round(final_ACC * 100, 2)
+        self.final_EER_mean = round(np.mean(eers_mean_list) * 100, 2)
+        self.final_EER_median = round(np.median(eers_mean_list) * 100, 2)
+        self.final_EER_std_dv = round(np.std(eers_mean_list) * 100, 2)
+        self.final_ACC = round(np.mean(accs_list) * 100, 2)
 
-        return {'final_EER_mean':self.final_EER_mean, 'final_ACC':self.final_ACC}
+        return {'final_EER_mean': self.final_EER_mean, 
+                'final_EER_median': self.final_EER_median, 
+                'final_EER_std_dv': self.final_EER_std_dv, 
+                'final_ACC': self.final_ACC}
 
     def log_to_neptune(self, neptune_run, data_src):
         neptune_run[f'metrics/{data_src.value}/final_EER_mean'] = self.final_EER_mean
+        neptune_run[f'metrics/{data_src.value}/final_EER_median'] = self.final_EER_median
+        neptune_run[f'metrics/{data_src.value}/final_EER_std_dv'] = self.final_EER_std_dv
         neptune_run[f'metrics/{data_src.value}/final_ACC'] = self.final_ACC
 
     def __str__(self):
-        return f'final_EER_mean: {self.final_EER_mean}% | final_ACC: {self.final_ACC}%'
+        return f'final_EER_mean: {self.final_EER_mean}% | final_EER_median: {self.final_EER_median}% | final_EER_std_dv: {self.final_EER_std_dv}% | final_ACC: {self.final_ACC}%'
 
 
 
