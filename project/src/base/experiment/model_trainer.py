@@ -100,8 +100,11 @@ class ModelTrainer:
     
     
     def create_model(self, train_gen=None, config=None, running_nas=False):
-        print('Creating model...')
+        if not self.is_training_model:
+            print('Not creating a model: not training a model! ')
+            return
         
+        print('Creating model...')
         self.baseModel, self.model = self.model_creator.create_model(train_gen, config)
 
         if self.config_interp.use_neptune and not running_nas:
