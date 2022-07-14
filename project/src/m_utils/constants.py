@@ -178,4 +178,25 @@ class MNIST_TASK(TASK):
     N_7 = 'n_7'
     N_8 = 'n_8'
     N_9 = 'n_9'
+
+
+class FASHION_MNIST_TASK(TASK):
+    N_0 = 'n_0'
+    N_1 = 'n_1'
+    N_2 = 'n_2'
+    N_3 = 'n_3'
+    N_4 = 'n_4'
+    N_5 = 'n_5'
+    N_6 = 'n_6'
+    N_7 = 'n_7'
+    N_8 = 'n_8'
+    N_9 = 'n_9'
+
+
+class CIFAR_10_TASK(TASK):
+    pass
+
+
+class CELEB_A_TASK(TASK):
+    pass
     

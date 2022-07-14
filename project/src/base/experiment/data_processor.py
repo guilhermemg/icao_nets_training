@@ -267,20 +267,23 @@ class DataProcessor:
     
     def __log_class_labels(self):
         print('')
-        print('Logging class labels')
-        
-        print(f' COMPLIANT label: {Eval.COMPLIANT.value}')
-        print(f' NON_COMPLIANT label: {Eval.NON_COMPLIANT.value}')
-        print(f' DUMMY label: {Eval.DUMMY.value}')
-        print(f' DUMMY_CLS label: {Eval.DUMMY_CLS.value}')
-        print(f' NO_ANSWER label: {Eval.NO_ANSWER.value}')
-        
-        if self.config_interp.use_neptune:
-            self.neptune_run['properties/labels'] = str({'compliant':Eval.COMPLIANT.value, 
-                                                         'non_compliant':Eval.NON_COMPLIANT.value,
-                                                         'dummy':Eval.DUMMY.value,
-                                                         'dummy_cls':Eval.DUMMY_CLS.value,
-                                                         'no_answer':Eval.NO_ANSWER.value})
+        if not self.config_interp.use_benchmark_data:
+            print('Logging class labels')
+            
+            print(f' COMPLIANT label: {Eval.COMPLIANT.value}')
+            print(f' NON_COMPLIANT label: {Eval.NON_COMPLIANT.value}')
+            print(f' DUMMY label: {Eval.DUMMY.value}')
+            print(f' DUMMY_CLS label: {Eval.DUMMY_CLS.value}')
+            print(f' NO_ANSWER label: {Eval.NO_ANSWER.value}')
+            
+            if self.config_interp.use_neptune:
+                self.neptune_run['properties/labels'] = str({'compliant':Eval.COMPLIANT.value, 
+                                                            'non_compliant':Eval.NON_COMPLIANT.value,
+                                                            'dummy':Eval.DUMMY.value,
+                                                            'dummy_cls':Eval.DUMMY_CLS.value,
+                                                            'no_answer':Eval.NO_ANSWER.value})
+        else:
+            print('Using benchmarking dataset. Not logging class labels!')
     
     
     def summary_labels_dist(self):
