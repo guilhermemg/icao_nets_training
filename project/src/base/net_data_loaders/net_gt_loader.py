@@ -2,7 +2,7 @@ import pandas as pd
 
 from src.m_utils.constants import ICAO_DATASET_PATH
 from src.base.gt_loaders.gt_list import ALL_GT_LOADERS_LIST
-from src.base.gt_loaders.gen_gt import Eval
+from src.base.experiment.evaluation.eval import Eval 
 from src.base.net_data_loaders.gen_net_data_loader import GenNetDataLoader
 
 

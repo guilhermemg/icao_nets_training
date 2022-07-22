@@ -3,11 +3,10 @@ import pandas as pd
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-from src.base.gt_loaders.gen_gt import Eval
+from src.base.experiment.evaluation.eval import Eval
 from src.base.data_loaders.data_loader import DLName
 from src.base.net_data_loaders.net_data_loader import NetDataLoader
 from src.base.net_data_loaders.net_gt_loader import NetGTLoader
-
 from src.m_utils.constants import SEED, BASE_PATH
 
 

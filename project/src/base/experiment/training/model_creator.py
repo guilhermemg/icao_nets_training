@@ -19,13 +19,18 @@ from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 
 import tensorflow as tf
 
-from src.m_utils.constants import SEED, ICAO_REQ, MNIST_TASK
+from src.base.experiment.tasks.task import MNIST_TASK
+from src.base.experiment.tasks.task import ICAO_REQ
+
+from src.m_utils.constants import SEED
 from src.m_utils.mtl_approach import MTLApproach
 from src.m_utils.nas_mtl_approach import NAS_MTLApproach
-from src.base.experiment.base_models import BaseModel
-from src.base.experiment.optimizers import Optimizer
-from src.base.experiment.benchmark_dataset import BenchmarkDataset
-from src.base.experiment.custom_base_model import CustomBaseModel
+
+from src.base.experiment.training.base_models import BaseModel
+from src.base.experiment.training.optimizers import Optimizer
+from src.base.experiment.training.custom_base_model import CustomBaseModel
+
+from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
 
 class ModelCreator:

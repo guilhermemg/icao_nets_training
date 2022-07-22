@@ -1,11 +1,11 @@
 import os
 import argparse
 
-from src.base.experiment.data_processor import DataProcessor
-from src.base.experiment.model_trainer import ModelTrainer
-from src.base.experiment.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
-from src.base.experiment.fake_data_producer import FakeDataProducer
-from src.base.experiment.neptune_utils import NeptuneUtils
+from src.base.experiment.data_loading.data_processor import DataProcessor
+from src.base.experiment.training.model_trainer import ModelTrainer
+from src.base.experiment.evaluation.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
+from src.base.experiment.data_loading.fake_data_producer import FakeDataProducer
+from src.m_utils.neptune_utils import NeptuneUtils
 from src.nas.nas_controller_factory import NASControllerFactory
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter

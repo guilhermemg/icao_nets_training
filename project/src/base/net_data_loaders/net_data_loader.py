@@ -3,7 +3,7 @@ import pandas as pd
 from src.base.net_data_loaders.gen_net_data_loader import GenNetDataLoader
 from src.base.data_loaders.dl_list import ALL_DATA_LOADERS_LIST
 from src.base.tagger.tagger import Tagger
-from src.base.gt_loaders.gen_gt import Eval
+from src.base.experiment.evaluation.eval import Eval 
 
 class NetDataLoader(GenNetDataLoader):
     def __init__(self, model, requisite, dl_names, aligned):

@@ -1,7 +1,7 @@
 
 import matplotlib.pyplot as plt
 
-from src.base.experiment.benchmark_dataset import BenchmarkDataset
+from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
 class ModelTrainVisualizer:
     def __init__(self, config_interp):

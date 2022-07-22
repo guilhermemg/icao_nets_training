@@ -23,11 +23,12 @@ from tensorflow.keras import models
 from tensorflow.keras.preprocessing.image import img_to_array
 from tensorflow.keras.preprocessing.image import load_img
 
-from src.base.gt_loaders.gen_gt import Eval
+from src.base.experiment.evaluation.eval import Eval 
 from src.m_utils import draw_utils as dr
 from src.m_utils.constants import SEED
-from src.m_utils.constants import MNIST_TASK, ICAO_REQ
-from src.base.experiment.benchmark_dataset import BenchmarkDataset
+from src.base.experiment.tasks.task import MNIST_TASK
+from src.base.experiment.tasks.task import ICAO_REQ
+from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
 
 class DataSource(Enum):

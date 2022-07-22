@@ -1,7 +1,7 @@
 
 from src.nas.nas_controller_1 import NASController_1
 from src.nas.nas_controller_2 import NASController_2
-from src.base.experiment.model_creator import NAS_MTLApproach
+from src.base.experiment.training.model_creator import NAS_MTLApproach
 
 class NASControllerFactory:
     @staticmethod

@@ -7,8 +7,8 @@ if '.' not in sys.path:
 from src.m_utils import constants as cts
 from src.base.gt_loaders.gt_names import GTName
 from src.exp_runner import ExperimentRunner
-from src.base.experiment.model_trainer import BaseModel, Optimizer
-
+from src.base.experiment.training.model_trainer import Optimizer
+from src.base.experiment.training.base_models import BaseModel
 
 def get_experiment_id(req, aligned, ds):
     df = pd.read_csv('../analysis/single_task_nets/single_task_exps_data/icao-nets-training-2.csv')

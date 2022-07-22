@@ -8,15 +8,9 @@ from enum import Enum
 
 import src.m_utils.constants as cts
 
-
-class Eval(Enum):
-    COMPLIANT = 1
-    NON_COMPLIANT = 0
-    DUMMY = -1
-    DUMMY_CLS = 2   # dummy value used in classification (-1 is no allowed)
-    NO_ANSWER = -99
-
-    
+from src.base.experiment.tasks.task import ICAO_REQ
+from src.base.experiment.evaluation.eval import Eval
+   
 
 class GenGTLoader(metaclass=abc.ABCMeta):
     def __init__(self, name, aligned, ignore_err, base_dataset_path):
@@ -113,7 +107,7 @@ class GenGTLoader(metaclass=abc.ABCMeta):
     
     
     def load_data(self):
-        dtypes_dict = {x: int for x in cts.ICAO_REQ.list_reqs_names()}
+        dtypes_dict = {x: int for x in ICAO_REQ.list_reqs_names()}
         if self.aligned:
             #self.ground_truth_df = pd.read_csv(os.path.join(self.base_dataset_path, f'ground_truth_aligned.csv'))
             self.train_df = pd.read_csv(os.path.join(self.base_dataset_path, f'{self.name.value}_aligned_train.csv'), dtype=dtypes_dict)

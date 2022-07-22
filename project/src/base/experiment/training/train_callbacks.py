@@ -3,7 +3,7 @@ import numpy as np
 from tensorflow.keras.callbacks import LambdaCallback, EarlyStopping, LearningRateScheduler
 from tensorflow.keras.callbacks import ModelCheckpoint
 
-from src.base.experiment.optimizers import Optimizer
+from src.base.experiment.training.optimizers import Optimizer
 
 class CallbacksHandler:
     def __init__(self, config_interp, neptune_utils, checkpoint_path):

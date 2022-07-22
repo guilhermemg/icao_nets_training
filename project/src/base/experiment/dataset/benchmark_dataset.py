@@ -1,8 +1,8 @@
 
-from src.m_utils.constants import MNIST_TASK
-from src.m_utils.constants import FASHION_MNIST_TASK
-from src.m_utils.constants import CIFAR_10_TASK
-from src.m_utils.constants import CELEB_A_TASK
+from src.base.experiment.tasks.task import MNIST_TASK
+from src.base.experiment.tasks.task import FASHION_MNIST_TASK
+from src.base.experiment.tasks.task import CIFAR_10_TASK
+from src.base.experiment.tasks.task import CELEB_A_TASK
 
 from enum import Enum
 

@@ -11,9 +11,9 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.models import load_model
 
-from src.base.experiment.model_creator import ModelCreator
-from src.base.experiment.model_train_visualizer import ModelTrainVisualizer
-from src.base.experiment.train_callbacks import *
+from src.base.experiment.training.model_creator import ModelCreator
+from src.base.experiment.training.model_train_visualizer import ModelTrainVisualizer
+from src.base.experiment.training.train_callbacks import *
 
 
 ## restrict memory growth -------------------

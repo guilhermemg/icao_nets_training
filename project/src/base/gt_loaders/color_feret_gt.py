@@ -3,7 +3,7 @@ import numpy as np
 
 from src.base.gt_loaders.gen_gt import GenGTLoader
 from src.base.gt_loaders.gt_names import GTName
-from src.base.gt_loaders.gen_gt import Eval
+from src.base.experiment.evaluation.eval import Eval 
 from src.m_utils import constants as cts
 
 
