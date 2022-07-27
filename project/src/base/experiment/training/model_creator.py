@@ -19,7 +19,7 @@ from tensorflow.keras.optimizers import Adam, SGD, Adagrad, Adamax, Adadelta
 
 import tensorflow as tf
 
-from src.base.experiment.tasks.task import MNIST_TASK
+from src.base.experiment.tasks.task import CELEB_A_TASK, CIFAR_10_TASK, FASHION_MNIST_TASK, MNIST_TASK
 from src.base.experiment.tasks.task import ICAO_REQ
 
 from src.m_utils.constants import SEED
@@ -110,6 +110,12 @@ class ModelCreator:
         if self.config_interp.use_benchmark_data:
             if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
                 n_tasks = len(list(MNIST_TASK))
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.FASHION_MNIST.name:
+                n_tasks = len(list(FASHION_MNIST_TASK))
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CIFAR_10.name:
+                n_tasks = len(list(CIFAR_10_TASK))
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CELEB_A.name:
+                n_tasks = len(list(CELEB_A_TASK))
         else:
             n_tasks = len(list(ICAO_REQ))
 
@@ -160,11 +166,17 @@ class ModelCreator:
             branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['icao_data']['reqs']]
         else:
             if self.benchmark_dataset.value == BenchmarkDataset.MNIST.value:
-                branches_list = [self.__create_branch_1(x, f'n_{i}', 2, initializer) for i in range(10)]
+                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(MNIST_TASK)]
+            elif self.benchmark_dataset.value == BenchmarkDataset.FASHION_MNIST.value:
+                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(FASHION_MNIST_TASK)]
+            elif self.benchmark_dataset.value == BenchmarkDataset.CELEB_A.value:
+                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(CELEB_A_TASK)]
+            elif self.benchmark_dataset.value == BenchmarkDataset.CIFAR_10.value:
+                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(CIFAR_10_TASK)]
         return branches_list
 
     
-    def create_mtl_model(self):
+    def __create_mtl_model_1(self):
         baseModel = self.__create_base_model()
         
         initializer = RandomNormal(mean=0., stddev=1e-4, seed=SEED)
@@ -183,26 +195,55 @@ class ModelCreator:
         return baseModel, model
    
     
-    def create_mtl_model_2(self):
+    def __get_tasks_groups(self):
+        tasks_groups = {'g0':[], 'g1':[], 'g2':[], 'g3':[]}
+        if self.config_interp.use_icao_gt:
+            tasks_groups['g0'] = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
+                                    ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
+            tasks_groups['g1'] = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
+            tasks_groups['g2'] = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
+                                    ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
+            tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
+        elif self.config_interp.use_benchmark_data:
+            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+                tasks_groups['g0'] = [MNIST_TASK.N_0]
+                tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
+                tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
+                tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CIFAR_10.name:
+                tasks_groups['g0'] = list(CIFAR_10_TASK)[0:2]
+                tasks_groups['g1'] = list(CIFAR_10_TASK)[2:4]
+                tasks_groups['g2'] = list(CIFAR_10_TASK)[4:7]
+                tasks_groups['g3'] = list(CIFAR_10_TASK)[7:10]
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.FASHION_MNIST.name:
+                tasks_groups['g0'] = list(FASHION_MNIST_TASK)[0:2]
+                tasks_groups['g1'] = list(FASHION_MNIST_TASK)[2:4]
+                tasks_groups['g2'] = list(FASHION_MNIST_TASK)[4:7]
+                tasks_groups['g3'] = list(FASHION_MNIST_TASK)[7:10]
+            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CELEB_A.name:
+                tasks_groups['g0'] = list(CELEB_A_TASK)[0:10]
+                tasks_groups['g1'] = list(CELEB_A_TASK)[10:20]
+                tasks_groups['g2'] = list(CELEB_A_TASK)[20:30]
+                tasks_groups['g3'] = list(CELEB_A_TASK)[30:42]
+            else:
+                raise NotImplemented()
+        else:
+            raise NotImplemented()
+        return tasks_groups
+
+
+    def __create_mtl_model_2(self):
         baseModel = self.__create_base_model()
         
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)
+
+        task_groups = self.__get_tasks_groups()
         
-        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
-                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
-        br_list_0 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g0]
-        
-        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
-        br_list_1 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g1]
-        
-        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
-                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
-        br_list_2 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g2]
-        
-        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
-                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        br_list_3 = [self.__create_fcs_block(x, 1, req.value) for req in reqs_g3]
+        br_list_0 = [self.__create_fcs_block(x, 1, req.value) for req in task_groups['g0']]
+        br_list_1 = [self.__create_fcs_block(x, 1, req.value) for req in task_groups['g1']]
+        br_list_2 = [self.__create_fcs_block(x, 1, req.value) for req in task_groups['g2']]
+        br_list_3 = [self.__create_fcs_block(x, 1, req.value) for req in task_groups['g3']]
         
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         
@@ -211,7 +252,7 @@ class ModelCreator:
         return baseModel, model
     
     
-    def create_mtl_model_3(self):
+    def __create_mtl_model_3(self):
         baseModel = self.__create_base_model()
         
         x = baseModel.output
@@ -224,24 +265,17 @@ class ModelCreator:
         spl_2 = tf.reshape(tensor=split[2], shape=[tf.shape(split[2])[0],1,32,32])
         spl_3 = tf.reshape(tensor=split[3], shape=[tf.shape(split[3])[0],1,32,32])
         
+        tasks_groups = self.__get_tasks_groups()
+
         g0 = self.__vgg_block(spl_0, 2, 32, 'g0')
-        reqs_g0 = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
-                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
-        br_list_0 = [self.__create_fcs_block_2(g0, 3, req.value) for req in reqs_g0]
-        
         g1 = self.__vgg_block(spl_1, 3, 32, 'g1')
-        reqs_g1 = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
-        br_list_1 = [self.__create_fcs_block_2(g1, 2, req.value) for req in reqs_g1]
-        
         g2 = self.__vgg_block(spl_2, 3, 32, 'g2')
-        reqs_g2 = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
-                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
-        br_list_2 = [self.__create_fcs_block_2(g2, 3, req.value) for req in reqs_g2]
-        
         g3 = self.__vgg_block(spl_3, 2, 32, 'g3')
-        reqs_g3 = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, 
-                   ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        br_list_3 = [self.__create_fcs_block_2(g3, 3, req.value) for req in reqs_g3]
+
+        br_list_0 = [self.__create_fcs_block_2(g0, 3, req.value) for req in tasks_groups['g0']]       
+        br_list_1 = [self.__create_fcs_block_2(g1, 2, req.value) for req in tasks_groups['g1']]
+        br_list_2 = [self.__create_fcs_block_2(g2, 3, req.value) for req in tasks_groups['g2']]
+        br_list_3 = [self.__create_fcs_block_2(g3, 3, req.value) for req in tasks_groups['g3']]
         
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         
@@ -250,27 +284,7 @@ class ModelCreator:
         return baseModel, model
 
 
-    def __get_tasks_groups(self):
-        tasks_groups = {'g0':[], 'g1':[], 'g2':[], 'g3':[]}
-        if self.config_interp.use_icao_gt:
-            tasks_groups['g0'] = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
-                   ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
-            tasks_groups['g1'] = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
-            tasks_groups['g2'] = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
-                   ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
-            tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        elif self.config_interp.use_benchmark_data:
-            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
-                tasks_groups['g0'] = [MNIST_TASK.N_0]
-                tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
-                tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
-                tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
-        else:
-            raise NotImplemented()
-        return tasks_groups
-
-
-    def create_nas_mtl_model_1(self, config):
+    def __create_nas_mtl_model_1(self, config):
         baseModel = self.__create_base_model()
         
         x = baseModel.output
@@ -295,11 +309,11 @@ class ModelCreator:
             return self.create_stl_model(train_gen)
         else:
             if self.config_interp.approach.value == MTLApproach.HAND_1.value:
-                return self.create_mtl_model()
+                return self.__create_mtl_model_1()
             elif self.config_interp.approach.value == MTLApproach.HAND_2.value:
-                return self.create_mtl_model_2()
+                return self.__create_mtl_model_2()
             elif self.config_interp.approach.value == MTLApproach.HAND_3.value:
-                return self.create_mtl_model_3()
+                return self.__create_mtl_model_3()
             elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
                     self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
-                return self.create_nas_mtl_model_1(config)
+                return self.__create_nas_mtl_model_1(config)

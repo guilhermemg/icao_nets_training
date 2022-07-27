@@ -27,6 +27,9 @@ from src.base.experiment.evaluation.eval import Eval
 from src.m_utils import draw_utils as dr
 from src.m_utils.constants import SEED
 from src.base.experiment.tasks.task import MNIST_TASK
+from src.base.experiment.tasks.task import FASHION_MNIST_TASK
+from src.base.experiment.tasks.task import CELEB_A_TASK
+from src.base.experiment.tasks.task import CIFAR_10_TASK
 from src.base.experiment.tasks.task import ICAO_REQ
 from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
@@ -363,6 +366,12 @@ class ModelEvaluator:
             else:
                 if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
                     tasks_list = list(MNIST_TASK)
+                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.FASHION_MNIST.value['name']:
+                    tasks_list = list(FASHION_MNIST_TASK)
+                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.CELEB_A.value['name']:
+                    tasks_list = list(CELEB_A_TASK)
+                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.CIFAR_10.value['name']:
+                    tasks_list = list(CIFAR_10_TASK)
             
             for idx,task in enumerate(tasks_list):
                 print(f'Task: {task.value.upper()}') if verbose else None
@@ -370,9 +379,9 @@ class ModelEvaluator:
                 evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, task, verbose, running_nas))
 
         else:
-            print(f'Task: {self.config_interp.prop_args["icao_data"]["reqs"][0].value.upper()}') if verbose else None
-            self.y_test_true = np.array(data_gen.labels)
             task = self.config_interp.prop_args['icao_data']['reqs'][0]
+            print(f'Task: {task.value.upper()}') if verbose else None
+            self.y_test_true = np.array(data_gen.labels)
             evaluations.append(self.__calculate_metrics(predIdxs, data_gen, task, verbose, running_nas))
         
         final_eval = FinalEvaluation(evaluations)
