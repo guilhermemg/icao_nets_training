@@ -51,16 +51,6 @@ class DataProcessor:
             self.train_data = netGtLoader.load_gt_data(split='train')
             self.validation_data = netGtLoader.load_gt_data(split='validation')
             self.test_data = netGtLoader.load_gt_data(split='test')
-        
-        #in_data = in_data.sample(frac=1.0, random_state=SEED)
-        #np.random.seed(SEED)
-        #train_prop = self.config_interp.net_args['train_prop']
-        #valid_prop = self.config_interp.net_args['validation_prop']
-        #self.train_data, self.validation_data, self.test_data = np.split(in_data, [int(train_prop*len(in_data)), 
-        #                                                                           int((train_prop+valid_prop)*len(in_data))])
-        
-        #self.train_data = in_data.sample(frac=self.config_interp.net_args['train_prop']+self.config_interp.net_args['validation_prop'], random_state=SEED)
-        #self.test_data = in_data[~in_data.img_name.isin(self.train_data.img_name)]
 
 
     def __load_dl_data(self):
@@ -94,12 +84,21 @@ class DataProcessor:
         self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'test_data.csv'))
         print(f'TestData.shape: {self.test_data.shape}')
 
+
+    def __transform_dtype_int2float(self):
+        if self.config_interp.is_mtl_model:
+            for task in self.config_interp.prop_args['benchmarking']['tasks']:
+                self.train_data[task.value]      = self.train_data[task.value].astype(float)
+                self.validation_data[task.value] = self.validation_data[task.value].astype(float)
+                self.test_data[task.value]       = self.test_data[task.value].astype(float)
+
     
     def load_training_data(self):
         print('Loading data')
 
         if self.config_interp.use_benchmark_data:
             self.__load_benchmark_data()
+            self.__transform_dtype_int2float()
         else:
             if self.config_interp.prop_args['icao_data']['icao_gt']['use_gt_data']:
                 self.__load_gt_data()               

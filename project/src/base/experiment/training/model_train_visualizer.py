@@ -78,8 +78,15 @@ class ModelTrainVisualizer:
             if not self.config_interp.use_benchmark_data:
                 legends = [r.value for r in self.config_interp.prop_args['icao_data']['reqs']]
             else:
-                if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
+                bench_ds = self.config_interp.benchmark_dataset.name
+                if bench_ds == BenchmarkDataset.MNIST.name:
                     legends = BenchmarkDataset.MNIST.value['target_cols']
+                elif bench_ds == BenchmarkDataset.FASHION_MNIST.name:
+                    legends = BenchmarkDataset.FASHION_MNIST.value['target_cols']
+                elif bench_ds == BenchmarkDataset.CIFAR_10.name:
+                    legends = BenchmarkDataset.CIFAR_10.value['target_cols']
+                elif bench_ds == BenchmarkDataset.CELEB_A.name:
+                    legends = BenchmarkDataset.CELEB_A.value['target_cols']
 
             ax[0][0].legend(legends, ncol=4)
             ax[0][1].legend(legends, ncol=4)
