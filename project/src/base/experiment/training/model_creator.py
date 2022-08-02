@@ -108,14 +108,7 @@ class ModelCreator:
         
         n_tasks = None
         if self.config_interp.use_benchmark_data:
-            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
-                n_tasks = len(list(MNIST_TASK))
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.FASHION_MNIST.name:
-                n_tasks = len(list(FASHION_MNIST_TASK))
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CIFAR_10.name:
-                n_tasks = len(list(CIFAR_10_TASK))
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CELEB_A.name:
-                n_tasks = len(list(CELEB_A_TASK))
+            n_tasks = len(self.config_interp.prop_args['benchmarking']['tasks'])
         else:
             n_tasks = len(list(ICAO_REQ))
 
@@ -165,14 +158,8 @@ class ModelCreator:
         if not self.config_interp.use_benchmark_data:
             branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['icao_data']['reqs']]
         else:
-            if self.benchmark_dataset.value == BenchmarkDataset.MNIST.value:
-                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(MNIST_TASK)]
-            elif self.benchmark_dataset.value == BenchmarkDataset.FASHION_MNIST.value:
-                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(FASHION_MNIST_TASK)]
-            elif self.benchmark_dataset.value == BenchmarkDataset.CELEB_A.value:
-                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(CELEB_A_TASK)]
-            elif self.benchmark_dataset.value == BenchmarkDataset.CIFAR_10.value:
-                branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in list(CIFAR_10_TASK)]
+            tasks = self.config_interp.prop_args['benchmarking']['tasks']
+            branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in tasks]
         return branches_list
 
     

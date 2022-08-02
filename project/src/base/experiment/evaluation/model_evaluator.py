@@ -364,14 +364,7 @@ class ModelEvaluator:
                 tasks_list = self.config_interp.prop_args['icao_data']['reqs']
                 tasks_list = [x for x in tasks_list if x.value != ICAO_REQ.INK_MARK.value] # TODO corrigir esse problema!!
             else:
-                if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
-                    tasks_list = list(MNIST_TASK)
-                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.FASHION_MNIST.value['name']:
-                    tasks_list = list(FASHION_MNIST_TASK)
-                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.CELEB_A.value['name']:
-                    tasks_list = list(CELEB_A_TASK)
-                elif self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.CIFAR_10.value['name']:
-                    tasks_list = list(CIFAR_10_TASK)
+                tasks_list = self.config_interp.prop_args['benchmarking']['tasks']
             
             for idx,task in enumerate(tasks_list):
                 print(f'Task: {task.value.upper()}') if verbose else None

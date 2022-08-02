@@ -1,7 +1,6 @@
 
 import matplotlib.pyplot as plt
 
-from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
 class ModelTrainVisualizer:
     def __init__(self, config_interp):
@@ -40,13 +39,13 @@ class ModelTrainVisualizer:
                     ax[1][0].plot(history.history[f'{req.value}_loss'])
                     ax[1][1].plot(history.history[f'val_{req.value}_loss'])
             else:
-                if self.config_interp.benchmark_dataset.value['name'] == BenchmarkDataset.MNIST.value['name']:
-                    for _,cls in enumerate(BenchmarkDataset.MNIST.value['target_cols']):
-                        ax[0][0].plot(history.history[f'{cls}_accuracy'])
-                        ax[0][1].plot(history.history[f'val_{cls}_accuracy'])
+                bench_ds = self.config_interp.benchmark_dataset
+                for _,cls in enumerate(bench_ds.value['target_cols']):
+                    ax[0][0].plot(history.history[f'{cls}_accuracy'])
+                    ax[0][1].plot(history.history[f'val_{cls}_accuracy'])
 
-                        ax[1][0].plot(history.history[f'{cls}_loss'])
-                        ax[1][1].plot(history.history[f'val_{cls}_loss'])
+                    ax[1][0].plot(history.history[f'{cls}_loss'])
+                    ax[1][1].plot(history.history[f'val_{cls}_loss'])
 
 
             ax[1][0].plot(history.history['loss'], color='red', linewidth=2.0) # total loss
@@ -78,15 +77,8 @@ class ModelTrainVisualizer:
             if not self.config_interp.use_benchmark_data:
                 legends = [r.value for r in self.config_interp.prop_args['icao_data']['reqs']]
             else:
-                bench_ds = self.config_interp.benchmark_dataset.name
-                if bench_ds == BenchmarkDataset.MNIST.name:
-                    legends = BenchmarkDataset.MNIST.value['target_cols']
-                elif bench_ds == BenchmarkDataset.FASHION_MNIST.name:
-                    legends = BenchmarkDataset.FASHION_MNIST.value['target_cols']
-                elif bench_ds == BenchmarkDataset.CIFAR_10.name:
-                    legends = BenchmarkDataset.CIFAR_10.value['target_cols']
-                elif bench_ds == BenchmarkDataset.CELEB_A.name:
-                    legends = BenchmarkDataset.CELEB_A.value['target_cols']
+                bench_ds = self.config_interp.benchmark_dataset
+                legends = bench_ds.value['target_cols']
 
             ax[0][0].legend(legends, ncol=4)
             ax[0][1].legend(legends, ncol=4)
