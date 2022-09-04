@@ -9,7 +9,6 @@ from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 from src.nas.gen_nas_controller import GenNASController
 from src.m_utils.constants import SEED
 
-
 class NASController_2(GenNASController):
     def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
         super().__init__(model_trainer, model_evaluator, config_interp, neptune_utils)       
@@ -21,7 +20,8 @@ class NASController_2(GenNASController):
         self.controller_batch_size = self.config_interp.nas_params['controller_batch_size']
         self.controller_epochs = self.config_interp.nas_params['controller_epochs']
 
-        self.input_x = np.array([[[SEED,SEED,SEED,SEED]]])
+        rng = np.random.default_rng(SEED)
+        self.input_x = np.array([[rng.random(4)]])
 
         self.reward = 0
 
@@ -46,7 +46,11 @@ class NASController_2(GenNASController):
 
     
     def __compile_controller_rnn(self):
+        print('   Compiling Controller RNN...')
+
         def __controller_loss(y_true, y_pred):
+            import tensorflow as tf
+            
             if self.baseline is None:
                 #print('baseline is None')
                 self.baseline = 0
@@ -56,32 +60,57 @@ class NASController_2(GenNASController):
             
             #print(f' ..baseline: {self.baseline} | baseline_decay: {self.baseline_decay} | reward: {self.reward}')
             #tf.print(f' ..y_pred: ', y_pred)
+            
             l = y_pred * (self.reward - self.baseline)
             #tf.print(f' ..loss: ', l)
+            
             return l
 
         self.controller_rnn.compile(loss=__controller_loss, optimizer=self.opt)
+
+        print('    ..done!')
 
 
     def __train_controller_rnn(self, targets):
         print(f' .. training controller rnn ..')
         print(f'  .. targets: {targets}')
         self.__compile_controller_rnn()
-        self.controller_rnn.fit(
+        H = self.controller_rnn.fit(
             self.input_x,
             targets,
             epochs=self.controller_epochs,
             batch_size=self.controller_batch_size,
             verbose=0)
         
+        self.__visualize_history(H)
+        
+
+    def __visualize_history(self, history):
+        from matplotlib import pyplot as plt
+
+        f,ax = plt.subplots(1,2, figsize=(10,5))
+        f.suptitle(f'-----Trial Training Result-----')
+
+        ax[1].plot(history.history['loss'])
+        #ax[1].plot(history.history['val_loss'])
+        ax[1].set_title('Model Loss')
+        ax[1].set_ylabel('loss')
+        ax[1].set_xlabel('epoch')
+        ax[1].legend(['train', 'validation'])
+
+        plt.show()
+
+
     
-    def __evaluate_training(self, targets):
-        loss = round(self.controller_rnn.evaluate(self.input_x, targets), 4)
+    def __evaluate_contoller_rnn_training(self, targets):
+        print('Evaluating targets...')
+        loss = round(self.controller_rnn.evaluate(self.input_x, targets), 8)
         print(f'  Loss: {loss}')
 
 
     def __softmax_predict(self, input_x):
-        self.__compile_controller_rnn()
+        print('Softmax predict on new input_x')
+        #self.__compile_controller_rnn()
         return self.controller_rnn.predict(input_x)
 
 
@@ -105,19 +134,27 @@ class NASController_2(GenNASController):
 
 
     def select_config(self):
-        print(' selecting new config...')
+        print(' Selecting new config...')
 
         controller_pred = None        
         if self.memory.is_empty():
             print('  Memory is empty')
+            self.__compile_controller_rnn()
             controller_pred = self.__softmax_predict(self.input_x)
         else:
             print('  Memory is not empty')
-            last_trial_conf = self.memory.get_last_trial().get_config()
-            entry = np.array([[[last_trial_conf['n_denses_0'],last_trial_conf['n_denses_1'],
-                                last_trial_conf['n_denses_2'],last_trial_conf['n_denses_3']]]])
+
+            last_trial = self.memory.get_last_trial()
+            last_trial_conf = last_trial.get_config()
+            last_trial_orig_vals = last_trial.get_orig_vals()
             print(f'  Last Trial Conf: {last_trial_conf}')
+            print(f'  Last Trial Orig Vals: {last_trial_orig_vals}')
+            
+            # entry = np.array([[[last_trial_conf['n_denses_0'],last_trial_conf['n_denses_1'],
+            #                     last_trial_conf['n_denses_2'],last_trial_conf['n_denses_3']]]])
+            entry = np.array([last_trial_orig_vals])
             print(f'  LSTM entry: {entry}')
+            
             controller_pred = self.__softmax_predict(entry)
         
         print(f' controller_pred: {controller_pred}')
@@ -131,6 +168,7 @@ class NASController_2(GenNASController):
         self.cur_trial = self.create_new_trial(trial_num)
         controller_pred, config = self.select_config()
         self.cur_trial.set_config(config)
+        self.cur_trial.set_orig_vals(controller_pred)
             
         final_eval = self.train_child_architecture(train_gen, validation_gen)
 
@@ -139,7 +177,7 @@ class NASController_2(GenNASController):
         self.set_config_eval(final_eval)
 
         self.__train_controller_rnn(controller_pred)
-        self.__evaluate_training(controller_pred)
+        self.__evaluate_contoller_rnn_training(controller_pred)
 
         self.log_trial()
         self.finish_trial()

@@ -32,6 +32,8 @@ class ConfigInterpreter:
         
         self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
 
+        self.tasks = self.prop_args['benchmarking']['tasks'] if self.use_benchmark_data else self.prop_args['icao_data']['reqs']
+
         self.base_model = self.net_args['base_model']
         print('----')
         print('Base Model Name: ', self.base_model)

@@ -45,7 +45,8 @@ class ExperimentRunner:
 
     def produce_fake_data(self):
         print_method_log_sig( 'producing fake data for experimental purposes')
-        faker = FakeDataProducer(self.data_processor.train_data, 
+        faker = FakeDataProducer(self.config_interp,
+                                 self.data_processor.train_data, 
                                  self.data_processor.validation_data,
                                  self.data_processor.test_data)
         faker.produce_data()

@@ -1,3 +1,4 @@
+from src.nas.trial import Trial
 
 
 class Memory:
@@ -17,11 +18,11 @@ class Memory:
         return self.trials
     
 
-    def get_last_trial(self):
+    def get_last_trial(self) -> Trial:
         return self.trials[-1]
     
 
-    def add_trial(self, trial):
+    def add_trial(self, trial: Trial):
         self.trials.append(trial)
     
 
