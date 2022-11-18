@@ -155,7 +155,9 @@ class ExperimentRunner:
             
             for t in range(1,self.config_interp.nas_params['n_trials'] + 1):
                 self.nas_controller.run_nas_trial(t, self.train_gen, self.validation_gen)
+            #self.nas_controller.run_nas(self.train_gen, self.validation_gen)
 
+            #self.nas_controller.get_best_architectures(top=5)
             self.nas_controller.select_best_config()
         else:
             if self.config_interp.use_neptune:
@@ -163,6 +165,18 @@ class ExperimentRunner:
                 self.neptune_utils.get_nas_data(self.config_interp.nas_params['n_trials'])
             else:
                 print(f'Not executing neural architecture search and not using Neptune')
+    
+
+
+    def run_neural_architecture_search_v2(self):
+        print_method_log_sig( 'run neural architecture search' )
+
+        from src.nas.v2.mlpnas import MLPNAS
+        nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
+        nas_object.search()
+
+        from src.nas.v2.utils import get_top_n_architectures
+        get_top_n_architectures(5)
     
     
     def create_model(self, config=None):

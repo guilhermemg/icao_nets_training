@@ -35,6 +35,4 @@ etc/jupyter/jupyter_notebook_config.d/
 **/trained_model.zip
 **/training_curves.png
 
-
-
-
+**/training/LOGS/

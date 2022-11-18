@@ -180,6 +180,7 @@ class ModelTrainer:
                     self.neptune_utils.neptune_run['parameters/n_epochs_fine_tuning'] = epchs
             
             vrb = 0 if running_nas else 1
+            vrb = 1
 
             self.H = self.model.fit(
                     train_gen,
