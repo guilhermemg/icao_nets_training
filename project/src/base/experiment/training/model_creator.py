@@ -108,7 +108,8 @@ class ModelCreator:
         
         n_tasks = None
         if self.config_interp.use_benchmark_data:
-            n_tasks = len(self.config_interp.prop_args['benchmarking']['tasks'])
+            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
+            n_tasks = len(tasks)
         else:
             n_tasks = len(list(ICAO_REQ))
 
@@ -158,7 +159,7 @@ class ModelCreator:
         if not self.config_interp.use_benchmark_data:
             branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['icao_data']['reqs']]
         else:
-            tasks = self.config_interp.prop_args['benchmarking']['tasks']
+            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
             branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in tasks]
         return branches_list
 

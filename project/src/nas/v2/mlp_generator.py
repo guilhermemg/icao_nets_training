@@ -6,23 +6,26 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Flatten, Dense, Dropout
 
 from src.nas.v2.mlp_search_space import MLPSearchSpace
-from src.nas.v2.constants import *
+
 
 class MLPGenerator(MLPSearchSpace):
 
-    def __init__(self):
+    def __init__(self, config_interp):
 
-        self.target_classes = TARGET_CLASSES
-        self.mlp_optimizer = MLP_OPTIMIZER
-        self.mlp_lr = MLP_LEARNING_RATE
-        self.mlp_decay = MLP_DECAY
-        self.mlp_momentum = MLP_MOMENTUM
-        self.mlp_dropout = MLP_DROPOUT
-        self.mlp_loss_func = MLP_LOSS_FUNCTION
-        self.mlp_one_shot = MLP_ONE_SHOT
-        self.metrics = ['accuracy']
+        self.config_interp = config_interp
 
-        super().__init__(TARGET_CLASSES)
+        self.mlp_optimizer  = self.config_interp.mlp_params['mlp_optimizer']
+        self.mlp_lr         = self.config_interp.mlp_params['mlp_learning_rate']
+        self.mlp_decay      = self.config_interp.mlp_params['mlp_decay']
+        self.mlp_momentum   = self.config_interp.mlp_params['mlp_momentum']
+        self.mlp_dropout    = self.config_interp.mlp_params['mlp_dropout']
+        self.mlp_loss_func  = self.config_interp.mlp_params['mlp_loss_function']
+        self.mlp_one_shot   = self.config_interp.mlp_params['mlp_one_shot']
+        self.metrics        = ['accuracy']
+
+        n_tasks = len(self.config_interp.prop_args['benchmarking']['dataset'].value['tasks'])
+
+        super().__init__(n_tasks)
 
 
         if self.mlp_one_shot:

@@ -11,6 +11,10 @@ from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
 from src.configs import config as cfg
 
+from src.nas.v2.mlpnas import MLPNAS
+from src.nas.v2.utils import get_top_n_architectures
+
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 os.environ['NEPTUNE_API_TOKEN'] = cfg.NEPTUNE_API_TOKEN
 os.environ['NEPTUNE_PROJECT'] = cfg.NEPTUNE_PROJECT
@@ -33,8 +37,6 @@ class ExperimentRunner:
         self.model_trainer = ModelTrainer(self.config_interp, self.neptune_utils)
         self.model_evaluator = ModelEvaluator(self.config_interp, self.neptune_utils)
 
-        self.nas_controller = NASControllerFactory.create_controller(self.config_interp, self.model_trainer, self.model_evaluator, self.neptune_utils)
-    
     
     def load_training_data(self):
         print_method_log_sig( 'load training data')
@@ -117,9 +119,10 @@ class ExperimentRunner:
                     'train_validation_test': [x.value.lower() for x in icao_gt['gt_names']['train_validation_test']]
                 })
             elif self.config_interp.use_benchmark_data:
+                dataset = self.config_interp.prop_args['benchmarking']['dataset']
                 props['use_benchmark_data'] = self.config_interp.use_benchmark_data
-                props['benchmark_dataset'] = str(self.config_interp.prop_args['benchmarking']['benchmark_dataset'].name)
-                props['benchmark_tasks'] = str([x.name for x in self.config_interp.prop_args['benchmarking']['tasks']])
+                props['benchmark_dataset'] = str(dataset.name)
+                props['benchmark_tasks'] = str([x.name for x in dataset.value['tasks']])
             elif self.config_interp.use_icao_dl:
                 props['use_icao_dl'] = self.config_interp.use_icao_dl
                 props['dl_names'] = str([dl_n.value for dl_n in self.config_interp.prop_args['dl_names']])
@@ -142,8 +145,10 @@ class ExperimentRunner:
             print('Not using Neptune')
     
 
-    def run_neural_architeture_search(self):
+    def run_neural_architecture_search(self):
         print_method_log_sig( 'run neural architecture search' )
+
+        self.nas_controller = NASControllerFactory.create_controller(self.config_interp, self.model_trainer, self.model_evaluator, self.neptune_utils)
 
         if self.config_interp.use_neptune:
             self.neptune_utils.neptune_run['nas_parameters'] = self.config_interp.nas_params
@@ -155,9 +160,7 @@ class ExperimentRunner:
             
             for t in range(1,self.config_interp.nas_params['n_trials'] + 1):
                 self.nas_controller.run_nas_trial(t, self.train_gen, self.validation_gen)
-            #self.nas_controller.run_nas(self.train_gen, self.validation_gen)
-
-            #self.nas_controller.get_best_architectures(top=5)
+                        
             self.nas_controller.select_best_config()
         else:
             if self.config_interp.use_neptune:
@@ -171,11 +174,9 @@ class ExperimentRunner:
     def run_neural_architecture_search_v2(self):
         print_method_log_sig( 'run neural architecture search' )
 
-        from src.nas.v2.mlpnas import MLPNAS
         nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
         nas_object.search()
 
-        from src.nas.v2.utils import get_top_n_architectures
         get_top_n_architectures(5)
     
     

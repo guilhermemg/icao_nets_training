@@ -87,7 +87,8 @@ class DataProcessor:
 
     def __transform_dtype_int2float(self):
         if self.config_interp.is_mtl_model:
-            for task in self.config_interp.prop_args['benchmarking']['tasks']:
+            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
+            for task in tasks:
                 self.train_data[task.value]      = self.train_data[task.value].astype(float)
                 self.validation_data[task.value] = self.validation_data[task.value].astype(float)
                 self.test_data[task.value]       = self.test_data[task.value].astype(float)

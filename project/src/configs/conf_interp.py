@@ -22,7 +22,10 @@ class ConfigInterpreter:
         self.exp_args = kwargs['exp_params']
         self.prop_args = kwargs['properties']
         self.net_args = kwargs['net_train_params']
+        
         self.nas_params = kwargs['nas_params']
+        self.controller_params = kwargs['controller_params']
+        self.mlp_params = kwargs['mlp_params']
         
         self.__kwargs_sanity_check()
 
@@ -30,9 +33,9 @@ class ConfigInterpreter:
         self.use_icao_dl = self.prop_args['icao_data']['icao_dl']['use_dl_data']
         self.use_benchmark_data = self.prop_args['benchmarking']['use_benchmark_data']
         
-        self.benchmark_dataset = self.prop_args['benchmarking']['benchmark_dataset']
+        self.benchmark_dataset = self.prop_args['benchmarking']['dataset']
 
-        self.tasks = self.prop_args['benchmarking']['tasks'] if self.use_benchmark_data else self.prop_args['icao_data']['reqs']
+        self.tasks = self.benchmark_dataset.value['tasks'] if self.use_benchmark_data else self.prop_args['icao_data']['reqs']
 
         self.base_model = self.net_args['base_model']
         print('----')
@@ -72,6 +75,6 @@ class ConfigInterpreter:
         if self.use_icao_gt:
             return len(self.prop_args['icao_data']['reqs']) > 1
         elif self.use_benchmark_data:
-            return len(self.prop_args['benchmarking']['tasks']) > 1
+            return len(self.prop_args['benchmarking']['dataset'].value['tasks']) > 1
         elif self.use_icao_dl:
             raise NotImplemented('MTL model is not implemented for ICAO DL!')

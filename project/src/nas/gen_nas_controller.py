@@ -10,8 +10,10 @@ class GenNASController(ABC):
     def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
         self.model_trainer = model_trainer
         self.model_evaluator = model_evaluator
+        
         self.config_interp = config_interp
         self.neptune_run = neptune_utils.neptune_run
+        
         self.memory = Memory()
         self.cur_trial = None
 

@@ -20,20 +20,17 @@ from src.base.experiment.training.optimizers import Optimizer
 
 from src.m_utils.mtl_approach import MTLApproach
 from src.m_utils.nas_mtl_approach import NAS_MTLApproach
-from src.base.experiment.tasks.task import ICAO_REQ, MNIST_TASK, CELEB_A_TASK, CIFAR_10_TASK, FASHION_MNIST_TASK
 
 
-
-N_TRIALS = 3
+#N_TRIALS = 3
 NAS_APPROACH = NAS_MTLApproach.APPROACH_2
 NAS_APPROACH_STR = 'nas_approach_2'
-N_CHILD_EPOCHS = 1
-N_CHILD_EPOCHS_STR = '5_child_epochs'
-CONTROLLER_EPOCHS = 50
+#N_CHILD_EPOCHS = 1
+#N_CHILD_EPOCHS_STR = '5_child_epochs'
+#CONTROLLER_EPOCHS = 50
 N_EPOCHS = 3
 
 DATASET = BenchmarkDataset.MNIST
-TASKS = list(MNIST_TASK)
 
 
 kwargs = { 
@@ -41,8 +38,8 @@ kwargs = {
     'exp_params' : {
         'name': 'neural_arch_search',
         #'description': f'{NAS_APPROACH.value} with {DATASET.value["name"].upper()} dataset with {N_TRIALS} trials and patience and {N_CHILD_EPOCHS} child epoch',
-        'description': '',
         #'tags': ['nas', f'{NAS_APPROACH_STR}', 'benchmark', f'{DATASET.value["name"]}', f'{N_CHILD_EPOCHS_STR}'],
+        'description': '',
         'tags': [],
         'src_files': ["../src/**/*.py"]
     },
@@ -50,8 +47,7 @@ kwargs = {
         'approach': NAS_APPROACH,
         'benchmarking': {
             'use_benchmark_data': True,
-            'benchmark_dataset': DATASET,
-            'tasks': TASKS
+            'dataset': DATASET
         },
         'icao_data': {
             'icao_gt': {
@@ -66,7 +62,7 @@ kwargs = {
                 'use_dl_data': False,
                 'tagger_model': None
             },
-            'reqs': list(ICAO_REQ),
+            'reqs': BenchmarkDataset.FVC_ICAO.value['tasks'],
             'aligned': False
         },
         'balance_input_data': False,
@@ -79,7 +75,7 @@ kwargs = {
     },
     'net_train_params': {
         'base_model': BaseModel.MOBILENET_V2,
-        'batch_size': 32,
+        'batch_size': 64,
         'n_epochs': N_EPOCHS,
         'early_stopping': 5,
         'learning_rate': 1e-3,
@@ -87,11 +83,35 @@ kwargs = {
         'dropout': 0.3
     },
     'nas_params': {
-        'max_blocks_per_branch': 5,
-        'n_child_epochs': N_CHILD_EPOCHS,
-        'controller_epochs': CONTROLLER_EPOCHS,
-        'controller_batch_size': 32,
-        'n_trials': N_TRIALS
+        #'max_blocks_per_branch': 5,
+        #'n_child_epochs': N_CHILD_EPOCHS,
+        #'controller_epochs': CONTROLLER_EPOCHS,
+        #'controller_batch_size': 64,
+        #'n_trials': N_TRIALS,
+
+        'controller_sampling_epochs': 2,
+        'samples_per_controller_epochs': 3,
+        'controller_training_epochs': 5,
+        'architecture_training_epochs': 2,
+        'controller_loss_alpha': 0.9
+    },
+    'controller_params': {
+        'controller_lstm_dim': 100,
+        'controller_optimizer': 'Adam',
+        'controller_learning_rate': 0.01,
+        'controller_decay': 0.1,
+        'controller_momentum': 0.0,
+        'controller_use_predictor': False
+    },
+    'mlp_params': {
+        'max_architecture_length': 5,
+        'mlp_optimizer': 'Adam',
+        'mlp_learning_rate': 1e-2,
+        'mlp_decay': 0.0,
+        'mlp_momentum': 0.0,
+        'mlp_dropout': 0.2,
+        'mlp_loss_function': 'categorical_crossentropy',
+        'mlp_one_shot': False
     }
 }
 
@@ -99,7 +119,7 @@ kwargs = {
 runner = ExperimentRunner(**kwargs)
 
 runner.load_training_data()
-runner.produce_fake_data()
+#runner.produce_fake_data()
 runner.setup_data_generators()
 runner.setup_experiment()
 runner.run_neural_architecture_search_v2()

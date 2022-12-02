@@ -6,7 +6,6 @@ from itertools import groupby
 from matplotlib import pyplot as plt
 
 
-from src.nas.v2.constants import *
 from src.nas.v2.mlp_generator import MLPSearchSpace
 
 
@@ -66,11 +65,11 @@ def sort_search_data(nas_data):
 #                EVALUATION AND PLOTS                  #
 ########################################################
 
-def get_top_n_architectures(n):
+def get_top_n_architectures(top_n, n_target_classes):
     data = load_nas_data()
     data = sort_search_data(data)
-    search_space = MLPSearchSpace(TARGET_CLASSES)
-    print('Top {} Architectures:'.format(n))
+    search_space = MLPSearchSpace(n_target_classes)
+    print('Top {} Architectures:'.format(top_n))
     for seq_data in data[:n]:
         print('Architecture', search_space.decode_sequence(seq_data[0]))
         print('Validation Accuracy:', seq_data[1])

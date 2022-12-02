@@ -6,8 +6,6 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 from src.nas.v2.nas_controller_3 import NASController_3
-from src.nas.v2.mlp_generator import MLPGenerator
-from src.nas.v2.constants import *
 from src.nas.v2.utils import *
 
 from src.base.experiment.training.model_trainer import ModelTrainer
@@ -20,38 +18,34 @@ class MLPNAS(NASController_3):
         self.train_gen = train_gen
         self.validation_gen = validation_gen
 
-        self.target_classes = TARGET_CLASSES
-        self.controller_sampling_epochs = CONTROLLER_SAMPLING_EPOCHS
-        self.samples_per_controller_epoch = SAMPLES_PER_CONTROLLER_EPOCH
-        self.controller_train_epochs = CONTROLLER_TRAINING_EPOCHS
-        self.architecture_train_epochs = ARCHITECTURE_TRAINING_EPOCHS
-        self.controller_loss_alpha = CONTROLLER_LOSS_ALPHA
+        self.config_interp = config_interp
+        self.neptune_utils = neptune_utils
+
+        self.controller_sampling_epochs   = self.config_interp.nas_params['controller_sampling_epochs']
+        self.samples_per_controller_epoch = self.config_interp.nas_params['samples_per_controller_epochs']
+        self.controller_train_epochs      = self.config_interp.nas_params['controller_training_epochs']
+        self.architecture_train_epochs    = self.config_interp.nas_params['architecture_training_epochs']
+        self.controller_loss_alpha        = self.config_interp.nas_params['controller_loss_alpha']
 
         self.data = []
         self.nas_data_log = 'LOGS/nas_data.pkl'
         clean_log()
 
-        super().__init__()
+        super().__init__(config_interp)
 
-        #self.model_generator = MLPGenerator()
         self.model_trainer = ModelTrainer(config_interp, neptune_utils)
         self.model_evaluator = ModelEvaluator(config_interp, neptune_utils)
 
         self.controller_batch_size = len(self.data)
-        self.controller_input_shape = (1, MAX_ARCHITECTURE_LENGTH - 1)
+        self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
         self.controller_model = self.create_control_model(self.controller_input_shape)
 
 
     def create_architecture(self, sequence):
-        #if self.target_classes == 2:
-        #    self.model_generator.loss_func = 'binary_crossentropy'
-        #model = self.model_generator.create_model(sequence, np.shape(self.x[0]))
-        #model = self.model_generator.compile_model(model)
         self.model_trainer.create_model(self.train_gen, sequence, running_nas=True)
 
 
     def train_architecture(self):
-        #history = self.model_generator.train_model(model, self.train_gen, self.validation_gen, self.architecture_train_epochs)
         self.model_trainer.train_model(self.train_gen, self.validation_gen, n_epochs=self.architecture_train_epochs, running_nas=True, fine_tuned=False)
 
 

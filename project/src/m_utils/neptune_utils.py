@@ -34,8 +34,9 @@ class NeptuneUtils:
         prev_run_ds = prev_run['properties/benchmark_dataset'].fetch()
         prev_run_tasks = prev_run['properties/benchmark_tasks'].fetch()
 
-        cur_run_ds = str(self.config_interp.prop_args['benchmarking']['benchmark_dataset'].name)
-        cur_run_tasks = str([x.name for x in self.config_interp.prop_args['benchmarking']['tasks']])
+        dataset = self.config_interp.prop_args['benchmarking']['dataset']
+        cur_run_ds = str(dataset.name)
+        cur_run_tasks = str([x.name for x in dataset.value['tasks']])
 
         print(f' ...Prev Exp | Dataset: {prev_run_ds}')
         print(f' ...Prev Exp | Tasks: {prev_run_tasks}')

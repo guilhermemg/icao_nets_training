@@ -7,26 +7,28 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-
-from src.nas.v2.constants import *
 from src.nas.v2.mlp_search_space import MLPSearchSpace
 
 
 class NASController_3(MLPSearchSpace):
-    def __init__(self):        
-        self.max_len = MAX_ARCHITECTURE_LENGTH
-        self.controller_lstm_dim = CONTROLLER_LSTM_DIM
-        self.controller_optimizer = CONTROLLER_OPTIMIZER
-        self.controller_lr = CONTROLLER_LEARNING_RATE
-        self.controller_decay = CONTROLLER_DECAY
-        self.controller_momentum = CONTROLLER_MOMENTUM
-        self.use_predictor = CONTROLLER_USE_PREDICTOR
+    def __init__(self, config_interp):        
+        self.config_interp = config_interp
+
+        self.max_len                = self.config_interp.mlp_params['max_architecture_length']
+        self.controller_lstm_dim    = self.config_interp.controller_params['controller_lstm_dim']
+        self.controller_optimizer   = self.config_interp.controller_params['controller_optimizer']
+        self.controller_lr          = self.config_interp.controller_params['controller_learning_rate']
+        self.controller_decay       = self.config_interp.controller_params['controller_decay']
+        self.controller_momentum    = self.config_interp.controller_params['controller_momentum']
+        self.use_predictor          = self.config_interp.controller_params['controller_use_predictor']
 
         self.controller_weights_path = 'LOGS/controller_weights.h5'
 
         self.seq_data = []
 
-        super().__init__(TARGET_CLASSES)
+        n_tasks = len(self.config_interp.prop_args['benchmarking']['dataset'].value['tasks'])
+
+        super().__init__(n_tasks)
 
         self.controller_classes = len(self.vocab) + 1
 
