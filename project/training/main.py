@@ -23,14 +23,14 @@ from src.m_utils.nas_mtl_approach import NAS_MTLApproach
 
 
 #N_TRIALS = 3
-NAS_APPROACH = NAS_MTLApproach.APPROACH_2
-NAS_APPROACH_STR = 'nas_approach_2'
+#NAS_APPROACH = NAS_MTLApproach.APPROACH_2
+#NAS_APPROACH_STR = 'nas_approach_2'
 #N_CHILD_EPOCHS = 1
 #N_CHILD_EPOCHS_STR = '5_child_epochs'
 #CONTROLLER_EPOCHS = 50
-N_EPOCHS = 3
+#N_EPOCHS = 3
 
-DATASET = BenchmarkDataset.MNIST
+#DATASET = BenchmarkDataset.MNIST
 
 
 kwargs = { 
@@ -44,10 +44,10 @@ kwargs = {
         'src_files': ["../src/**/*.py"]
     },
     'properties': {
-        'approach': NAS_APPROACH,
+        'approach': NAS_MTLApproach.APPROACH_2,
         'benchmarking': {
             'use_benchmark_data': True,
-            'dataset': DATASET
+            'dataset': BenchmarkDataset.MNIST
         },
         'icao_data': {
             'icao_gt': {
@@ -73,15 +73,6 @@ kwargs = {
         'sample_training_data': False,
         'sample_prop': 1.0
     },
-    'net_train_params': {
-        'base_model': BaseModel.MOBILENET_V2,
-        'batch_size': 64,
-        'n_epochs': N_EPOCHS,
-        'early_stopping': 5,
-        'learning_rate': 1e-3,
-        'optimizer': Optimizer.ADAMAX,
-        'dropout': 0.3
-    },
     'nas_params': {
         #'max_blocks_per_branch': 5,
         #'n_child_epochs': N_CHILD_EPOCHS,
@@ -105,7 +96,11 @@ kwargs = {
     },
     'mlp_params': {
         'max_architecture_length': 5,
-        'mlp_optimizer': 'Adam',
+        'mlp_base_model': BaseModel.MOBILENET_V2,
+        'mlp_n_epochs': 3,
+        'mlp_batch_size': 64,
+        'mlp_early_stopping': 5,
+        'mlp_optimizer': Optimizer.ADAM,
         'mlp_learning_rate': 1e-2,
         'mlp_decay': 0.0,
         'mlp_momentum': 0.0,

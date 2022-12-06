@@ -21,11 +21,11 @@ class ConfigInterpreter:
         
         self.exp_args = kwargs['exp_params']
         self.prop_args = kwargs['properties']
-        self.net_args = kwargs['net_train_params']
         
+        self.mlp_params = kwargs['mlp_params']
+
         self.nas_params = kwargs['nas_params']
         self.controller_params = kwargs['controller_params']
-        self.mlp_params = kwargs['mlp_params']
         
         self.__kwargs_sanity_check()
 
@@ -37,7 +37,7 @@ class ConfigInterpreter:
 
         self.tasks = self.benchmark_dataset.value['tasks'] if self.use_benchmark_data else self.prop_args['icao_data']['reqs']
 
-        self.base_model = self.net_args['base_model']
+        self.base_model = self.mlp_params['mlp_base_model']
         print('----')
         print('Base Model Name: ', self.base_model)
         print('----')

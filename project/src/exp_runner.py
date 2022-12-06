@@ -100,7 +100,7 @@ class ExperimentRunner:
         if self.config_interp.use_neptune:
             print('Setup neptune properties and parameters')
 
-            params = self.config_interp.net_args
+            params = self.config_interp.mlp_params
             params['n_train'] = self.train_gen.n
             params['n_validation'] = self.validation_gen.n
             params['n_test'] = self.test_gen.n

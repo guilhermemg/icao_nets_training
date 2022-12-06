@@ -40,20 +40,20 @@ class ModelCreator:
 
     def __get_optimizer(self):
         opt = None
-        if self.config_interp.net_args['optimizer'].name == Optimizer.ADAM.name:
-            opt = Adam(learning_rate=self.config_interp.net_args['learning_rate'], decay=self.config_interp.net_args['learning_rate'] / self.config_interp.net_args['n_epochs'])
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAM_CUST.name:
-            opt = Adam(learning_rate=self.config_interp.net_args['learning_rate'])
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.SGD.name:
-            opt = SGD(learning_rate=self.config_interp.net_args['learning_rate'])
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.SGD_NESTEROV.name:
-            opt = SGD(learning_rate=self.config_interp.net_args['learning_rate'], nesterov=True)
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAGRAD.name:
-            opt = Adagrad(learning_rate=self.config_interp.net_args['learning_rate'])
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADAMAX.name:
-            opt = Adamax(learning_rate=self.config_interp.net_args['learning_rate'])
-        elif self.config_interp.net_args['optimizer'].name == Optimizer.ADADELTA.name:
-            opt = Adadelta(learning_rate=self.config_interp.net_args['learning_rate'])
+        if self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.ADAM.name:
+            opt = Adam(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'], decay=self.config_interp.mlp_params['mlp_learning_rate'] / self.config_interp.mlp_params['mlp_n_epochs'])
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.ADAM_CUST.name:
+            opt = Adam(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'])
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.SGD.name:
+            opt = SGD(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'])
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.SGD_NESTEROV.name:
+            opt = SGD(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'], nesterov=True)
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.ADAGRAD.name:
+            opt = Adagrad(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'])
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.ADAMAX.name:
+            opt = Adamax(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'])
+        elif self.config_interp.mlp_params['mlp_optimizer'].name == Optimizer.ADADELTA.name:
+            opt = Adadelta(learning_rate=self.config_interp.mlp_params['mlp_learning_rate'])
         return opt
 
 
@@ -125,7 +125,7 @@ class ModelCreator:
     
     def __create_branch_1(self, prev_layer, req_name, n_out, initializer):
         y = Dense(64, activation='relu', kernel_initializer=initializer)(prev_layer)
-        y = Dropout(self.config_interp.net_args['dropout'])(y)
+        y = Dropout(self.config_interp.mlp_params['mlp_dropout'])(y)
         y = Dense(n_out, activation='softmax', name=req_name, kernel_initializer=initializer)(y)
         return y
     
@@ -172,9 +172,9 @@ class ModelCreator:
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)
         x = Dense(256, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.config_interp.net_args['dropout'])(x)
+        x = Dropout(self.config_interp.mlp_params['mlp_dropout'])(x)
         x = Dense(128, activation='relu', kernel_initializer=initializer)(x)
-        x = Dropout(self.config_interp.net_args['dropout'])(x)
+        x = Dropout(self.config_interp.mlp_params['mlp_dropout'])(x)
         
         branches_list = self.__create_branches_list_mtl_model(initializer, x)
         

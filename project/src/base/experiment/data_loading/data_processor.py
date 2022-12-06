@@ -215,7 +215,7 @@ class DataProcessor:
                                                 y_col=_y_col,
                                                 target_size=base_model.value['target_size'],
                                                 class_mode=_class_mode,
-                                                batch_size=self.config_interp.net_args['batch_size'], 
+                                                batch_size=self.config_interp.mlp_params['mlp_batch_size'], 
                                                 shuffle=True,
                                                 seed=SEED)
 
@@ -224,7 +224,7 @@ class DataProcessor:
                                                 y_col=_y_col,
                                                 target_size=base_model.value['target_size'],
                                                 class_mode=_class_mode,
-                                                batch_size=self.config_interp.net_args['batch_size'],
+                                                batch_size=self.config_interp.mlp_params['mlp_batch_size'],
                                                 shuffle=False)
 
         self.test_gen = test_datagen.flow_from_dataframe(self.test_data,
@@ -232,7 +232,7 @@ class DataProcessor:
                                                y_col=_y_col,
                                                target_size=base_model.value['target_size'],
                                                class_mode=_class_mode,
-                                               batch_size=self.config_interp.net_args['batch_size'],
+                                               batch_size=self.config_interp.mlp_params['mlp_batch_size'],
                                                shuffle=False)
 
         print(f'TOTAL: {self.train_gen.n + self.validation_gen.n + self.test_gen.n}')

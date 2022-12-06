@@ -354,7 +354,7 @@ class ModelEvaluator:
         
         print('Predicting labels....')
         data_gen.reset()
-        predIdxs = model.predict(data_gen, batch_size=self.config_interp.net_args['batch_size'], verbose=1)
+        predIdxs = model.predict(data_gen, batch_size=self.config_interp.mlp_params['mlp_batch_size'], verbose=1)
         print('Prediction finished!')
         
         evaluations = []
