@@ -98,24 +98,41 @@ class MLPNAS(NASController_3):
 
 
     def get_discounted_reward(self, rewards):
+        # initialise discounted reward array
         discounted_r = np.zeros_like(rewards, dtype=np.float32)
+
+        # every element in the discounted reward array
         for t in range(len(rewards)):
             running_add = 0.
             exp = 0.
+
+            # will need us to iterate over all rewards from t to T
             for r in rewards[t:]:
                 running_add += self.controller_loss_alpha**exp * r
                 exp += 1
+            
+            # add values to the discounted reward array
             discounted_r[t] = running_add
+
+        # normalize discounted reward array    
         discounted_r = (discounted_r - discounted_r.mean()) / discounted_r.std()
+
         return discounted_r
 
 
+    # loss function based on discounted reward for policy gradients
     def custom_loss(self, target, output):
+        # define baseline for rewards and subtract it from all validation accuracies to get reward.
         baseline = 0.5
         reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
             self.samples_per_controller_epoch, 1)
+        
+        # get discounted reward
         discounted_reward = self.get_discounted_reward(reward)
+
+        # multiply discounted reward by log likelihood of actions to get loss function
         loss = - K.log(output) * discounted_reward[:, None]
+
         return loss
 
 

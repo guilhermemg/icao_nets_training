@@ -118,28 +118,51 @@ class NASController_3(MLPSearchSpace):
         print("GENERATING ARCHITECTURE SAMPLES...")
         print('------------------------------------------------------')
         print(f'Number of samples: {number_of_samples}')
+
+        # while number of architectures sampled is less than required
         while len(samples) < number_of_samples:
+            
+            # initialise the empty list for architecture sequence
             seed = []
+
+            # while len of generated sequence is less than maximum architecture length
             while len(seed) < self.max_len:
+
+                # pad sequence for correctly shaped input for controller
                 sequence = pad_sequences([seed], maxlen=self.max_len-1, padding='post')
                 sequence = sequence.reshape(1, 1, self.max_len-1)
+                
+                # given the previous elements, get softmax distribution for the next element
                 if self.use_predictor:
                     (probab, _) = model.predict(sequence)
                 else:
                     probab = model.predict(sequence)
                 
                 probab = probab[0][0]
+
+                # sample the next element randomly given the probability of next elements (the softmax distribution)
                 next = np.random.choice(vocab_idx, size=1, p=probab)[0]
+                
+                # first layer is not final layer
                 if next == final_layer_id and len(seed) == 0:
                     continue
+
+                # if final layer, but not the correct sized architecture, continue
                 if next == final_layer_id and len(seed) <= self.max_len:
                     continue
+
+                # if final layer, break out of inner loop
                 if next == final_layer_id:
                     seed.append(next)
                     break
+
+                # if sequence length is 1 less than maximum, add final
+                # layer and break out of inner loop
                 if len(seed) == self.max_len - 1:
                     seed.append(final_layer_id)
                     break
+
+                # ignore padding
                 if not next == 0:
                     seed.append(next)
 
