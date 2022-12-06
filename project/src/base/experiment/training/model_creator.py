@@ -30,7 +30,7 @@ from src.base.experiment.training.base_models import BaseModel
 from src.base.experiment.training.optimizers import Optimizer
 from src.base.experiment.training.custom_base_model import CustomBaseModel
 
-from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
+from src.base.experiment.dataset.dataset import Dataset
 
 
 class ModelCreator:
@@ -193,22 +193,22 @@ class ModelCreator:
                                     ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
             tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
         elif self.config_interp.use_benchmark_data:
-            if self.config_interp.benchmark_dataset.name == BenchmarkDataset.MNIST.name:
+            if self.config_interp.benchmark_dataset.name == Dataset.MNIST.name:
                 tasks_groups['g0'] = [MNIST_TASK.N_0]
                 tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
                 tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
                 tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CIFAR_10.name:
+            elif self.config_interp.benchmark_dataset.name == Dataset.CIFAR_10.name:
                 tasks_groups['g0'] = list(CIFAR_10_TASK)[0:2]
                 tasks_groups['g1'] = list(CIFAR_10_TASK)[2:4]
                 tasks_groups['g2'] = list(CIFAR_10_TASK)[4:7]
                 tasks_groups['g3'] = list(CIFAR_10_TASK)[7:10]
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.FASHION_MNIST.name:
+            elif self.config_interp.benchmark_dataset.name == Dataset.FASHION_MNIST.name:
                 tasks_groups['g0'] = list(FASHION_MNIST_TASK)[0:2]
                 tasks_groups['g1'] = list(FASHION_MNIST_TASK)[2:4]
                 tasks_groups['g2'] = list(FASHION_MNIST_TASK)[4:7]
                 tasks_groups['g3'] = list(FASHION_MNIST_TASK)[7:10]
-            elif self.config_interp.benchmark_dataset.name == BenchmarkDataset.CELEB_A.name:
+            elif self.config_interp.benchmark_dataset.name == Dataset.CELEB_A.name:
                 tasks_groups['g0'] = list(CELEB_A_TASK)[0:10]
                 tasks_groups['g1'] = list(CELEB_A_TASK)[10:20]
                 tasks_groups['g2'] = list(CELEB_A_TASK)[20:30]

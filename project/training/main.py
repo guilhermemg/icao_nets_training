@@ -13,7 +13,7 @@ from src.base.data_loaders.data_loader import DLName
 from src.base.gt_loaders.gt_names import GTName
 from src.exp_runner import ExperimentRunner
 
-from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
+from src.base.experiment.dataset.dataset import Dataset
 from src.base.experiment.evaluation.model_evaluator import DataSource, DataPredSelection
 from src.base.experiment.training.base_models import BaseModel
 from src.base.experiment.training.optimizers import Optimizer
@@ -30,7 +30,7 @@ from src.m_utils.nas_mtl_approach import NAS_MTLApproach
 #CONTROLLER_EPOCHS = 50
 #N_EPOCHS = 3
 
-#DATASET = BenchmarkDataset.MNIST
+#DATASET = Dataset.MNIST
 
 
 kwargs = { 
@@ -47,7 +47,7 @@ kwargs = {
         'approach': NAS_MTLApproach.APPROACH_2,
         'benchmarking': {
             'use_benchmark_data': True,
-            'dataset': BenchmarkDataset.MNIST
+            'dataset': Dataset.MNIST
         },
         'icao_data': {
             'icao_gt': {
@@ -62,7 +62,7 @@ kwargs = {
                 'use_dl_data': False,
                 'tagger_model': None
             },
-            'reqs': BenchmarkDataset.FVC_ICAO.value['tasks'],
+            'reqs': Dataset.FVC_ICAO.value['tasks'],
             'aligned': False
         },
         'balance_input_data': False,

@@ -26,12 +26,7 @@ from tensorflow.keras.preprocessing.image import load_img
 from src.base.experiment.evaluation.eval import Eval 
 from src.m_utils import draw_utils as dr
 from src.m_utils.constants import SEED
-from src.base.experiment.tasks.task import MNIST_TASK
-from src.base.experiment.tasks.task import FASHION_MNIST_TASK
-from src.base.experiment.tasks.task import CELEB_A_TASK
-from src.base.experiment.tasks.task import CIFAR_10_TASK
 from src.base.experiment.tasks.task import ICAO_REQ
-from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
 
 
 class DataSource(Enum):

@@ -39,7 +39,7 @@ kwargs = {
         # caso for testar com dados de benchmark (MNIST, CIFAR-10, etc)        
         'benchmarking': {
             'use_benchmark_data': False,
-            'benchmark_dataset': BenchmarkDataset.MNIST,
+            'benchmark_dataset': Dataset.MNIST,
             'tasks': list(MNIST_TASK)
         },
 
