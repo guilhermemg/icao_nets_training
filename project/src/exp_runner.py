@@ -7,12 +7,10 @@ from src.base.experiment.evaluation.model_evaluator import ModelEvaluator, DataS
 from src.base.experiment.data_loading.fake_data_producer import FakeDataProducer
 from src.m_utils.neptune_utils import NeptuneUtils
 from src.nas.nas_controller_factory import NASControllerFactory
+from src.nas.v2.mlpnas import MLPNAS
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
 from src.configs import config as cfg
-
-from src.nas.v2.mlpnas import MLPNAS
-from src.nas.v2.utils import get_top_n_architectures
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
@@ -176,8 +174,7 @@ class ExperimentRunner:
 
         nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
         nas_object.search()
-
-        get_top_n_architectures(5)
+        nas_object.get_top_n_architectures(5)
     
     
     def create_model(self, config=None):

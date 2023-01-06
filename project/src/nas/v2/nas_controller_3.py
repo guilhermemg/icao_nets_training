@@ -15,6 +15,7 @@ class NASController_3(MLPSearchSpace):
         self.config_interp = config_interp
 
         self.max_len                = self.config_interp.mlp_params['max_architecture_length']
+        self.min_task_group_size    = self.config_interp.mlp_params['min_task_group_size']
         self.controller_lstm_dim    = self.config_interp.controller_params['controller_lstm_dim']
         self.controller_optimizer   = self.config_interp.controller_params['controller_optimizer']
         self.controller_lr          = self.config_interp.controller_params['controller_learning_rate']
@@ -26,14 +27,16 @@ class NASController_3(MLPSearchSpace):
 
         self.seq_data = []
 
-        n_tasks = len(self.config_interp.prop_args['benchmarking']['dataset'].value['tasks'])
+        dataset = self.config_interp.prop_args['benchmarking']['dataset']
+        
+        self.n_tasks = len(dataset.value['tasks'])
 
-        super().__init__(n_tasks)
+        super().__init__(dataset, self.min_task_group_size)
 
         self.controller_classes = len(self.vocab) + 1
 
    
-    def sample_architecture_sequences_BAK(self, model, number_of_samples):
+    def sample_architecture_sequences(self, model, number_of_samples):
         final_layer_id = len(self.vocab)
         dropout_id = final_layer_id - 1
         vocab_idx = [0] + list(self.vocab.keys())
@@ -63,9 +66,11 @@ class NASController_3(MLPSearchSpace):
                     break
                 if not next == 0:
                     seed.append(next)
-            if seed not in self.seq_data:
+            
+            if self.__check_sequence_validity(seed):
                 samples.append(seed)
                 self.seq_data.append(seed)
+
         return samples
 
 
@@ -104,14 +109,38 @@ class NASController_3(MLPSearchSpace):
         # return samples
 
     
-    def __check_sequence_validity(self, sequence):
+    def __check_sequence_validity_BAK(self, sequence):
         decoded_seq = self.decode_sequence(sequence)
-        if len(set(decoded_seq.keys())) < 4:
+        
+        n_groups = len(set([x for x in decoded_seq.keys() if 'g' in x]))
+        n_denses = len([x for x in decoded_seq.keys() if 'n_denses' in x])
+
+        print(f' .Decoded seq: {decoded_seq}')
+        if n_groups != n_denses:
+            print(f' ..invalid sequence: tasks group set size ({n_groups}) != n_denses set size ({n_denses})!')
             return False
+        
+        n_different_tasks = len(set([x for x in decoded_seq.values() if type(x) == type(tuple)]))
+        if n_different_tasks != self.n_tasks:
+            print(f' ..invalid sequence: architecture does not contain all tasks: {n_different_tasks} != {self.n_tasks}!')
+            return False
+        
+        print('  ..valid sequence!')
+        return True
+    
+
+    def __check_sequence_validity(self, sequence):
+        print(f'Sequence: {sequence}')
+        decoded_seq = self.decode_sequence(sequence)
+        print(f' .Decoded seq: {decoded_seq}')
+        if len(set(decoded_seq.keys())) < 4:
+            print(' ..invalid sequence: less than 4 task groups!')
+            return False
+        print('  ..valid sequence!')
         return True
 
 
-    def sample_architecture_sequences(self, model, number_of_samples):
+    def sample_architecture_sequences_BAK(self, model, number_of_samples):
         final_layer_id = len(self.vocab)
         vocab_idx = [0] + list(self.vocab.keys())
         samples = []

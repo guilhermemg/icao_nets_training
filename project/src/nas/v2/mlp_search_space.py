@@ -1,28 +1,15 @@
+import itertools
 
 
 class MLPSearchSpace(object):
 
-    def __init__(self, target_classes):
-        self.target_classes = target_classes
+    def __init__(self, dataset, min_task_group_size):
+        self.dataset = dataset
+        self.tasks = self.dataset.value['tasks']
+        
+        self.min_task_group_size = min_task_group_size
+
         self.vocab = self.vocab_dict()
-
-
-    def vocab_dict_BAK(self):
-        nodes = [8, 16, 32, 64, 128, 256, 512]
-        act_funcs = ['sigmoid', 'tanh', 'relu', 'elu']
-        layer_params = []
-        layer_id = []
-        for i in range(len(nodes)):
-            for j in range(len(act_funcs)):
-                layer_params.append((nodes[i], act_funcs[j]))
-                layer_id.append(len(act_funcs) * i + j + 1)
-        vocab = dict(zip(layer_id, layer_params))
-        vocab[len(vocab) + 1] = (('dropout'))
-        if self.target_classes == 2:
-            vocab[len(vocab) + 1] = (self.target_classes - 1, 'sigmoid')
-        else:
-            vocab[len(vocab) + 1] = (self.target_classes, 'softmax')
-        return vocab
     
 
     def vocab_dict(self):
@@ -35,6 +22,34 @@ class MLPSearchSpace(object):
                 layers_params.append((layers[j], list_n_fcs[i]))
                 layer_id.append(len(layers) * i + j + 1)
         vocab = dict(zip(layer_id, layers_params))
+        return vocab
+
+
+    def vocab_dict_BAK(self):
+        def subsets(nums):
+            result = []
+            for i in range(len(nums) + 1):
+                result += itertools.combinations(nums, i)
+            return result
+
+        list_n_fcs = [1,2,3,4,5]
+        tasks = self.tasks
+        tasks_groups_list = subsets(tasks)
+        tasks_groups_list = [x for x in tasks_groups_list if len(x) >= self.min_task_group_size]
+        
+        tasks_groups_params = []
+        tasks_groups_id = []
+        
+        for i in range(len(list_n_fcs)):
+            for j in range(len(tasks_groups_list)):
+                tasks_groups_params.append((f'g{j}', tasks_groups_list[j]))
+                tasks_groups_params.append((f'n_denses_{j}', list_n_fcs[i]))
+                tasks_groups_id.append(len(tasks_groups_list) * i + j + 1)
+        
+        vocab = dict(zip(tasks_groups_id, tasks_groups_params))
+        
+        print(f'Vocab Size: {len(vocab)}')
+
         return vocab
 
 

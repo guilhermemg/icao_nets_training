@@ -90,10 +90,14 @@ class MLPNAS(NASController_3):
 
 
     def prepare_controller_data(self, sequences):
+        print('Preparing controller data...')
         controller_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post')
         xc = controller_sequences[:, :-1].reshape(len(controller_sequences), 1, self.max_len - 1)
         yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
         val_acc_target = [item[1] for item in self.data]
+        print(f'xc.shape: {xc.shape}')
+        print(f'yc.shape: {yc.shape}')
+        print(f'val_acc_target.shape: {len(val_acc_target)}')
         return xc, yc, val_acc_target
 
 
@@ -163,10 +167,10 @@ class MLPNAS(NASController_3):
             if self.use_predictor:
                 pred_accuracies = self.get_predicted_accuracies_hybrid_model(self.controller_model, sequences)
             for i, sequence in enumerate(sequences):
-                arch = self.decode_sequence(sequence)
-                print(f' -- Architecture Number {i}: {arch}')
+                decoded_arch_seq = self.decode_sequence(sequence)
+                print(f' -- Architecture Number {i}: {decoded_arch_seq}')
                 print(f' -- Sequence: {sequence}')
-                self.create_architecture(arch)
+                self.create_architecture(decoded_arch_seq)
                 self.train_architecture()
                 final_eval = self.evaluate_architecture()
                 if self.use_predictor:
@@ -185,3 +189,19 @@ class MLPNAS(NASController_3):
         log_event()
         
         return self.data
+
+
+    def __sort_search_data(self, nas_data):
+        val_accs = [item[1] for item in nas_data]
+        sorted_idx = np.argsort(val_accs)[::-1]
+        nas_data = [nas_data[x] for x in sorted_idx]
+        return nas_data
+
+    
+    def get_top_n_architectures(self, top_n=5):
+        data = self.__sort_search_data(self.data)
+        search_space = MLPSearchSpace(self.dataset, self.min_task_group_size)
+        print('Top {} Architectures:'.format(top_n))
+        for seq_data in data[:top_n]:
+            print('Architecture', search_space.decode_sequence(seq_data[0]))
+            print('Validation Accuracy:', seq_data[1])

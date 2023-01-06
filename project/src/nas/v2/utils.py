@@ -15,6 +15,8 @@ from src.nas.v2.mlp_generator import MLPSearchSpace
 
 
 def clean_log():
+    if not os.path.exists('LOGS'):
+        os.mkdir('LOGS')
     filelist = os.listdir('LOGS')
     for file in filelist:
         if os.path.isfile('LOGS/{}'.format(file)):
@@ -65,12 +67,12 @@ def sort_search_data(nas_data):
 #                EVALUATION AND PLOTS                  #
 ########################################################
 
-def get_top_n_architectures(top_n, n_target_classes):
+def get_top_n_architectures(top_n, n_target_classes, min_task_group_size):
     data = load_nas_data()
     data = sort_search_data(data)
-    search_space = MLPSearchSpace(n_target_classes)
+    search_space = MLPSearchSpace(n_target_classes, min_task_group_size)
     print('Top {} Architectures:'.format(top_n))
-    for seq_data in data[:n]:
+    for seq_data in data[:top_n]:
         print('Architecture', search_space.decode_sequence(seq_data[0]))
         print('Validation Accuracy:', seq_data[1])
 

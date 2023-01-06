@@ -292,6 +292,32 @@ class ModelCreator:
         return baseModel, model
 
 
+    def __create_nas_mtl_model_2(self, config):
+        baseModel = self.__create_base_model()
+        
+        x = baseModel.output
+        x = GlobalAveragePooling2D()(x)
+        
+        tasks_groups = self.__get_tasks_groups(config)
+        
+        br_lists = []
+        for t_group in tasks_groups:
+            br_list = [self.__create_fcs_block(x, config['n_denses'], t.value) for t in t_group]
+            br_lists.append(br_list)
+
+        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], t.value) for t in tasks_groups['g0']]
+        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], t.value) for t in tasks_groups['g1']]
+        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], t.value) for t in tasks_groups['g2']]
+        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], t.value) for t in tasks_groups['g3']]
+        
+        out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
+        
+        model = self.__compile_mtl_model(baseModel.input, out_branches_list)
+
+        return baseModel, model
+
+
+
     def create_model(self, train_gen=None, config=None):
         if not self.config_interp.is_mtl_model:
             return self.create_stl_model(train_gen)
@@ -305,3 +331,5 @@ class ModelCreator:
             elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
                     self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
                 return self.__create_nas_mtl_model_1(config)
+            elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_3.value:
+                return self.__create_nas_mtl_model_2(config)

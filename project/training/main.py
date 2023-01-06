@@ -96,6 +96,7 @@ kwargs = {
     },
     'mlp_params': {
         'max_architecture_length': 5,
+        'min_task_group_size': 3,
         'mlp_base_model': BaseModel.MOBILENET_V2,
         'mlp_n_epochs': 3,
         'mlp_batch_size': 64,
@@ -114,7 +115,7 @@ kwargs = {
 runner = ExperimentRunner(**kwargs)
 
 runner.load_training_data()
-#runner.produce_fake_data()
+runner.produce_fake_data()
 runner.setup_data_generators()
 runner.setup_experiment()
 runner.run_neural_architecture_search_v2()
