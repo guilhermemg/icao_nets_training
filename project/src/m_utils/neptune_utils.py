@@ -267,3 +267,10 @@ class NeptuneUtils:
             raise e
         finally:
             prev_run.stop()
+    
+
+    def log_top_architectures_found(self, top_archs_list):
+        print('Logging top architectures found..')
+        for i,arch in enumerate(top_archs_list):
+            self.neptune_run[f'nas/top_architectures/{i}'] = arch
+        print(' .. done!')

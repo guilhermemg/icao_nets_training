@@ -202,6 +202,12 @@ class MLPNAS(NASController_3):
         data = self.__sort_search_data(self.data)
         search_space = MLPSearchSpace(self.dataset, self.min_task_group_size)
         print('Top {} Architectures:'.format(top_n))
+        best_archs = []
         for seq_data in data[:top_n]:
-            print('Architecture', search_space.decode_sequence(seq_data[0]))
-            print('Validation Accuracy:', seq_data[1])
+            decoded_arch = search_space.decode_sequence(seq_data[0])
+            arch_val_acc = seq_data[1]
+            print('Architecture', decoded_arch)
+            print('Validation Accuracy:', arch_val_acc)
+            best_archs.append({'Decoded architecture': decoded_arch, 'Validation accuracy': arch_val_acc})
+        return best_archs
+

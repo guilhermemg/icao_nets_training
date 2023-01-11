@@ -34,13 +34,13 @@ from src.m_utils.nas_mtl_approach import NAS_MTLApproach
 
 
 kwargs = { 
-    'use_neptune': False,
+    'use_neptune': True,
     'exp_params' : {
         'name': 'neural_arch_search',
         #'description': f'{NAS_APPROACH.value} with {DATASET.value["name"].upper()} dataset with {N_TRIALS} trials and patience and {N_CHILD_EPOCHS} child epoch',
         #'tags': ['nas', f'{NAS_APPROACH_STR}', 'benchmark', f'{DATASET.value["name"]}', f'{N_CHILD_EPOCHS_STR}'],
-        'description': '',
-        'tags': [],
+        'description': 'test',
+        'tags': ['test'],
         'src_files': ["../src/**/*.py"]
     },
     'properties': {

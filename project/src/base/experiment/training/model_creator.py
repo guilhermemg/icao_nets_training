@@ -298,12 +298,12 @@ class ModelCreator:
         x = baseModel.output
         x = GlobalAveragePooling2D()(x)
         
-        tasks_groups = self.__get_tasks_groups(config)
+        tasks_groups = self.__get_tasks_groups()
         
-        br_lists = []
-        for t_group in tasks_groups:
-            br_list = [self.__create_fcs_block(x, config['n_denses'], t.value) for t in t_group]
-            br_lists.append(br_list)
+        #br_lists = []
+        #for t_group in tasks_groups:
+            #br_list = [self.__create_fcs_block(x, config[f'n_denses'], t.value) for t in t_group]
+            #br_lists.append(br_list)
 
         br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], t.value) for t in tasks_groups['g0']]
         br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], t.value) for t in tasks_groups['g1']]

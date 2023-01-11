@@ -96,7 +96,7 @@ class ExperimentRunner:
     def setup_experiment(self):
         print_method_log_sig( 'create experiment')
         if self.config_interp.use_neptune:
-            print('Setup neptune properties and parameters')
+            print('Setting up neptune experiment')
 
             params = self.config_interp.mlp_params
             params['n_train'] = self.train_gen.n
@@ -135,10 +135,12 @@ class ExperimentRunner:
             props['is_mtl_model'] = self.config_interp.is_mtl_model
             props['approach'] = self.config_interp.prop_args['approach']
             
-            self.neptune_utils.neptune_run['parameters'] = params
             self.neptune_utils.neptune_run['properties'] = props
+            self.neptune_utils.neptune_run['mlp_params'] = params
+            self.neptune_utils.neptune_run['nas_params'] = self.config_interp.nas_params
+            self.neptune_utils.neptune_run['controller_params'] = self.config_interp.controller_params
             
-            print('Properties and parameters setup done!')
+            print('Neptune experiment setup done!')
         else:
             print('Not using Neptune')
     
@@ -174,18 +176,25 @@ class ExperimentRunner:
 
         nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
         nas_object.search()
-        nas_object.get_top_n_architectures(5)
+
+        print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
+        best_archs_list = nas_object.get_top_n_architectures(5)
+        print('----------------------------------------------------------------\n\n')
+
+        self.neptune_utils.log_top_architectures_found(best_archs_list)
+
+        return best_archs_list
     
     
     def create_model(self, config=None):
         print_method_log_sig( 'create model')
-        if self.config_interp.is_nas_mtl_model:
-            if self.config_interp.exec_nas:
-                self.model_trainer.create_model(self.train_gen, config=self.nas_controller.best_config)
-            else:
-                self.model_trainer.create_model(self.train_gen, config=config)
-        else:
-            self.model_trainer.create_model(self.train_gen)
+        #if self.config_interp.is_nas_mtl_model:
+            #if self.config_interp.exec_nas:
+            #    self.model_trainer.create_model(self.train_gen, config=config)
+            #else:
+        self.model_trainer.create_model(self.train_gen, config=config)
+        #else:
+        #    self.model_trainer.create_model(self.train_gen)
     
     
     def visualize_model(self, outfile_path):
