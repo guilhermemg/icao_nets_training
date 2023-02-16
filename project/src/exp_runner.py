@@ -181,7 +181,9 @@ class ExperimentRunner:
         best_archs_list = nas_object.get_top_n_architectures(5)
         print('----------------------------------------------------------------\n\n')
 
-        self.neptune_utils.log_top_architectures_found(best_archs_list)
+        if self.config_interp.use_neptune:
+            self.neptune_utils.log_top_architectures_found(best_archs_list)
+            self.neptune_utils.log_nas_data()
 
         return best_archs_list
     

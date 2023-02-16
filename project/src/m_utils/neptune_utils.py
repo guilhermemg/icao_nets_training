@@ -2,9 +2,13 @@ import os
 import shutil
 import zipfile
 
+import pandas as pd
+
 import neptune.new as neptune
+from neptune.new.types import File
 
 from src.m_utils.utils import print_method_log_sig
+from src.nas.v2.utils import load_nas_data, sort_search_data
 
 class NeptuneUtils:
     def __init__(self, config_interp):
@@ -274,3 +278,9 @@ class NeptuneUtils:
         for i,arch in enumerate(top_archs_list):
             self.neptune_run[f'nas/top_architectures/{i}'] = arch
         print(' .. done!')
+
+
+    def log_nas_data(self):
+        nas_data = load_nas_data()
+        nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy'])
+        self.neptune_run['nas/search_data'].upload(File.as_html(nas_data))
