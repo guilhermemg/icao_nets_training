@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 from src.nas.v2.mlp_search_space import MLPSearchSpace
-
+from src.base.experiment.training.optimizers import Optimizer
 
 class NASController_3(MLPSearchSpace):
     def __init__(self, config_interp):        
@@ -212,10 +212,12 @@ class NASController_3(MLPSearchSpace):
 
 
     def train_control_model(self, model, x_data, y_data, loss_func, controller_batch_size, nb_epochs):
-        if self.controller_optimizer == 'sgd':
+        if self.controller_optimizer.name == Optimizer.SGD.name:
             optim = optimizers.SGD(learning_rate=self.controller_lr, decay=self.controller_decay, momentum=self.controller_momentum, clipnorm=1.0)
+        elif self.controller_optimizer.name == Optimizer.SGD_NESTEROV.name:
+            optim = optimizers.SGD(learning_rate=self.controller_lr, decay=self.controller_decay, momentum=self.controller_momentum, nesterov=True, clipnorm=1.0)
         else:
-            optim = getattr(optimizers, self.controller_optimizer)(learning_rate=self.controller_lr, decay=self.controller_decay, clipnorm=1.0)
+            optim = getattr(optimizers, self.controller_optimizer.value)(learning_rate=self.controller_lr, decay=self.controller_decay, clipnorm=1.0)
         
         model.compile(optimizer=optim, loss={'main_output': loss_func})
         

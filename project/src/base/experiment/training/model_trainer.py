@@ -177,7 +177,7 @@ class ModelTrainer:
             else:
                 epchs = n_epochs
                 if self.config_interp.use_neptune:
-                    self.neptune_utils.neptune_run['parameters/n_epochs_fine_tuning'] = epchs
+                    self.neptune_utils.neptune_run['mlp_params/n_epochs_fine_tuning'] = epchs
             
             vrb = 0 if running_nas else 1
             #vrb = 1

@@ -6,7 +6,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Flatten, Dense, Dropout
 
 from src.nas.v2.mlp_search_space import MLPSearchSpace
-
+from src.base.experiment.training.optimizers import Optimizer
 
 class MLPGenerator(MLPSearchSpace):
 
@@ -58,11 +58,17 @@ class MLPGenerator(MLPSearchSpace):
 
 
     def compile_model(self, model):
-        if self.mlp_optimizer == 'sgd':
+        if self.mlp_optimizer.name == Optimizer.SGD.name:
             optim = optimizers.SGD(lr=self.mlp_lr, decay=self.mlp_decay, momentum=self.mlp_momentum)
+        elif self.mlp_optimizer == Optimizer.SGD_NESTEROV.name:
+            optim = optimizers.SGD(lr=self.mlp_lr, decay=self.mlp_decay, momentum=self.mlp_momentum, nesterov=True)
         else:
-            optim = getattr(optimizers, self.mlp_optimizer)(lr=self.mlp_lr, decay=self.mlp_decay)
+            optim = getattr(optimizers, self.mlp_optimizer.value)(lr=self.mlp_lr, decay=self.mlp_decay)
+
+        print('Used optimizer: ', optim)
+
         model.compile(loss=self.mlp_loss_func, optimizer=optim, metrics=self.metrics)
+        
         return model
 
 

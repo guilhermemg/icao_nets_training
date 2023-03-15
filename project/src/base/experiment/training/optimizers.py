@@ -11,3 +11,4 @@ class Optimizer(Enum):
     ADAGRAD = 'Adagrad'
     ADAGRAD_CUST = 'AdagradCustomized'
     ADADELTA = 'Adadelta'
+    RMS_PROP = 'RMSprop'

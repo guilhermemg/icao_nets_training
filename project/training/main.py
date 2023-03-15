@@ -106,7 +106,7 @@ kwargs = {
         'mlp_decay': 0.0,
         'mlp_momentum': 0.0,
         'mlp_dropout': 0.2,
-        'mlp_loss_function': 'categorical_crossentropy',
+        'mlp_loss_function': 'sparse_categorical_crossentropy',
         'mlp_one_shot': False
     }
 }

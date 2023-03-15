@@ -1,3 +1,5 @@
+from src.base.experiment.training.optimizers import Optimizer
+
 ########################################################
 #                   NAS PARAMETERS                     #
 ########################################################
@@ -11,7 +13,7 @@ CONTROLLER_LOSS_ALPHA = 0.9
 #               CONTROLLER PARAMETERS                  #
 ########################################################
 CONTROLLER_LSTM_DIM = 100
-CONTROLLER_OPTIMIZER = 'Adam'
+CONTROLLER_OPTIMIZER = Optimizer.ADAM
 CONTROLLER_LEARNING_RATE = 0.01
 CONTROLLER_DECAY = 0.1
 CONTROLLER_MOMENTUM = 0.0
@@ -21,7 +23,7 @@ CONTROLLER_USE_PREDICTOR = False
 #                   MLP PARAMETERS                     #
 ########################################################
 MAX_ARCHITECTURE_LENGTH = 5
-MLP_OPTIMIZER = 'Adam'
+MLP_OPTIMIZER = Optimizer.ADAMAX
 MLP_LEARNING_RATE = 0.01
 MLP_DECAY = 0.0
 MLP_MOMENTUM = 0.0
