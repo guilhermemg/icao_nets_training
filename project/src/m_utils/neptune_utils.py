@@ -282,5 +282,8 @@ class NeptuneUtils:
 
     def log_nas_data(self):
         nas_data = load_nas_data()
-        nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy'])
+        if not self.config_interp.controller_params['controller_use_predictor']:
+            nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy'])
+        else:
+            nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy','Predicted accuracy'])
         self.neptune_run['nas/search_data'].upload(File.as_html(nas_data))

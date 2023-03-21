@@ -38,7 +38,12 @@ class MLPNAS(NASController_3):
 
         self.controller_batch_size = len(self.data)
         self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
-        self.controller_model = self.create_control_model(self.controller_input_shape)
+        self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
+        
+        if not self.controller_use_predictor:
+            self.controller_model = self.create_control_model(self.controller_input_shape)
+        else:
+            self.controller_model = self.create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
 
 
     def create_architecture(self, sequence):
@@ -142,13 +147,13 @@ class MLPNAS(NASController_3):
 
     def train_controller(self, model, x, y, pred_accuracy=None):
         if self.use_predictor:
-            self.train_hybrid_model(model,
-                                    x,
-                                    y,
-                                    pred_accuracy,
-                                    self.custom_loss,
-                                    len(self.data),
-                                    self.controller_train_epochs)
+            self.train_hybrid_control_model(model,
+                                            x,
+                                            y,
+                                            pred_accuracy,
+                                            self.custom_loss,
+                                            len(self.data),
+                                            self.controller_train_epochs)
         else:
             self.train_control_model(model,
                                      x,
@@ -164,15 +169,21 @@ class MLPNAS(NASController_3):
             print('                       CONTROLLER EPOCH: {}'.format(controller_epoch))
             print('------------------------------------------------------------------')
             sequences = self.sample_architecture_sequences(self.controller_model, self.samples_per_controller_epoch)
+            
             if self.use_predictor:
                 pred_accuracies = self.get_predicted_accuracies_hybrid_model(self.controller_model, sequences)
+                print('Predicted accuracies: ', pred_accuracies)
+            
             for i, sequence in enumerate(sequences):
                 decoded_arch_seq = self.decode_sequence(sequence)
+                
                 print(f' -- Architecture Number {i}: {decoded_arch_seq}')
                 print(f' -- Sequence: {sequence}')
+                
                 self.create_architecture(decoded_arch_seq)
                 self.train_architecture()
                 final_eval = self.evaluate_architecture()
+                
                 if self.use_predictor:
                     self.append_model_metrics(sequence, final_eval, pred_accuracies[i])
                 else:
