@@ -1,6 +1,7 @@
 
 import matplotlib.pyplot as plt
 
+from src.base.experiment.dataset.dataset import Dataset
 
 class ModelTrainVisualizer:
     def __init__(self, config_interp):
@@ -31,22 +32,12 @@ class ModelTrainVisualizer:
             f,ax = plt.subplots(2,2, figsize=(20,25))
             f.suptitle(f'-----{self.config_interp.base_model.name}-----')
 
-            if not self.config_interp.use_benchmark_data:
-                for _,req in enumerate(self.config_interp.prop_args['icao_data']['reqs']):
-                    ax[0][0].plot(history.history[f'{req.value}_accuracy'])
-                    ax[0][1].plot(history.history[f'val_{req.value}_accuracy'])
+            for task in self.config_interp.tasks:
+                ax[0][0].plot(history.history[f'{task.value}_accuracy'])
+                ax[0][1].plot(history.history[f'val_{task.value}_accuracy'])
 
-                    ax[1][0].plot(history.history[f'{req.value}_loss'])
-                    ax[1][1].plot(history.history[f'val_{req.value}_loss'])
-            else:
-                bench_ds = self.config_interp.benchmark_dataset
-                for _,cls in enumerate(bench_ds.value['target_cols']):
-                    ax[0][0].plot(history.history[f'{cls}_accuracy'])
-                    ax[0][1].plot(history.history[f'val_{cls}_accuracy'])
-
-                    ax[1][0].plot(history.history[f'{cls}_loss'])
-                    ax[1][1].plot(history.history[f'val_{cls}_loss'])
-
+                ax[1][0].plot(history.history[f'{task.value}_loss'])
+                ax[1][1].plot(history.history[f'val_{task.value}_loss'])
 
             ax[1][0].plot(history.history['loss'], color='red', linewidth=2.0) # total loss
 
@@ -73,12 +64,7 @@ class ModelTrainVisualizer:
             ax[1][0].set_ylim([0,1.5])
             ax[1][1].set_ylim([0,1.5])
 
-            legends = None
-            if not self.config_interp.use_benchmark_data:
-                legends = [r.value for r in self.config_interp.prop_args['icao_data']['reqs']]
-            else:
-                bench_ds = self.config_interp.benchmark_dataset
-                legends = bench_ds.value['target_cols']
+            legends = self.config_interp.dataset.value['target_cols']
 
             ax[0][0].legend(legends, ncol=4)
             ax[0][1].legend(legends, ncol=4)

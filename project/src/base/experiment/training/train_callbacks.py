@@ -24,11 +24,7 @@ class CallbacksHandler:
             train_loss_list = []
             val_loss_list = []
 
-            tasks_list = None
-            if self.config_interp.use_benchmark_data:
-                tasks_list = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
-            elif self.config_interp.use_icao_gt:
-                tasks_list = self.config_interp.prop_args['icao_data']['reqs']
+            tasks_list = self.config_interp.tasks
 
             for task in tasks_list:
                 task_acc = logs[f'{task.value}_accuracy']

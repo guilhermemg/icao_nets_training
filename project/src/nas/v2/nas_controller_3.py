@@ -27,11 +27,9 @@ class NASController_3(MLPSearchSpace):
 
         self.seq_data = []
 
-        dataset = self.config_interp.prop_args['benchmarking']['dataset']
-        
-        self.n_tasks = len(dataset.value['tasks'])
+        self.n_tasks = len(self.config_interp.tasks)
 
-        super().__init__(dataset, self.min_task_group_size)
+        super().__init__(self.config_interp.dataset, self.min_task_group_size)
 
         self.controller_classes = len(self.vocab) + 1
 

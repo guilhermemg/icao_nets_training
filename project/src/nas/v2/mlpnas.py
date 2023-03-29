@@ -1,6 +1,8 @@
 import pickle
 import numpy as np
 
+from typing import List, Dict
+
 import tensorflow.keras.backend as K
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -209,7 +211,7 @@ class MLPNAS(NASController_3):
         return nas_data
 
     
-    def get_top_n_architectures(self, top_n=5):
+    def get_top_n_architectures(self, top_n=5) -> List[Dict]:
         data = self.__sort_search_data(self.data)
         search_space = MLPSearchSpace(self.dataset, self.min_task_group_size)
         print('Top {} Architectures:'.format(top_n))

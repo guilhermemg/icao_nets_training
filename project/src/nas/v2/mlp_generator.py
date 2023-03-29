@@ -23,7 +23,7 @@ class MLPGenerator(MLPSearchSpace):
         self.mlp_one_shot   = self.config_interp.mlp_params['mlp_one_shot']
         self.metrics        = ['accuracy']
 
-        n_tasks = len(self.config_interp.prop_args['benchmarking']['dataset'].value['tasks'])
+        n_tasks = len(self.config_interp.tasks)
 
         super().__init__(n_tasks)
 
@@ -42,7 +42,7 @@ class MLPGenerator(MLPSearchSpace):
         if len(mlp_input_shape) > 1:
             model.add(Flatten(name='flatten', input_shape=mlp_input_shape))
             for i, layer_conf in enumerate(layer_configs):
-                if layer_conf is 'dropout':
+                if layer_conf == 'dropout':
                     model.add(Dropout(self.mlp_dropout, name='dropout'))
                 else:
                     model.add(Dense(units=layer_conf[0], activation=layer_conf[1]))
@@ -50,7 +50,7 @@ class MLPGenerator(MLPSearchSpace):
             for i, layer_conf in enumerate(layer_configs):
                 if i == 0:
                     model.add(Dense(units=layer_conf[0], activation=layer_conf[1], input_shape=mlp_input_shape))
-                elif layer_conf is 'dropout':
+                elif layer_conf == 'dropout':
                     model.add(Dropout(self.mlp_dropout, name='dropout'))
                 else:
                     model.add(Dense(units=layer_conf[0], activation=layer_conf[1]))

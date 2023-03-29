@@ -23,6 +23,7 @@ from src.base.experiment.tasks.task import CELEB_A_TASK, CIFAR_10_TASK, FASHION_
 from src.base.experiment.tasks.task import ICAO_REQ
 
 from src.m_utils.constants import SEED
+from src.m_utils.stl_approach import STLApproach
 from src.m_utils.mtl_approach import MTLApproach
 from src.m_utils.nas_mtl_approach import NAS_MTLApproach
 
@@ -106,12 +107,7 @@ class ModelCreator:
     def __compile_mtl_model(self, input_layer, output_layers):
         model = Model(inputs=input_layer, outputs=output_layers)
         
-        n_tasks = None
-        if self.config_interp.use_benchmark_data:
-            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
-            n_tasks = len(tasks)
-        else:
-            n_tasks = len(list(ICAO_REQ))
+        n_tasks = len(self.config_interp.tasks)
 
         opt = self.__get_optimizer()
         loss_list = ['sparse_categorical_crossentropy' for _ in range(n_tasks)]
@@ -155,13 +151,7 @@ class ModelCreator:
     
 
     def __create_branches_list_mtl_model(self, initializer, x):
-        branches_list = None
-        if not self.config_interp.use_benchmark_data:
-            branches_list = [self.__create_branch_1(x, req.value, 2, initializer) for req in self.config_interp.prop_args['icao_data']['reqs']]
-        else:
-            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
-            branches_list = [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in tasks]
-        return branches_list
+        return [self.__create_branch_1(x, f'{t.value}', 2, initializer) for t in self.config_interp.tasks]
 
     
     def __create_mtl_model_1(self):
@@ -185,38 +175,36 @@ class ModelCreator:
     
     def __get_tasks_groups(self):
         tasks_groups = {'g0':[], 'g1':[], 'g2':[], 'g3':[]}
-        if self.config_interp.use_icao_gt:
+        if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:
             tasks_groups['g0'] = [ICAO_REQ.BACKGROUND, ICAO_REQ.CLOSE, ICAO_REQ.INK_MARK, ICAO_REQ.PIXELATION,
                                     ICAO_REQ.WASHED_OUT, ICAO_REQ.BLURRED, ICAO_REQ.SHADOW_HEAD]
             tasks_groups['g1'] = [ICAO_REQ.MOUTH, ICAO_REQ.VEIL]
             tasks_groups['g2'] = [ICAO_REQ.RED_EYES, ICAO_REQ.FLASH_LENSES, ICAO_REQ.DARK_GLASSES, ICAO_REQ.L_AWAY, ICAO_REQ.FRAME_EYES,
                                     ICAO_REQ.HAIR_EYES, ICAO_REQ.EYES_CLOSED, ICAO_REQ.FRAMES_HEAVY]
             tasks_groups['g3'] = [ICAO_REQ.SHADOW_FACE, ICAO_REQ.SKIN_TONE, ICAO_REQ.LIGHT, ICAO_REQ.HAT, ICAO_REQ.ROTATION, ICAO_REQ.REFLECTION]
-        elif self.config_interp.use_benchmark_data:
-            if self.config_interp.benchmark_dataset.name == Dataset.MNIST.name:
-                tasks_groups['g0'] = [MNIST_TASK.N_0]
-                tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
-                tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
-                tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
-            elif self.config_interp.benchmark_dataset.name == Dataset.CIFAR_10.name:
-                tasks_groups['g0'] = list(CIFAR_10_TASK)[0:2]
-                tasks_groups['g1'] = list(CIFAR_10_TASK)[2:4]
-                tasks_groups['g2'] = list(CIFAR_10_TASK)[4:7]
-                tasks_groups['g3'] = list(CIFAR_10_TASK)[7:10]
-            elif self.config_interp.benchmark_dataset.name == Dataset.FASHION_MNIST.name:
-                tasks_groups['g0'] = list(FASHION_MNIST_TASK)[0:2]
-                tasks_groups['g1'] = list(FASHION_MNIST_TASK)[2:4]
-                tasks_groups['g2'] = list(FASHION_MNIST_TASK)[4:7]
-                tasks_groups['g3'] = list(FASHION_MNIST_TASK)[7:10]
-            elif self.config_interp.benchmark_dataset.name == Dataset.CELEB_A.name:
-                tasks_groups['g0'] = list(CELEB_A_TASK)[0:10]
-                tasks_groups['g1'] = list(CELEB_A_TASK)[10:20]
-                tasks_groups['g2'] = list(CELEB_A_TASK)[20:30]
-                tasks_groups['g3'] = list(CELEB_A_TASK)[30:42]
-            else:
-                raise NotImplemented()
+        elif self.config_interp.dataset.name == Dataset.MNIST.name:
+            tasks_groups['g0'] = [MNIST_TASK.N_0]
+            tasks_groups['g1'] = [MNIST_TASK.N_1, MNIST_TASK.N_7, MNIST_TASK.N_4]
+            tasks_groups['g2'] = [MNIST_TASK.N_2, MNIST_TASK.N_3]
+            tasks_groups['g3'] = [MNIST_TASK.N_5, MNIST_TASK.N_6, MNIST_TASK.N_8, MNIST_TASK.N_9]
+        elif self.config_interp.dataset.name == Dataset.CIFAR_10.name:
+            tasks_groups['g0'] = list(CIFAR_10_TASK)[0:2]
+            tasks_groups['g1'] = list(CIFAR_10_TASK)[2:4]
+            tasks_groups['g2'] = list(CIFAR_10_TASK)[4:7]
+            tasks_groups['g3'] = list(CIFAR_10_TASK)[7:10]
+        elif self.config_interp.dataset.name == Dataset.FASHION_MNIST.name:
+            tasks_groups['g0'] = list(FASHION_MNIST_TASK)[0:2]
+            tasks_groups['g1'] = list(FASHION_MNIST_TASK)[2:4]
+            tasks_groups['g2'] = list(FASHION_MNIST_TASK)[4:7]
+            tasks_groups['g3'] = list(FASHION_MNIST_TASK)[7:10]
+        elif self.config_interp.dataset.name == Dataset.CELEB_A.name:
+            tasks_groups['g0'] = list(CELEB_A_TASK)[0:10]
+            tasks_groups['g1'] = list(CELEB_A_TASK)[10:20]
+            tasks_groups['g2'] = list(CELEB_A_TASK)[20:30]
+            tasks_groups['g3'] = list(CELEB_A_TASK)[30:42]
         else:
             raise NotImplemented()
+        
         return tasks_groups
 
 
@@ -319,17 +307,16 @@ class ModelCreator:
 
 
     def create_model(self, train_gen=None, config=None):
-        if not self.config_interp.is_mtl_model:
+        if self.config_interp.approach.value == STLApproach.STL.value:
             return self.create_stl_model(train_gen)
-        else:
-            if self.config_interp.approach.value == MTLApproach.HAND_1.value:
-                return self.__create_mtl_model_1()
-            elif self.config_interp.approach.value == MTLApproach.HAND_2.value:
-                return self.__create_mtl_model_2()
-            elif self.config_interp.approach.value == MTLApproach.HAND_3.value:
-                return self.__create_mtl_model_3()
-            elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
-                    self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
-                return self.__create_nas_mtl_model_1(config)
-            elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_3.value:
-                return self.__create_nas_mtl_model_2(config)
+        elif self.config_interp.approach.value == MTLApproach.HAND_1.value:
+            return self.__create_mtl_model_1()
+        elif self.config_interp.approach.value == MTLApproach.HAND_2.value:
+            return self.__create_mtl_model_2()
+        elif self.config_interp.approach.value == MTLApproach.HAND_3.value:
+            return self.__create_mtl_model_3()
+        elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
+                self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
+            return self.__create_nas_mtl_model_1(config)
+        elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_3.value:
+            return self.__create_nas_mtl_model_2(config)

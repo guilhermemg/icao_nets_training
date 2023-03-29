@@ -1,14 +1,18 @@
 import os
 import pandas as pd
 
+from neptune.new.types import File
+
+from typing import List
+
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
+from src.base.experiment.dataset.dataset import Dataset
 from src.base.experiment.evaluation.eval import Eval
-from src.base.data_loaders.data_loader import DLName
-from src.base.net_data_loaders.net_data_loader import NetDataLoader
+from src.base.experiment.tasks.task import TASK
 from src.base.net_data_loaders.net_gt_loader import NetGTLoader
 from src.m_utils.constants import SEED, BASE_PATH
-
+from src.base.gt_loaders.gt_names import GTName
 
 class DataProcessor:
     def __init__(self, config_interp, neptune_utils):
@@ -19,75 +23,33 @@ class DataProcessor:
 
 
     def __load_gt_data(self):
-        icao_data = self.config_interp.prop_args['icao_data']
-        aligned, reqs, icao_gt = icao_data['aligned'], icao_data['reqs'], icao_data['icao_gt']
-        is_many_datasets = len(icao_gt['gt_names']['train_validation_test']) == 0
-        if is_many_datasets:
-            trainNetGtLoader = NetGTLoader(aligned, 
-                                           reqs, 
-                                           icao_gt['gt_names']['train_validation'], 
-                                           self.config_interp.is_mtl_model)
-                
-            self.train_data = trainNetGtLoader.load_gt_data(split='train')
-            self.validation_data = trainNetGtLoader.load_gt_data(split='validation')
-                
-            print(f'TrainData.shape: {self.train_data.shape}')
-
-            testNetGtLoader = NetGTLoader(aligned, 
-                                          reqs, 
-                                          icao_gt['gt_names']['test'], 
-                                          self.config_interp.is_mtl_model)
-                
-            self.test_data = testNetGtLoader.load_gt_data(split='test')
-                
-            print(f'TestData.shape: {self.test_data.shape}')
-                
-        else:
-            netGtLoader = NetGTLoader(aligned, 
-                                      reqs, 
-                                      icao_gt['gt_names']['train_validation_test'], 
-                                      self.config_interp.is_mtl_model)
-                
-            self.train_data = netGtLoader.load_gt_data(split='train')
-            self.validation_data = netGtLoader.load_gt_data(split='validation')
-            self.test_data = netGtLoader.load_gt_data(split='test')
-
-
-    def __load_dl_data(self):
-        icao_data = self.config_interp.prop_args['icao_data']['icao_dl']
-        netTrainDataLoader = NetDataLoader(icao_data['tagger_model'], 
-                                           icao_data['reqs'], 
-                                           icao_data['dl_names'], 
-                                           icao_data['aligned'], 
-                                           self.config_interp.is_mtl_model)
-        self.train_data = netTrainDataLoader.load_data()
-        print(f'TrainData.shape: {self.train_data.shape}')
+        tasks: List[TASK] = self.config_interp.tasks
+        aligned = False
+        
+        netGtLoader = NetGTLoader(aligned, 
+                                  tasks, 
+                                  [GTName.FVC], 
+                                  self.config_interp.is_mtl_model)
             
-        test_dataset = DLName.COLOR_FERET
-        netTestDataLoader = NetDataLoader(icao_data['tagger_model'], 
-                                          icao_data['reqs'], 
-                                          [test_dataset], 
-                                          icao_data['aligned'], 
-                                          self.config_interp.is_mtl_model)
-        self.test_data = netTestDataLoader.load_data()
-        print(f'Test Dataset: {test_dataset.name.upper()}')
-        print(f'TestData.shape: {self.test_data.shape}')
+        self.train_data = netGtLoader.load_gt_data(split='train')
+        self.validation_data = netGtLoader.load_gt_data(split='validation')
+        self.test_data = netGtLoader.load_gt_data(split='test')
 
 
     def __load_benchmark_data(self):
-        self.train_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'train_data.csv'))
+        self.train_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.dataset.value['name'], 'train_data.csv'))
         print(f'TrainData.shape: {self.train_data.shape}')
 
-        self.validation_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'valid_data.csv'))
+        self.validation_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.dataset.value['name'], 'valid_data.csv'))
         print(f'ValidationData.shape: {self.validation_data.shape}')
 
-        self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.benchmark_dataset.value['name'], 'test_data.csv'))
+        self.test_data = pd.read_csv(os.path.join(BASE_PATH, self.config_interp.dataset.value['name'], 'test_data.csv'))
         print(f'TestData.shape: {self.test_data.shape}')
 
 
     def __transform_dtype_int2float(self):
         if self.config_interp.is_mtl_model:
-            tasks = self.config_interp.prop_args['benchmarking']['dataset'].value['tasks']
+            tasks = self.config_interp.tasks
             for task in tasks:
                 self.train_data[task.value]      = self.train_data[task.value].astype(float)
                 self.validation_data[task.value] = self.validation_data[task.value].astype(float)
@@ -97,14 +59,11 @@ class DataProcessor:
     def load_training_data(self):
         print('Loading data')
 
-        if self.config_interp.use_benchmark_data:
+        if self.config_interp.dataset.name != Dataset.FVC_ICAO.name:
             self.__load_benchmark_data()
             self.__transform_dtype_int2float()
         else:
-            if self.config_interp.prop_args['icao_data']['icao_gt']['use_gt_data']:
-                self.__load_gt_data()               
-            else:
-                self.__load_dl_data()
+            self.__load_gt_data()
         
         print('Data loaded')  
 
@@ -159,12 +118,12 @@ class DataProcessor:
     
     def __setup_fvc_class_mode(self):
         _class_mode, _y_col = None, None
-        reqs = self.config_interp.prop_args['icao_data']['reqs']
+        tasks = self.config_interp.tasks
         if self.config_interp.is_mtl_model:  
-            _y_col = [req.value for req in reqs]
+            _y_col = [t.value for t in tasks]
             _class_mode = 'multi_output'
         else: 
-            _y_col = reqs[0].value
+            _y_col = tasks[0].value
             _class_mode = 'categorical'
         return _class_mode,_y_col
 
@@ -172,7 +131,7 @@ class DataProcessor:
     def __setup_benchmark_class_mode(self):
         _class_mode, _y_col = None, None
         if self.config_interp.is_mtl_model:  
-            _y_col = [col for col in self.config_interp.benchmark_dataset.value['target_cols']]
+            _y_col = [col for col in self.config_interp.dataset.value['target_cols']]
             _class_mode = 'multi_output'
         else:    
             raise NotImplemented()
@@ -181,7 +140,7 @@ class DataProcessor:
 
     def __setup_data_generators(self, base_model):
         train_datagen = None
-        if not self.config_interp.use_benchmark_data:
+        if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:
             train_datagen = ImageDataGenerator(preprocessing_function=base_model.value['prep_function'], 
                                         horizontal_flip=True,
                                         #rotation_range=20,
@@ -204,7 +163,7 @@ class DataProcessor:
         
         train_datagen, validation_datagen, test_datagen,  = self.__setup_data_generators(base_model)
 
-        if not self.config_interp.use_benchmark_data:    
+        if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:    
             _class_mode, _y_col = self.__setup_fvc_class_mode()
         else:
             _class_mode, _y_col = self.__setup_benchmark_class_mode()
@@ -266,7 +225,7 @@ class DataProcessor:
     
     def __log_class_labels(self):
         print('')
-        if not self.config_interp.use_benchmark_data:
+        if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:
             print('Logging class labels')
             
             print(f' COMPLIANT label: {Eval.COMPLIANT.value}')
@@ -284,153 +243,81 @@ class DataProcessor:
         else:
             print('Using benchmarking dataset. Not logging class labels!')
     
-    
-    def summary_labels_dist(self):
+
+    def get_summary(self, orig_df):
+        df = pd.DataFrame()
+
         comp_val = Eval.COMPLIANT.value if self.config_interp.is_mtl_model else str(Eval.COMPLIANT.value)
         non_comp_val = Eval.NON_COMPLIANT.value if self.config_interp.is_mtl_model else str(Eval.NON_COMPLIANT.value)
         dummy_val = Eval.DUMMY_CLS.value if self.config_interp.is_mtl_model else str(Eval.DUMMY_CLS.value)
+
+        for col in orig_df.columns:
+            total = orig_df.shape[0]
+
+            n_comp = orig_df[orig_df[col] == comp_val].shape[0]
+            n_comp_perc = round(n_comp / total * 100, 2)
+            
+            n_non_comp = orig_df[orig_df[col] == non_comp_val].shape[0]
+            n_non_comp_perc = round(n_non_comp / total * 100, 2)
+            
+            n_dummy = orig_df[orig_df[col] == dummy_val].shape[0]
+            n_dummy_perc = round(n_dummy / total * 100, 2)
+
+            total_comp_n_comp_dummy = n_comp + n_non_comp + n_dummy
+            total_perc = n_comp_perc + n_non_comp_perc
+            
+            aux_df = pd.DataFrame.from_dict({'task':[col], 
+                                            'n_comp':[n_comp], 
+                                            'n_comp_perc':[n_comp_perc],
+                                            'n_non_comp':[n_non_comp],
+                                            'n_non_comp_perc':[n_non_comp_perc],
+                                            'n_dummy':[n_dummy],
+                                            'n_dummy_perc':[n_dummy_perc],
+                                            'total_comp_n_comp_dummy':[total_comp_n_comp_dummy],
+                                            'total_perc':[total_perc]})
+            df = pd.concat([df,aux_df],ignore_index=True)
         
-        if not self.config_interp.use_benchmark_data:
-            for req in self.config_interp.prop_args['icao_data']['reqs']:
-                print(f'Requisite: {req.value.upper()}')
-                
-                total_train = self.train_data.shape[0]
-                n_train_comp = self.train_data[self.train_data[req.value] == comp_val].shape[0]
-                n_train_not_comp = self.train_data[self.train_data[req.value] == non_comp_val].shape[0]
-                n_train_dummy = self.train_data[self.train_data[req.value] == dummy_val].shape[0]
-                
-                prop_n_train_comp = round((n_train_comp/total_train)*100,2)
-                prop_n_train_not_comp = round((n_train_not_comp/total_train)*100,2)
-                prop_n_train_dummy = round((n_train_dummy/total_train)*100,2)
-                
-                print(f'N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
-                print(f'N_TRAIN_NOT_COMP: {n_train_not_comp} ({prop_n_train_not_comp}%)')
-                print(f'N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
-                
-                total_validation = self.validation_data.shape[0]
-                n_validation_comp = self.validation_data[self.validation_data[req.value] == comp_val].shape[0]
-                n_validation_not_comp = self.validation_data[self.validation_data[req.value] == non_comp_val].shape[0]
-                n_validation_dummy = self.validation_data[self.validation_data[req.value] == dummy_val].shape[0]
+        df = df[df['task'].isin(x.value for x in self.config_interp.tasks)]
 
-                prop_n_validation_comp = round(n_validation_comp/total_validation*100,2)
-                prop_n_validation_not_comp = round(n_validation_not_comp/total_validation*100,2)
-                prop_n_validation_dummy = round(n_validation_dummy/total_validation*100,2)
-                
-                print(f'N_VALIDATION_COMP: {n_validation_comp} ({prop_n_validation_comp}%)')
-                print(f'N_VALIDATION_NOT_COMP: {n_validation_not_comp} ({prop_n_validation_not_comp}%)')
-                print(f'N_VALIDATION_DUMMY: {n_validation_dummy} ({prop_n_validation_dummy}%)')
-                
-                total_test = self.test_data.shape[0]
-                n_test_comp = self.test_data[self.test_data[req.value] == comp_val].shape[0]
-                n_test_not_comp = self.test_data[self.test_data[req.value] == non_comp_val].shape[0]
-                n_test_dummy = self.test_data[self.test_data[req.value] == dummy_val].shape[0]
+        return df
 
-                prop_n_test_comp = round(n_test_comp/total_test*100,2)
-                prop_n_test_not_comp = round(n_test_not_comp/total_test*100,2)
-                prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
-                
-                print(f'N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
-                print(f'N_TEST_NOT_COMP: {n_test_not_comp} ({prop_n_test_not_comp}%)')
-                print(f'N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
-                
-                if self.config_interp.use_neptune:
-                    neptune_vars_base_path = f'data_props/{req.value}'
-                    
-                    self.neptune_run[f'{neptune_vars_base_path}/total_train'] = total_train
-                    self.neptune_run[f'{neptune_vars_base_path}/n_train_comp'] = n_train_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_train_not_comp'] = n_train_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_train_dummy'] = n_train_dummy
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_comp'] = prop_n_train_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_not_comp'] = prop_n_train_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_train_dummy'] = prop_n_train_dummy
-                    
-                    self.neptune_run[f'{neptune_vars_base_path}/total_validation'] = total_validation
-                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_comp'] = n_validation_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_not_comp'] = n_validation_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_validation_dummy'] = n_validation_dummy
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_comp'] = prop_n_validation_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_not_comp'] = prop_n_validation_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_validation_dummy'] = prop_n_validation_dummy
-                    
-                    self.neptune_run[f'{neptune_vars_base_path}/total_test'] = total_test
-                    self.neptune_run[f'{neptune_vars_base_path}/n_test_comp'] = n_test_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_test_not_comp'] = n_test_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/n_test_dummy'] = n_test_dummy
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_comp'] = prop_n_test_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_not_comp'] = prop_n_test_not_comp
-                    self.neptune_run[f'{neptune_vars_base_path}/prop_n_test_dummy'] = prop_n_test_dummy
-                
-                print('----')
-        else:
-            print('Using benchmark data. Not doing summary_labels_dist()')
     
+    def summary_labels_dist(self):
+        data_list = [('train', self.train_data), ('validation', self.validation_data), ('test', self.test_data)]
+
+        for data_name, data in data_list:
+            data = data.iloc[:,2:]
+            summary_data = self.__get_summary(data)
+
+            if self.config_interp.use_neptune:
+                self.neptune_run[f'data_props/{data_name}/{data_name}_data_summary'].upload(File.as_html(summary_data))
+        
     
     def summary_gen_labels_dist(self):
-        if not self.config_interp.use_benchmark_data:    
-            total_train = self.train_gen.n
-            n_train_comp = len([x for x in self.train_gen.labels if x == Eval.COMPLIANT.value])
-            n_train_non_comp = len([x for x in self.train_gen.labels if x == Eval.NON_COMPLIANT.value])
-            n_train_dummy = len([x for x in self.train_gen.labels if x == Eval.DUMMY_CLS.value])
-            
-            prop_n_train_comp = round(n_train_comp/total_train*100,2)
-            prop_n_train_non_comp = round(n_train_non_comp/total_train*100,2)
-            prop_n_train_dummy =  round(n_train_dummy/total_train*100,2)     
+        data_list = [('train', self.train_gen), ('validation', self.validation_gen), ('test', self.test_gen)]
 
-            total_valid = self.validation_gen.n
-            n_valid_comp = len([x for x in self.validation_gen.labels if x == Eval.COMPLIANT.value])
-            n_valid_non_comp = len([x for x in self.validation_gen.labels if x == Eval.NON_COMPLIANT.value])
-            n_valid_dummy = len([x for x in self.validation_gen.labels if x == Eval.DUMMY_CLS.value])
-            
-            prop_n_valid_comp = round(n_valid_comp/total_valid*100,2)
-            prop_n_valid_non_comp = round(n_valid_non_comp/total_valid*100,2)
-            prop_n_valid_dummy = round(n_valid_dummy/total_valid*100,2)
-            
-            total_test = self.test_gen.n
-            n_test_comp= len([x for x in self.test_gen.labels if x == Eval.COMPLIANT.value])
-            n_test_non_comp = len([x for x in self.test_gen.labels if x == Eval.NON_COMPLIANT.value])
-            n_test_dummy = len([x for x in self.test_gen.labels if x == Eval.DUMMY_CLS.value])
-            
-            prop_n_test_comp = round(n_test_comp/total_test*100,2)
-            prop_n_test_non_comp = round(n_test_non_comp/total_test*100,2)
-            prop_n_test_dummy = round(n_test_dummy/total_test*100,2)
+        if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:    
+            for data_name,data_gen in data_list:
+                total = data_gen.n
+                n_comp = len([x for x in data_gen.labels if x == Eval.COMPLIANT.value])
+                n_non_comp = len([x for x in data_gen.labels if x == Eval.NON_COMPLIANT.value])
+                n_dummy = len([x for x in data_gen.labels if x == Eval.DUMMY_CLS.value])
+                
+                prop_n_comp = round(n_comp/total*100,2)
+                prop_n_non_comp = round(n_non_comp/total*100,2)
+                prop_n_dummy =  round(n_dummy/total*100,2)     
 
-            print(f'GEN_N_TRAIN_COMP: {n_train_comp} ({prop_n_train_comp}%)')
-            print(f'GEN_N_TRAIN_NON_COMP: {n_train_non_comp} ({prop_n_train_non_comp}%)')
-            print(f'GEN_N_TRAIN_DUMMY: {n_train_dummy} ({prop_n_train_dummy}%)')
-            
-            print(f'GEN_N_VALID_COMP: {n_valid_comp} ({prop_n_valid_comp}%)')
-            print(f'GEN_N_VALID_NON_COMP: {n_valid_non_comp} ({prop_n_valid_non_comp}%)')
-            print(f'GEN_N_VALID_DUMMY: {n_valid_dummy} ({prop_n_valid_dummy}%)')
-
-            print(f'GEN_N_TEST_COMP: {n_test_comp} ({prop_n_test_comp}%)')
-            print(f'GEN_N_TEST_NON_COMP: {n_test_non_comp} ({prop_n_test_non_comp}%)')
-            print(f'GEN_N_TEST_DUMMY: {n_test_dummy} ({prop_n_test_dummy}%)')
-            
-            if self.config_interp.use_neptune:
-                neptune_vars_base_path = f'data_props/generators'
+                print(f'GEN_N_{data_name.upper()}_COMP: {n_comp} ({prop_n_comp}%)')
+                print(f'GEN_N_{data_name.upper()}_NON_COMP: {n_non_comp} ({prop_n_non_comp}%)')
+                print(f'GEN_N_{data_name.upper()}_DUMMY: {n_dummy} ({prop_n_dummy}%)')
                 
-                self.neptune_run[f'{neptune_vars_base_path}/gen_total_train'] = total_train
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_comp'] = n_train_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_non_comp'] = n_train_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_train_dummy'] = n_train_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_comp'] = prop_n_train_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_non_comp'] = prop_n_train_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_train_dummy'] = prop_n_train_dummy
-                
-                self.neptune_run[f'{neptune_vars_base_path}/gen_total_valid'] = total_valid
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_comp'] = n_valid_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_non_comp'] = n_valid_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_valid_dummy'] = n_valid_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_comp'] = prop_n_valid_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_non_comp'] = prop_n_valid_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_valid_dummy'] = prop_n_valid_dummy
-                
-                self.neptune_run[f'{neptune_vars_base_path}/gen_total_test'] = total_test
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_comp'] = n_test_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_non_comp'] = n_test_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_n_test_dummy'] = n_test_dummy
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_comp'] = prop_n_test_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_non_comp'] = prop_n_test_non_comp
-                self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_test_dummy'] = prop_n_test_dummy
-        else:
-            print('Using benchmark data. Not doing summary_gen_labels_dist()')
+                if self.config_interp.use_neptune:
+                    neptune_vars_base_path = f'data_props/generators'
+                    
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_total_{data_name}'] = total
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_n_{data_name}_comp'] = n_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_n_{data_name}_non_comp'] = n_non_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_n_{data_name}_dummy'] = n_dummy
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_{data_name}_comp'] = prop_n_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_{data_name}_non_comp'] = prop_n_non_comp
+                    self.neptune_run[f'{neptune_vars_base_path}/gen_prop_n_{data_name}_dummy'] = prop_n_dummy
