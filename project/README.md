@@ -1,11 +1,9 @@
 # Documentação de NetTrainer
 
 O script **exp_runner.py** é usado para executar experimentos com redes neurais. 
-Os dados passados por keyword-arguments (kwargs) são usados para configurar as redes,
-os treinamentos e os dados que são documentados em cada experimento realizado.
+Os dados passados por keyword-arguments (kwargs) são usados para configurar as redes, os treinamentos e os dados que são documentados em cada experimento realizado.
 
-Você tem opções para realizar ou não os treinamentos e para criar ou não um novo
-experimento.
+Você tem opções para realizar ou não os treinamentos e para criar ou não um novo experimento.
 
 ## Variáveis de Entrada
 
@@ -39,8 +37,7 @@ kwargs = {
         # caso for testar com dados de benchmark (MNIST, CIFAR-10, etc)        
         'benchmarking': {
             'use_benchmark_data': False,
-            'benchmark_dataset': BenchmarkDataset.MNIST,
-            'tasks': list(MNIST_TASK)
+            'dataset': Dataset.MNIST
         },
 
 
@@ -91,46 +88,85 @@ kwargs = {
         'sample_prop': 1.0
     },
 
+    # parametros usados em neural architecture search
+    'nas_params': {
+        # qtde de epochs de treino de controller
+        'controller_sampling_epochs': 2,
+
+        # qtde de samples por cada epoch do controller
+        'samples_per_controller_epochs': 3,
+
+        # qtde de epochs de treino do controller
+        'controller_training_epochs': 5,
+
+        # qtde de epochs de treino de cada arquitetura
+        'architecture_training_epochs': 2,
+
+        # fator de desconto de rewards 
+        'controller_loss_alpha': 0.9
+    },
+
+    # parametros usados em treino de rede LSTM de controller
+    'controller_params': {
+        # qtde de hidden nodes da LSTM
+        'controller_lstm_dim': 100,
+
+        # optimizer da LSTM
+        'controller_optimizer': 'Adam',
+
+        # learning rate da LSTM
+        'controller_learning_rate': 0.01,
+
+        # decay da LSTM
+        'controller_decay': 0.1,
+
+        # momentum da LSTM
+        'controller_momentum': 0.0,
+
+        # se vai usar o predictor de acurácia da arquitetura proposta
+        # ou não na LSTM
+        'controller_use_predictor': False
+    },
+
     # parâmetros para treinamento do modelo
-    'net_train_params': {
+    'mlp_params': {
+        # tamanho máximo da arquitetura (para o caso de NAS)
+        'max_architecture_length': 5,
 
         # modelo pre-treinado usado de base para transfer learning
         # opções: [VGG16, INCEPTION_V3, MOBILENET_V2, RESNET50_V2, VGG19]
-        'base_model': BaseModel.VGG16,
-
-        # tamanho do batch
-        'batch_size': 32,
+        'mlp_base_model': BaseModel.MOBILENET_V2,
 
         # quantidade de epochs de treino
-        'n_epochs': 5,
+        'mlp_n_epochs': 3,
+
+        # tamanho do batch
+        'mlp_batch_size': 64,
 
         # quantidade de epochs para early stopping
-        'early_stopping': 10,
-
-        # quantidade de dense units para treino de cabeça de modelo
-        'dense_units': 128,
-
-        # learning rate inicial
-        'learning_rate': 1e-3,
+        'mlp_early_stopping': 5,
 
         # optimizador usado
         # opções: [ADAM, ADAGRAD, ADAMAX, SGD, SGD_NESTEROV]
-        'optimizer': Optimizer.ADAM,
+        'mlp_optimizer': Optimizer.ADAM,
 
-        # taxa de dropout
-        'dropout': 0.3
-    },
-    
-    # parametros usados em neural architecture search
-    'nas_params': {
-        # numero maximo de blocos (dense layers) por branch
-        'max_blocks_per_branch': 5,  
-        
-        # numero de epochs de treino para cada trial
-        'n_epochs': 2,
-        
-        # numero de trials
-        'n_trials': 2
+        # learning rate inicial 
+        'mlp_learning_rate': 1e-2,
+
+        # decay
+        'mlp_decay': 0.0,
+
+        # momentum
+        'mlp_momentum': 0.0,
+
+        # fator de dropout
+        'mlp_dropout': 0.2,
+
+        # loss function de modelo
+        'mlp_loss_function': 'categorical_crossentropy',
+
+        # se vai usar one_shot ou não
+        'mlp_one_shot': False
     }
 }
 ```

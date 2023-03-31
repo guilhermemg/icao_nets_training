@@ -24,11 +24,7 @@ class CallbacksHandler:
             train_loss_list = []
             val_loss_list = []
 
-            tasks_list = None
-            if self.config_interp.use_benchmark_data:
-                tasks_list = self.config_interp.prop_args['benchmarking']['tasks']
-            elif self.config_interp.use_icao_gt:
-                tasks_list = self.config_interp.prop_args['icao_data']['reqs']
+            tasks_list = self.config_interp.tasks
 
             for task in tasks_list:
                 task_acc = logs[f'{task.value}_accuracy']
@@ -61,13 +57,13 @@ class CallbacksHandler:
 
     def __lr_scheduler(self, epoch):
             if epoch <= 10:
-                new_lr = self.config_interp.net_args['learning_rate']
+                new_lr = self.config_interp.mlp_params['mlp_learning_rate']
             elif epoch <= 20:
-                new_lr = self.config_interp.net_args['learning_rate'] * 0.5
+                new_lr = self.config_interp.mlp_params['mlp_learning_rate'] * 0.5
             elif epoch <= 40:
-                new_lr = self.config_interp.net_args['learning_rate'] * 0.5
+                new_lr = self.config_interp.mlp_params['mlp_learning_rate'] * 0.5
             else:
-                new_lr = self.config_interp.net_args['learning_rate'] * np.exp(0.1 * ((epoch//self.config_interp.net_args['n_epochs'])*self.config_interp.net_args['n_epochs'] - epoch))
+                new_lr = self.config_interp.mlp_params['mlp_learning_rate'] * np.exp(0.1 * ((epoch//self.config_interp.mlp_params['mlp_n_epochs'])*self.config_interp.mlp_params['mlp_n_epochs'] - epoch))
 
             if self.config_interp.use_neptune:
                 self.neptune_run['learning_rate'].log(new_lr)
@@ -80,7 +76,7 @@ class CallbacksHandler:
 
 
     def __get_early_stopping_callback(self):
-        return EarlyStopping(patience=self.config_interp.net_args['early_stopping'], 
+        return EarlyStopping(patience=self.config_interp.mlp_params['mlp_early_stopping'], 
                             monitor='val_loss', 
                             restore_best_weights=True)
 
@@ -99,10 +95,10 @@ class CallbacksHandler:
         if self.config_interp.use_neptune and not running_nas:
             callbacks_list.append(self.__get_log_data_callback())
         
-        if self.config_interp.net_args['optimizer'].name in cust_optimizers_list:
+        if self.config_interp.mlp_params['mlp_optimizer'].name in cust_optimizers_list:
             callbacks_list.append(self.__get_lr_scheduler_callback()) 
 
-        if self.config_interp.net_args['early_stopping'] is not None:
+        if self.config_interp.mlp_params['mlp_early_stopping'] is not None:
             callbacks_list.append(self.__get_early_stopping_callback()) 
         
         callbacks_list.append(self.__get_model_checkpoint_callback())

@@ -26,13 +26,8 @@ from tensorflow.keras.preprocessing.image import load_img
 from src.base.experiment.evaluation.eval import Eval 
 from src.m_utils import draw_utils as dr
 from src.m_utils.constants import SEED
-from src.base.experiment.tasks.task import MNIST_TASK
-from src.base.experiment.tasks.task import FASHION_MNIST_TASK
-from src.base.experiment.tasks.task import CELEB_A_TASK
-from src.base.experiment.tasks.task import CIFAR_10_TASK
 from src.base.experiment.tasks.task import ICAO_REQ
-from src.base.experiment.dataset.benchmark_dataset import BenchmarkDataset
-
+from src.base.experiment.dataset.dataset import Dataset
 
 class DataSource(Enum):
     VALIDATION = 'validation'
@@ -354,17 +349,17 @@ class ModelEvaluator:
         
         print('Predicting labels....')
         data_gen.reset()
-        predIdxs = model.predict(data_gen, batch_size=self.config_interp.net_args['batch_size'], verbose=1)
+        predIdxs = model.predict(data_gen, batch_size=self.config_interp.mlp_params['mlp_batch_size'], verbose=1)
         print('Prediction finished!')
         
         evaluations = []
         if self.config_interp.is_mtl_model:
             tasks_list = []
-            if not self.config_interp.use_benchmark_data:
-                tasks_list = self.config_interp.prop_args['icao_data']['reqs']
+            if self.config_interp.dataset.name == Dataset.FVC_ICAO.name:
+                tasks_list = self.config_interp.tasks
                 tasks_list = [x for x in tasks_list if x.value != ICAO_REQ.INK_MARK.value] # TODO corrigir esse problema!!
             else:
-                tasks_list = self.config_interp.prop_args['benchmarking']['tasks']
+                tasks_list = self.config_interp.tasks
             
             for idx,task in enumerate(tasks_list):
                 print(f'Task: {task.value.upper()}') if verbose else None
@@ -372,7 +367,7 @@ class ModelEvaluator:
                 evaluations.append(self.__calculate_metrics(predIdxs[idx], data_gen, task, verbose, running_nas))
 
         else:
-            task = self.config_interp.prop_args['icao_data']['reqs'][0]
+            task = self.config_interp.tasks[0]
             print(f'Task: {task.value.upper()}') if verbose else None
             self.y_test_true = np.array(data_gen.labels)
             evaluations.append(self.__calculate_metrics(predIdxs, data_gen, task, verbose, running_nas))

@@ -173,19 +173,20 @@ class ModelTrainer:
             callbacks_list = self.cb_handler.get_callbacks_list(running_nas)
             
             if n_epochs is None:
-                epchs = self.config_interp.net_args['n_epochs']
+                epchs = self.config_interp.mlp_params['mlp_n_epochs']
             else:
                 epchs = n_epochs
                 if self.config_interp.use_neptune:
-                    self.neptune_utils.neptune_run['parameters/n_epochs_fine_tuning'] = epchs
+                    self.neptune_utils.neptune_run['mlp_params/n_epochs_fine_tuning'] = epchs
             
             vrb = 0 if running_nas else 1
+            #vrb = 1
 
             self.H = self.model.fit(
                     train_gen,
-                    steps_per_epoch=train_gen.n // self.config_interp.net_args['batch_size'],
+                    steps_per_epoch=train_gen.n // self.config_interp.mlp_params['mlp_batch_size'],
                     validation_data=validation_gen,
-                    validation_steps=validation_gen.n // self.config_interp.net_args['batch_size'],
+                    validation_steps=validation_gen.n // self.config_interp.mlp_params['mlp_batch_size'],
                     epochs=epchs,
                     verbose=vrb,
                     callbacks=callbacks_list)
