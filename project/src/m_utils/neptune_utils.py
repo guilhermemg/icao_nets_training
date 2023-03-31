@@ -154,21 +154,21 @@ class NeptuneUtils:
                 for ls in total_loss_series:
                     self.neptune_run[f'epoch/total_loss'].log(ls)
 
-                for req in self.config_interp.prop_args['icao_data']['reqs']:
-                    print(f' ..Requisite: {req}')
-                    req = req.value
-                    acc_series = prev_run[f'epoch/{req}/accuracy'].fetch_values()['value']
-                    val_acc_series = prev_run[f'epoch/{req}/val_accuracy'].fetch_values()['value']
-                    loss_series = prev_run[f'epoch/{req}/loss'].fetch_values()['value']
-                    val_loss_series = prev_run[f'epoch/{req}/val_loss'].fetch_values()['value']
+                for task in self.config_interp.tasks:
+                    print(f' ..Task: {task}')
+                    task = task.value
+                    acc_series = prev_run[f'epoch/{task}/accuracy'].fetch_values()['value']
+                    val_acc_series = prev_run[f'epoch/{task}/val_accuracy'].fetch_values()['value']
+                    loss_series = prev_run[f'epoch/{task}/loss'].fetch_values()['value']
+                    val_loss_series = prev_run[f'epoch/{task}/val_loss'].fetch_values()['value']
                     print(f' ..Download finished')
 
                     print(f' ..Upload data to current experiment')
                     for (acc,val_acc,loss,loss_val) in zip(acc_series,val_acc_series,loss_series,val_loss_series):
-                        self.neptune_run[f'epoch/{req}/accuracy'].log(acc)
-                        self.neptune_run[f'epoch/{req}/val_accuracy'].log(val_acc)
-                        self.neptune_run[f'epoch/{req}/loss'].log(loss)    
-                        self.neptune_run[f'epoch/{req}/val_loss'].log(loss_val)
+                        self.neptune_run[f'epoch/{task}/accuracy'].log(acc)
+                        self.neptune_run[f'epoch/{task}/val_accuracy'].log(val_acc)
+                        self.neptune_run[f'epoch/{task}/loss'].log(loss)    
+                        self.neptune_run[f'epoch/{task}/val_loss'].log(loss_val)
 
             print(f' ..Upload finished')
         except Exception as e:

@@ -14,7 +14,7 @@ from tensorflow.keras.models import load_model
 from src.base.experiment.training.model_creator import ModelCreator
 from src.base.experiment.training.model_train_visualizer import ModelTrainVisualizer
 from src.base.experiment.training.train_callbacks import *
-
+from src.base.experiment.dataset.dataset import Dataset
 
 ## restrict memory growth -------------------
 import tensorflow as tf
@@ -62,11 +62,15 @@ class ModelTrainer:
     def __set_model_path(self):
         model_path = None
         if self.orig_model_experiment_id != '':
-            ds = self.config_interp.prop_args['icao_data']['icao_gt']['gt_names']['train_validation_test'][0].value
-            aligned = 'aligned' if self.config_interp.prop_args['icao_data']['aligned'] else 'not_aligned'
+            ds = self.config_interp.dataset.value
             model_type = 'single_task' if not self.config_interp.is_mtl_model else 'multi_task'
-            req = self.config_interp.prop_args['icao_data']['reqs'][0].value if not self.config_interp.is_mtl_model else 'multi_reqs'
-            model_path = os.path.join('prev_trained_models', f'{model_type}', f'{ds}_{aligned}', f'{req}', f'{self.orig_model_experiment_id}')
+            task = self.config_interp.tasks[0].value if not self.config_interp.is_mtl_model else 'multi_task'
+            if ds == Dataset.FVC_ICAO.value:
+                aligned = 'aligned'
+                model_path = os.path.join('prev_trained_models', f'{model_type}', f'{ds}_{aligned}', f'{task}', f'{self.orig_model_experiment_id}')
+            else:
+                model_path = os.path.join('prev_trained_models', f'{model_type}', f'{ds}', f'{task}', f'{self.orig_model_experiment_id}')
+            
         else:
             if not self.is_training_model:
                 raise Exception('Insert orig_model_experiment_id in field of kwargs or train a new model!')
@@ -74,6 +78,7 @@ class ModelTrainer:
                 model_path = os.path.join('trained_model')
         
         self.TRAINED_MODEL_DIR_PATH = model_path
+        print('Model path: ', self.TRAINED_MODEL_DIR_PATH)
        
     
     def __check_model_existence(self):
