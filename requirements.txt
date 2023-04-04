@@ -20,3 +20,4 @@ tqdm==4.48.0
 seaborn
 pyglove
 neptune-notebooks
+Deprecated

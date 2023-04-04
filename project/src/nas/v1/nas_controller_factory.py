@@ -1,9 +1,13 @@
 
-from src.nas.nas_controller_1 import NASController_1
-from src.nas.nas_controller_2 import NASController_2
+from src.nas.v1.nas_controller_1 import NASController_1
+from src.nas.v1.nas_controller_2 import NASController_2
 from src.base.experiment.training.model_creator import NAS_MTLApproach
+from deprecated import deprecated
 
+
+@deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
 class NASControllerFactory:
+    
     @staticmethod
     def create_controller(config_interp, model_trainer, model_evaluator, neptune_utils):
         if config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value:

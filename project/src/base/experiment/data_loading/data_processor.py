@@ -287,7 +287,7 @@ class DataProcessor:
 
         for data_name, data in data_list:
             data = data.iloc[:,2:]
-            summary_data = self.__get_summary(data)
+            summary_data = self.get_summary(data)
 
             if self.config_interp.use_neptune:
                 self.neptune_run[f'data_props/{data_name}/{data_name}_data_summary'].upload(File.as_html(summary_data))

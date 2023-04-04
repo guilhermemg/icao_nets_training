@@ -2,18 +2,20 @@
 import numpy as np
 
 from src.m_utils.constants import SEED
-from src.nas.gen_nas_controller import GenNASController
+from src.nas.v1.gen_nas_controller import GenNASController
+from deprecated import deprecated
 
 
+@deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
 class NASController_1(GenNASController):
     def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
         super().__init__(model_trainer, model_evaluator, config_interp, neptune_utils)
 
-    
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __gen_new_seed(self, x):
         return (self.cur_trial.get_num() * SEED) + SEED + x
 
-
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def select_config(self):
         i = 0
         rng = np.random.default_rng(self.__gen_new_seed(x=i))
@@ -25,7 +27,7 @@ class NASController_1(GenNASController):
             i += 1
         return config
     
-
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def run_nas_trial(self, trial_num, train_gen, validation_gen):
         print('+'*20 + ' STARTING NEW TRAIN ' + '+'*20)
 

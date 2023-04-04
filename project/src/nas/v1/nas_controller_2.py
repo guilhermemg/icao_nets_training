@@ -6,9 +6,12 @@ from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import HeNormal, RandomUniform, GlorotNormal
 
-from src.nas.gen_nas_controller import GenNASController
+from src.nas.v1.gen_nas_controller import GenNASController
 from src.m_utils.constants import SEED
+from deprecated import deprecated
 
+
+@deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
 class NASController_2(GenNASController):
     def __init__(self, model_trainer, model_evaluator, config_interp, neptune_utils):
         super().__init__(model_trainer, model_evaluator, config_interp, neptune_utils)       
@@ -30,6 +33,7 @@ class NASController_2(GenNASController):
         self.__generate_controller_rnn()
 
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __generate_controller_rnn(self):
         controller_input = Input(shape=(1,4,))        
 
@@ -44,7 +48,8 @@ class NASController_2(GenNASController):
         
         self.controller_rnn = Model(inputs=controller_input, outputs=y)
 
-    
+
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __compile_controller_rnn(self):
         print('   Compiling Controller RNN...')
 
@@ -70,7 +75,8 @@ class NASController_2(GenNASController):
 
         print('    ..done!')
 
-
+    
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __train_controller_rnn(self, targets):
         print(f' .. training controller rnn ..')
         print(f'  .. targets: {targets}')
@@ -85,6 +91,7 @@ class NASController_2(GenNASController):
         self.__visualize_history(H)
         
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __visualize_history(self, history):
         from matplotlib import pyplot as plt
 
@@ -101,19 +108,21 @@ class NASController_2(GenNASController):
         plt.show()
 
 
-    
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __evaluate_contoller_rnn_training(self, targets):
         print('Evaluating targets...')
         loss = round(self.controller_rnn.evaluate(self.input_x, targets), 8)
         print(f'  Loss: {loss}')
 
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __softmax_predict(self, input_x):
         print('Softmax predict on new input_x')
         #self.__compile_controller_rnn()
         return self.controller_rnn.predict(input_x)
 
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __convert_pred_to_ydict(self, controller_pred):
         vals = controller_pred[0]
         final_vals = []
@@ -132,7 +141,8 @@ class NASController_2(GenNASController):
         config = {f'n_denses_0': final_vals[0], f'n_denses_1': final_vals[1], f'n_denses_2': final_vals[2], f'n_denses_3': final_vals[3]}
         return config
 
-
+    
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def select_config(self):
         print(' Selecting new config...')
 
@@ -162,6 +172,7 @@ class NASController_2(GenNASController):
         return controller_pred, config
     
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def run_nas_trial(self, trial_num, train_gen, validation_gen):
         print('\n' + '='*20 + ' STARTING NEW TRIAL ' + '='*20)
 
@@ -185,6 +196,7 @@ class NASController_2(GenNASController):
         print('='*20 + 'FINISHING TRIAL' + '='*20 + '\n')
 
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def __get_weight_initializer(self, initializer=None, seed=None):
         if initializer is None:
             return HeNormal()

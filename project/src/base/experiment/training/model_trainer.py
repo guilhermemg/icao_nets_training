@@ -42,7 +42,7 @@ class ModelTrainer:
 
         self.running_nas = False
         
-        self.CHECKPOINT_PATH = os.path.join('training_ckpt', 'best_model.hdf5')
+        self.CHECKPOINT_PATH = os.path.join('training', 'training_ckpt', 'best_model.hdf5')
         self.TRAINED_MODEL_DIR_PATH = None
         
         self.__set_model_path()

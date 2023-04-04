@@ -3,12 +3,14 @@ import argparse
 
 from typing import List, Dict
 
+from deprecated import deprecated
+
 from src.base.experiment.data_loading.data_processor import DataProcessor
 from src.base.experiment.training.model_trainer import ModelTrainer
 from src.base.experiment.evaluation.model_evaluator import ModelEvaluator, DataSource, DataPredSelection
 from src.base.experiment.data_loading.fake_data_producer import FakeDataProducer
 from src.m_utils.neptune_utils import NeptuneUtils
-from src.nas.nas_controller_factory import NASControllerFactory
+from src.nas.v1.nas_controller_factory import NASControllerFactory
 from src.nas.v2.mlpnas import MLPNAS
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
@@ -130,6 +132,7 @@ class ExperimentRunner:
             print('Not using Neptune')
     
 
+    @deprecated("The NAS v1 is deprecated. Use the NAS v2 or v3 instead.")
     def run_neural_architecture_search(self) -> None:
         print_method_log_sig( 'run neural architecture search' )
 
@@ -279,7 +282,7 @@ class ExperimentRunner:
             self.summary_labels_dist()
             self.summary_gen_labels_dist()
             self.create_model()
-            self.visualize_model(outfile_path=f"figs/model_architecture.png")
+            self.visualize_model(outfile_path=f"training/figs/model_architecture.png")
             self.train_model()
             self.draw_training_history()
             self.load_best_model()
