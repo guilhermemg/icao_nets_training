@@ -1,16 +1,16 @@
 import os
-import pickle
 import numpy as np
+import pyglove as pg
 
 from tensorflow.keras import optimizers
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-from src.nas.v2.mlp_search_space import MLPSearchSpace
 from src.base.experiment.training.optimizers import Optimizer
 
-class NASController_3(MLPSearchSpace):
+
+class NASController_4:
     def __init__(self, config_interp):        
         self.config_interp = config_interp
 
@@ -25,90 +25,13 @@ class NASController_3(MLPSearchSpace):
 
         self.controller_weights_path = 'LOGS/controller_weights.h5'
 
-        self.seq_data = []
-
         self.n_tasks = len(self.config_interp.tasks)
 
-        super().__init__(self.config_interp.dataset, self.min_task_group_size)
-
-        self.controller_classes = len(self.vocab) + 1
-
-        print('Controller classes: ', self.controller_classes)
-
-   
-    def sample_architecture_sequences(self, model, number_of_samples):
-        final_layer_id = len(self.vocab)
-        dropout_id = final_layer_id - 1
-        vocab_idx = [0] + list(self.vocab.keys())
-        samples = []
-        print("GENERATING ARCHITECTURE SAMPLES...")
-        print('------------------------------------------------------')
-        while len(samples) < number_of_samples:
-            seed = []
-            while len(seed) < self.max_len:
-                sequence = pad_sequences([seed], maxlen=self.max_len - 1, padding='post')
-                sequence = sequence.reshape(1, 1, self.max_len - 1)
-                if self.use_predictor:
-                    (probab, _) = model.predict(sequence)
-                else:
-                    probab = model.predict(sequence)
-                probab = probab[0][0]
-                next = np.random.choice(vocab_idx, size=1, p=probab)[0]
-                if next == dropout_id and len(seed) == 0:
-                    continue
-                if next == final_layer_id and len(seed) == 0:
-                    continue
-                if next == final_layer_id:
-                    seed.append(next)
-                    break
-                if len(seed) == self.max_len - 1:
-                    seed.append(final_layer_id)
-                    break
-                if not next == 0:
-                    seed.append(next)
-            
-            if self.__check_sequence_validity(seed):
-                samples.append(seed)
-                self.seq_data.append(seed)
-
-        return samples
+        #self.controller_classes = len(self.vocab) + 1
+        self.controller_classes = 6
 
 
-    # def sample_architecture_sequences(self, model, number_of_samples):
-    #     final_layer_id = len(self.vocab)
-    #     vocab_idx = [0] + list(self.vocab.keys())
-    #     samples = []
-    #     print("GENERATING ARCHITECTURE SAMPLES...")
-    #     print('------------------------------------------------------')
-    #     while len(samples) < number_of_samples:
-    #         seed = []
-    #         while len(seed) < self.max_len:
-    #             sequence = pad_sequences([seed], maxlen=self.max_len-1, padding='post')
-    #             sequence = sequence.reshape(1, 1, self.max_len-1)
-    #             if self.use_predictor:
-    #                 (probab, _) = model.predict(sequence)
-    #             else:
-    #                 probab = model.predict(sequence)
-        #         probab = probab[0][0]
-        #         next = np.random.choice(vocab_idx, size=1, p=probab)[0]
-        #         if next == final_layer_id and len(seed) == 0:
-        #             continue
-        #         if next == final_layer_id and len(seed) <= self.max_len:
-        #             continue
-        #         if next == final_layer_id:
-        #             seed.append(next)
-        #             break
-        #         if len(seed) == self.max_len - 1:
-        #             seed.append(final_layer_id)
-        #             break
-        #         if not next == 0:
-        #             seed.append(next)
-        #     if seed not in self.seq_data:
-        #         samples.append(seed)
-        #         self.seq_data.append(seed)
-        # return samples
 
-    
     def __check_sequence_validity_BAK(self, sequence):
         decoded_seq = self.decode_sequence(sequence)
         
@@ -138,69 +61,6 @@ class NASController_3(MLPSearchSpace):
             return False
         print('  ..valid sequence!')
         return True
-
-
-    def sample_architecture_sequences_BAK(self, model, number_of_samples):
-        final_layer_id = len(self.vocab)
-        vocab_idx = [0] + list(self.vocab.keys())
-        samples = []
-        print("GENERATING ARCHITECTURE SAMPLES...")
-        print('------------------------------------------------------')
-        print(f'Number of samples: {number_of_samples}')
-
-        # while number of architectures sampled is less than required
-        while len(samples) < number_of_samples:
-            
-            # initialise the empty list for architecture sequence
-            seed = []
-
-            # while len of generated sequence is less than maximum architecture length
-            while len(seed) < self.max_len:
-
-                # pad sequence for correctly shaped input for controller
-                sequence = pad_sequences([seed], maxlen=self.max_len-1, padding='post')
-                sequence = sequence.reshape(1, 1, self.max_len-1)
-                
-                # given the previous elements, get softmax distribution for the next element
-                if self.use_predictor:
-                    (probab, _) = model.predict(sequence)
-                else:
-                    probab = model.predict(sequence)
-                
-                probab = probab[0][0]
-
-                # sample the next element randomly given the probability of next elements (the softmax distribution)
-                next = np.random.choice(vocab_idx, size=1, p=probab)[0]
-                
-                # first layer is not final layer
-                if next == final_layer_id and len(seed) == 0:
-                    continue
-
-                # if final layer, but not the correct sized architecture, continue
-                if next == final_layer_id and len(seed) <= self.max_len:
-                    continue
-
-                # if final layer, break out of inner loop
-                if next == final_layer_id:
-                    seed.append(next)
-                    break
-
-                # if sequence length is 1 less than maximum, add final
-                # layer and break out of inner loop
-                if len(seed) == self.max_len - 1:
-                    seed.append(final_layer_id)
-                    break
-
-                # ignore padding
-                if not next == 0:
-                    seed.append(next)
-
-            if seed not in self.seq_data:
-                if self.__check_sequence_validity(seed):
-                    samples.append(seed)
-                    self.seq_data.append(seed)
-
-        return samples
 
 
     def __get_optimizer(self):

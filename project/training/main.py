@@ -3,14 +3,10 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # show only errors
 
 import sys
-import pandas as pd
 
 if '..' not in sys.path:
    sys.path.insert(0, '..')
 
-from src.m_utils import constants as cts
-from src.base.data_loaders.data_loader import DLName
-from src.base.gt_loaders.gt_names import GTName
 from src.exp_runner import ExperimentRunner
 
 from src.base.experiment.dataset.dataset import Dataset
@@ -22,53 +18,25 @@ from src.m_utils.mtl_approach import MTLApproach
 from src.m_utils.nas_mtl_approach import NAS_MTLApproach
 
 
-#N_TRIALS = 3
-#NAS_APPROACH = NAS_MTLApproach.APPROACH_2
-#NAS_APPROACH_STR = 'nas_approach_2'
-#N_CHILD_EPOCHS = 1
-#N_CHILD_EPOCHS_STR = '5_child_epochs'
-#CONTROLLER_EPOCHS = 50
-#N_EPOCHS = 3
-
-#DATASET = Dataset.MNIST
-
+DATASET = Dataset.FVC_ICAO
+APPROACH = NAS_MTLApproach.APPROACH_2
 
 kwargs = { 
     'use_neptune': True,
     'exp_params' : {
         'name': 'neural_arch_search',
-        #'description': f'{NAS_APPROACH.value} with {DATASET.value["name"].upper()} dataset with {N_TRIALS} trials and patience and {N_CHILD_EPOCHS} child epoch',
-        #'tags': ['nas', f'{NAS_APPROACH_STR}', 'benchmark', f'{DATASET.value["name"]}', f'{N_CHILD_EPOCHS_STR}'],
-        'description': 'test',
-        'tags': ['test'],
+        'description': 'NAS with Approach 2 Fixed',
+        'tags': [f'{DATASET.value["name"]}', 'refac_properties', 'stl'],
         'src_files': ["../src/**/*.py"]
     },
     'properties': {
-        'approach': NAS_MTLApproach.APPROACH_2,
-        'benchmarking': {
-            'use_benchmark_data': True,
-            'dataset': Dataset.MNIST
-        },
-        'icao_data': {
-            'icao_gt': {
-                'use_gt_data': False,
-                'gt_names': {
-                    'train_validation': [],
-                    'test': [],
-                    'train_validation_test': [GTName.FVC]
-                },
-            },
-            'icao_dl': {
-                'use_dl_data': False,
-                'tagger_model': None
-            },
-            'reqs': Dataset.FVC_ICAO.value['tasks'],
-            'aligned': False
-        },
+        'approach': APPROACH,
+        'dataset': DATASET,
+        'tasks': DATASET.value['tasks'],
         'balance_input_data': False,
         'train_model': True,
         'save_trained_model': True,
-        'exec_nas': True,
+        'exec_nas': False,
         'orig_model_experiment_id': '',
         'sample_training_data': False,
         'sample_prop': 1.0
@@ -84,30 +52,31 @@ kwargs = {
         'samples_per_controller_epochs': 3,
         'controller_training_epochs': 5,
         'architecture_training_epochs': 2,
-        'controller_loss_alpha': 0.9
+        'controller_loss_alpha': 0.9,
+        'nas_algorithm': 'evoluation'
     },
     'controller_params': {
         'controller_lstm_dim': 100,
-        'controller_optimizer': 'Adam',
+        'controller_optimizer': Optimizer.ADAM,
         'controller_learning_rate': 0.01,
         'controller_decay': 0.1,
         'controller_momentum': 0.0,
-        'controller_use_predictor': False
+        'controller_use_predictor': True
     },
     'mlp_params': {
         'max_architecture_length': 5,
         'min_task_group_size': 3,
         'mlp_base_model': BaseModel.MOBILENET_V2,
-        'mlp_n_epochs': 3,
+        'mlp_n_epochs': 50,
         'mlp_batch_size': 64,
-        'mlp_early_stopping': 5,
-        'mlp_optimizer': Optimizer.ADAM,
-        'mlp_learning_rate': 1e-2,
+        'mlp_early_stopping': 50,
+        'mlp_optimizer': Optimizer.ADAMAX,
+        'mlp_learning_rate': 1e-3,
         'mlp_decay': 0.0,
         'mlp_momentum': 0.0,
-        'mlp_dropout': 0.2,
+        'mlp_dropout': 0.3,
         'mlp_loss_function': 'sparse_categorical_crossentropy',
-        'mlp_one_shot': False
+        'mlp_one_shot': True
     }
 }
 

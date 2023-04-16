@@ -12,6 +12,8 @@ from src.base.experiment.data_loading.fake_data_producer import FakeDataProducer
 from src.m_utils.neptune_utils import NeptuneUtils
 from src.nas.v1.nas_controller_factory import NASControllerFactory
 from src.nas.v2.mlpnas import MLPNAS
+from src.nas.v3.new_mlpnas import New_MLPNAS
+from src.nas.v3.utils import get_top_n_architectures
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
 from src.configs import config as cfg
@@ -162,7 +164,6 @@ class ExperimentRunner:
                 print(f'Not executing neural architecture search and not using Neptune')
     
 
-
     def run_neural_architecture_search_v2(self) -> List[Dict]:
         print_method_log_sig( 'run neural architecture search' )
 
@@ -176,6 +177,27 @@ class ExperimentRunner:
         print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
         best_archs_list = nas_object.get_top_n_architectures(5)
         print('----------------------------------------------------------------\n\n')
+
+        if self.config_interp.use_neptune:
+            self.neptune_utils.log_top_architectures_found(best_archs_list)
+            self.neptune_utils.log_nas_data()
+
+        return best_archs_list
+    
+
+    def run_neural_architecture_search_v3(self) -> List[Dict]:
+        print_method_log_sig( 'run neural architecture search' )
+
+        if not self.config_interp.exec_nas:
+            print('Not executing neural architecture search')
+            return
+
+        nas_object = New_MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
+        nas_data = nas_object.search()
+
+        print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
+        best_archs_list = get_top_n_architectures(nas_data, 5)
+        print('--------------------------------------------------')
 
         if self.config_interp.use_neptune:
             self.neptune_utils.log_top_architectures_found(best_archs_list)
