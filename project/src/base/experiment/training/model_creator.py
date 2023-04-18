@@ -309,11 +309,11 @@ class ModelCreator:
     def create_model(self, train_gen=None, config=None):
         if self.config_interp.approach.value == STLApproach.STL.value:
             return self.create_stl_model(train_gen)
-        elif self.config_interp.approach.value == MTLApproach.HAND_1.value:
+        elif self.config_interp.approach.value == MTLApproach.HANDCRAFTED_1.value:
             return self.__create_mtl_model_1()
-        elif self.config_interp.approach.value == MTLApproach.HAND_2.value:
+        elif self.config_interp.approach.value == MTLApproach.HANDCRAFTED_2.value:
             return self.__create_mtl_model_2()
-        elif self.config_interp.approach.value == MTLApproach.HAND_3.value:
+        elif self.config_interp.approach.value == MTLApproach.HANDCRAFTED_3.value:
             return self.__create_mtl_model_3()
         elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_1.value or \
                 self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:

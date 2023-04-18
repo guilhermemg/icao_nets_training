@@ -179,12 +179,11 @@ class New_MLPNAS(NASController_4):
     def search(self):
         search_space = self.search_space.get_search_space('ss_1')
         algo = self.nas_algorithm.get_algorithm()
-        cnt = 0
-        for model,feedback in pg.sample(search_space, algo):
+        for model,feedback in pg.sample(search_space, algo, num_examples=self.samples_per_controller_epoch):
         #for controller_epoch in range(self.controller_sampling_epochs):
-            print('------------------------------------------------------------------')
-            print('                       CONTROLLER EPOCH: {}'.format(cnt))
-            print('------------------------------------------------------------------')
+            print(70*'=')
+            print(f'  New Controller Epoch | Feedback ID: {feedback.id} | Feedback DNA: {feedback.dna}')
+            print(70*'-')
             #sequences = self.sample_architecture_sequences(self.controller_model, number_of_samples=self.samples_per_controller_epoch)
             
             #if self.use_predictor:
@@ -195,7 +194,7 @@ class New_MLPNAS(NASController_4):
             model_spec = model()
             #decoded_arch_seq = self.decode_sequence(sequence)
             
-            print(f' -- Architecture {cnt}: {model_spec}')
+            print(f' -- Architecture {feedback.id}: {model_spec}')
             
             self.create_architecture(model_spec)
             self.train_architecture()
@@ -205,18 +204,13 @@ class New_MLPNAS(NASController_4):
             #    self.append_model_metrics(model_spec, final_eval, pred_accuracies[i])
             # else:
             self.append_model_metrics(model_spec, final_eval)
-            print('------------------------------------------------------')
+            print(70*'=')
             
             #xc, yc, val_acc_target = self.prepare_controller_data(sequences)
             
             #self.train_controller(self.controller_model, xc, yc, val_acc_target[-self.samples_per_controller_epoch:])
 
             feedback(final_eval['final_ACC'])
-
-            if cnt == 3:
-                break
-
-            cnt += 1
         
         with open(self.nas_data_log, 'wb') as f:
             pickle.dump(self.data, f)
