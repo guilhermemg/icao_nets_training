@@ -47,12 +47,9 @@ kwargs = {
         #'controller_epochs': CONTROLLER_EPOCHS,
         #'controller_batch_size': 64,
         #'n_trials': N_TRIALS,
-
-        'controller_sampling_epochs': 2,
-        'samples_per_controller_epochs': 3,
-        'controller_training_epochs': 5,
+        
+        'samples_per_controller_epoch': 3,
         'architecture_training_epochs': 2,
-        'controller_loss_alpha': 0.9,
         'nas_algorithm': 'evoluation'
     },
     'controller_params': {
@@ -61,7 +58,10 @@ kwargs = {
         'controller_learning_rate': 0.01,
         'controller_decay': 0.1,
         'controller_momentum': 0.0,
-        'controller_use_predictor': True
+        'controller_use_predictor': True,
+        'controller_sampling_epochs': 2,
+        'controller_loss_alpha': 0.9,
+        'controller_training_epochs': 5
     },
     'mlp_params': {
         'max_architecture_length': 5,

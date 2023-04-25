@@ -9,12 +9,13 @@ def model_1_spc(n_denses):
 
 class New_MLPSearchSpace(object):
 
-    def __init__(self):
+    def __init__(self, ss_indicator='ss_1'):
         self.n_groups = 4
-        self.n_denses_candidates = [1, 2, 3, 4, 5]   
+        self.n_denses_candidates = [1, 2, 3, 4, 5]
+        self.ss_indicator = ss_indicator
         
     
-    def get_search_space(self, ss_indicator='ss_1'):
+    def get_search_space(self):
         """The default search space in NATS-Bench.
     
         Args:
@@ -31,7 +32,7 @@ class New_MLPSearchSpace(object):
         # elif ss_indicator == 'sss':
         #     #return model_sss_spc(pg.sublist_of(info['num_layers'], info['candidates'], choices_distinct=False))
         #     return model_sss_spc(pg.sublist_of(5, [8, 16, 24, 32, 40, 48, 56, 64], choices_distinct=False))
-        if ss_indicator == 'ss_1':
+        if self.ss_indicator == 'ss_1':
             return model_1_spc(pg.sublist_of(self.n_groups, self.n_denses_candidates, choices_distinct=False))
 
         

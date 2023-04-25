@@ -171,11 +171,11 @@ class ExperimentRunner:
             print('Not executing neural architecture search')
             return
 
-        nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
-        nas_object.search()
+        self.nas_object = MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
+        self.nas_object.search()
 
         print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
-        best_archs_list = nas_object.get_top_n_architectures(5)
+        best_archs_list = self.nas_object.get_top_n_architectures(5)
         print('----------------------------------------------------------------\n\n')
 
         if self.config_interp.use_neptune:
@@ -192,11 +192,11 @@ class ExperimentRunner:
             print('Not executing neural architecture search')
             return
 
-        nas_object = New_MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
-        nas_data = nas_object.search()
+        self.nas_object = New_MLPNAS(self.train_gen, self.validation_gen, self.config_interp, self.neptune_utils)
+        self.nas_object = self.nas_object.search()
 
         print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
-        best_archs_list = get_top_n_architectures(nas_data, 5)
+        best_archs_list = get_top_n_architectures(self.nas_object, 5)
         print('--------------------------------------------------')
 
         if self.config_interp.use_neptune:

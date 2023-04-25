@@ -10,6 +10,8 @@ class MLPSearchSpace(object):
         self.min_task_group_size = min_task_group_size
 
         self.vocab = self.vocab_dict()
+
+        print(f'Vocab: {self.vocab}')
     
 
     def vocab_dict(self):
