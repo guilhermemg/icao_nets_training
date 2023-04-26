@@ -16,8 +16,6 @@ class NASController_4:
     def __init__(self, config_interp):        
         self.config_interp = config_interp
 
-        self.data : list = None
-
         self.max_len                    = self.config_interp.mlp_params['max_architecture_length']
         self.min_task_group_size        = self.config_interp.mlp_params['min_task_group_size']
         self.controller_lstm_dim        = self.config_interp.controller_params['controller_lstm_dim']
@@ -34,8 +32,10 @@ class NASController_4:
 
         self.n_tasks = len(self.config_interp.tasks)
 
+        self.samples_per_controller_epoch = self.config_interp.nas_params['samples_per_controller_epoch']
+
         #self.controller_classes = len(self.vocab) + 1
-        self.controller_classes = 6
+        self.controller_classes = 4
 
         # self.controller_batch_size = len(self.data)
         self.controller_batch_size = 2
@@ -46,17 +46,32 @@ class NASController_4:
             self.controller_model = self.__create_control_model(self.controller_input_shape)
         else:
             self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
-    
 
-    def prepare_controller_data(self, sequences):
+
+    def __prepare_controller_data(self, nas_data_history):
+        self.data = nas_data_history
+
         print('Preparing controller data...')
-        controller_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post')
-        xc = controller_sequences[:, :-1].reshape(len(controller_sequences), 1, self.max_len - 1)
-        yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        val_acc_target = [item[1] for item in self.data]
+        print(f' ..nas_data_history: {nas_data_history}')
+        
+        controller_sequences = np.array([[item[0].to_numbers() for item in nas_data_history]])
+        print(f' ..controller_sequences: {controller_sequences}')
+        print(f'controller_sequences.shape: {controller_sequences.shape}')
+        
+        xc = controller_sequences.reshape(self.controller_batch_size, 1, self.max_len - 1)
+        print(f' ..xc: {xc}')
         print(f'xc.shape: {xc.shape}')
+
+        #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
+        yc = np.array([[item[0].to_numbers() for item in nas_data_history]])
+        yc = controller_sequences.reshape(self.controller_batch_size, 1, self.max_len - 1)
+        print(f' ..yc: {yc}')
         print(f'yc.shape: {yc.shape}')
+        
+        val_acc_target = [item[1] for item in nas_data_history]
         print(f'val_acc_target.shape: {len(val_acc_target)}')
+        print(f' ..val_acc_target: {val_acc_target}')        
+        
         return xc, yc, val_acc_target
 
 
@@ -87,8 +102,10 @@ class NASController_4:
     def custom_loss(self, target, output):
         # define baseline for rewards and subtract it from all validation accuracies to get reward.
         baseline = 0.5
+        #reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
+        #    self.samples_per_controller_epoch, 1)
         reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
-            self.samples_per_controller_epoch, 1)
+            self.controller_batch_size, 1)
         
         # get discounted reward
         discounted_reward = self.get_discounted_reward(reward)
@@ -99,22 +116,30 @@ class NASController_4:
         return loss
 
 
-    def train_controller(self, x, y, pred_accuracy=None):
+    def train_model_controller(self, nas_data_history):
+        print('Training controller model...')
+
+        nas_data_history = nas_data_history[-self.controller_batch_size:]
+
+        xc, yc, val_acc_target = self.__prepare_controller_data(nas_data_history)
+
         if self.use_predictor:
             self.__train_hybrid_control_model(
-                                            x,
-                                            y,
-                                            pred_accuracy,
+                                            xc,
+                                            yc,
+                                            val_acc_target,
                                             self.custom_loss,
-                                            len(self.data),
+                                            self.controller_batch_size,
                                             self.controller_train_epochs)
         else:
             self.__train_control_model(
-                                     x,
-                                     y,
+                                     xc,
+                                     yc,
                                      self.custom_loss,
-                                     len(self.data),
+                                     self.controller_batch_size,
                                      self.controller_train_epochs)
+        
+        print(' ..Controller model trained!')
 
 
     def __check_sequence_validity_BAK(self, sequence):
@@ -169,11 +194,6 @@ class NASController_4:
 
 
     def __train_control_model(self, x_data, y_data, loss_func, controller_batch_size, nb_epochs):
-        #xc, yc, val_acc_target = self.prepare_controller_data(sequences)
-            
-        #self.train_controller(self.controller_model, xc, yc, val_acc_target[-self.samples_per_controller_epoch:])
-        
-        
         optim = self.__get_optimizer()
         
         self.controller_model.compile(optimizer=optim, loss={'main_output': loss_func})

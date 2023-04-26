@@ -2,6 +2,7 @@ import time
 import random
 import pickle
 import pyglove as pg
+import numpy as np
 
 
 from src.nas.v3.nas_controller_4 import NASController_4
@@ -26,15 +27,16 @@ class NASAlgorithmFactory(object):
 
 class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
     def __init__(self, config_interp: ConfigInterpreter):
-        self.data : list = []
-        self.nas_controller = NASController_4(config_interp)
+        self.nas_history_data : list = []
+        self.nas_controller: NASController_4 = NASController_4(config_interp)
         self.nas_data_log = 'LOGS/nas_data.pkl'
     
 
     def _feedback(self, dna, reward):
-        self.data.append([dna,reward])
-        print(f' ..new data: {self.data}')
-        print(f' ..len(self.data): {len(self.data)}')
+        self.nas_history_data.append([dna,reward])
+        
+        print(f' ..nas_history_data: {self.nas_history_data}')
+        print(f' ..len(self.nas_history_data): {len(self.nas_history_data)}')
 
         self.__log_data()
 
@@ -47,19 +49,23 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
     
     
     def _propose(self):
-        if len(self.data) % 2 == 0:
-            self.train_model_controller()
+        if self.num_feedbacks % 2 == 0 and self.num_feedbacks > 0:
+            self.nas_controller.train_model_controller(self.nas_history_data)    
         
-        pred = [random.random() for _ in range(4)]
-        print(f' ..new pred: {pred}')
-        converted_pred = self.__convert_pred(pred)
-        print(f' ..converted pred: {converted_pred}')
-        return pg.geno.DNA(converted_pred)
+        seed = np.array([[[random.random() for _ in range(4)]]])
+        print(f' ..seed: {seed}')
+        print(f' ..seed.shape: {seed.shape}')
+        new_arch,val_acc = self.nas_controller.controller_model.predict(seed)
+        print(f' ..new arch: {new_arch}')
+        print(f' ..new arch.shape: {new_arch.shape}')
+        converted_arch = self.__convert_pred(new_arch)
+        print(f' ..converted arch: {converted_arch}')
+        return pg.geno.DNA(converted_arch)
 
     
     def __convert_pred(self, pred):
         converted_pred = []
-        for v in pred:
+        for v in pred[0][0]:
             if v < 0.2:
                 converted_pred.append(0)
             elif 0.2 <= v < 0.4:
@@ -73,11 +79,12 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
         return converted_pred     
 
     
-    def train_model_controller(self):
-        print(f'\ntraining model - len(self.data) {len(self.data)}\n')
-        time.sleep(3)
+    #def train_model_controller(self):
+        #print(f'\ntraining model - len(self.data) {len(self.nas_history_data)}\n')
+        #time.sleep(3)
 
-        self.nas_controller.data = self.data
+        #xc, yc, val_acc_target = self.nas_controller.prepare_controller_data(self.nas_history_data)
+        #self.nas_controller.train_model_controller(xc, yc, val_acc_target)
 
 
 
