@@ -46,18 +46,19 @@ class NASController_3(MLPSearchSpace):
         while len(samples) < number_of_samples:
             seed = []
             while len(seed) < self.max_len:
+                print(f' ..Seed: {seed}')
                 sequence = pad_sequences([seed], maxlen=self.max_len - 1, padding='post')
-                print(' ..Padded sequence: ', sequence)
+                print(f' ..Padded sequence: {sequence}')
                 sequence = sequence.reshape(1, 1, self.max_len - 1)
-                print(' ..Reshaped sequence: ', sequence)
+                print(f' ..Reshaped sequence: {sequence}')
                 if self.use_predictor:
                     (probab, _) = model.predict(sequence)
                 else:
                     probab = model.predict(sequence)
                 probab = probab[0][0]
-                print(' ..Probabilities: ', probab)
+                print(f' ..Probabilities: {probab}')
                 next = np.random.choice(vocab_idx, size=1, p=probab)[0]
-                print(' ..Next: ', next)
+                print(f' ..Next: {next}')
                 if next == dropout_id and len(seed) == 0:
                     continue
                 if next == final_layer_id and len(seed) == 0:

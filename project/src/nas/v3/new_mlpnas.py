@@ -31,8 +31,11 @@ class New_MLPNAS:
 
         mlp_ss : New_MLPSearchSpace = New_MLPSearchSpace(self.config_interp.nas_params['nas_search_space'])
         self.search_space = mlp_ss.get_search_space()
+        
         nas_algo_factory : NASAlgorithmFactory = NASAlgorithmFactory(self.config_interp.nas_params['nas_algorithm'])
         self.nas_algorithm = nas_algo_factory.get_algorithm(self.config_interp)
+
+        
 
         self.data : list = []
         

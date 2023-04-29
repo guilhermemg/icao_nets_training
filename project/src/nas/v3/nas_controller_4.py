@@ -1,4 +1,5 @@
 import os
+import random
 import numpy as np
 
 import tensorflow.keras.backend as K
@@ -7,7 +8,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 from src.base.experiment.training.optimizers import Optimizer
 
@@ -47,6 +47,41 @@ class NASController_4:
         else:
             self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
 
+        self.search_space = None
+        self.search_space_size = None
+
+        self.__create_search_space()
+
+
+    def __create_search_space(self):
+        all_archs = [[i,j,p,q] for i in range(0,5) for j in range(0,5) for p in range(0,5) for q in range(0,5)]
+        print(f'all_archs[:10]: {all_archs[:10]}')
+        
+        search_space_size = len(all_archs)
+        print(f'search_space_size: {search_space_size}')
+
+        self.search_space = all_archs
+        self.search_space_size = len(self.search_space)
+
+
+    def build_new_arch(self, prev_arch):
+        inp = np.array(prev_arch).reshape(1,1,4)
+        
+        print(f'input: {inp}')
+        
+        prob_list = self.controller_model.predict(inp)
+        
+        prob_list = prob_list[0][0]
+        print(f'prob_list[:5]: {prob_list[:5]}')
+        
+        chose_idx = np.random.choice(range(self.search_space_size), size=1, replace=False, p=prob_list)[0]
+        print(f'chose_idx: {chose_idx}')
+        
+        new_arch = self.search_space[chose_idx]
+        print(f'new_arch: {new_arch}')
+
+        return new_arch
+
 
     def __prepare_controller_data(self, nas_data_history):
         self.data = nas_data_history
@@ -56,21 +91,21 @@ class NASController_4:
         
         controller_sequences = np.array([[item[0].to_numbers() for item in nas_data_history]])
         print(f' ..controller_sequences: {controller_sequences}')
-        print(f'controller_sequences.shape: {controller_sequences.shape}')
+        print(f' ..controller_sequences.shape: {controller_sequences.shape}')
         
         xc = controller_sequences.reshape(self.controller_batch_size, 1, self.max_len - 1)
         print(f' ..xc: {xc}')
-        print(f'xc.shape: {xc.shape}')
+        print(f' ..xc.shape: {xc.shape}')
 
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        yc = np.array([[item[0].to_numbers() for item in nas_data_history]])
-        yc = controller_sequences.reshape(self.controller_batch_size, 1, self.max_len - 1)
+        yc = np.array([[random.randint(0,5) for _ in range(4)], [random.randint(0,5) for _ in range(4)]])
+        yc = yc.reshape(self.controller_batch_size, 1, self.max_len - 1)
         print(f' ..yc: {yc}')
-        print(f'yc.shape: {yc.shape}')
+        print(f' ..yc.shape: {yc.shape}')
         
         val_acc_target = [item[1] for item in nas_data_history]
-        print(f'val_acc_target.shape: {len(val_acc_target)}')
-        print(f' ..val_acc_target: {val_acc_target}')        
+        print(f' ..val_acc_target: {val_acc_target}')
+        print(f' ..val_acc_target.length: {len(val_acc_target)}')
         
         return xc, yc, val_acc_target
 
@@ -187,7 +222,8 @@ class NASController_4:
         main_input = Input(shape=controller_input_shape, name='main_input')        
         print(f'Controller model input shape: {main_input.shape}')
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
-        main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
+        #main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
+        main_output = Dense(self.search_space_size, activation='softmax', name='main_output')(x)
         print(f'Controller model output shape: {main_output.shape}')
         model = Model(inputs=[main_input], outputs=[main_output])
         return model

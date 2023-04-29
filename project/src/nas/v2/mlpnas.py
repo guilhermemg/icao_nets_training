@@ -184,6 +184,7 @@ class MLPNAS(NASController_3):
             print('                       CONTROLLER EPOCH: {}'.format(controller_epoch))
             print('------------------------------------------------------------------')
             sequences = self.sample_architecture_sequences(self.controller_model, self.samples_per_controller_epoch)
+            print(f'Sequences: {sequences}')
             
             if self.use_predictor:
                 pred_accuracies = self.get_predicted_accuracies_hybrid_model(self.controller_model, sequences)
