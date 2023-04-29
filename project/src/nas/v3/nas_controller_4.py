@@ -37,20 +37,20 @@ class NASController_4:
         #self.controller_classes = len(self.vocab) + 1
         self.controller_classes = 4
 
-        # self.controller_batch_size = len(self.data)
-        self.controller_batch_size = 2
+        self.controller_batch_size = self.samples_per_controller_epoch
         self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
         self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
         
-        if not self.controller_use_predictor:
-            self.controller_model = self.__create_control_model(self.controller_input_shape)
-        else:
-            self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
-
         self.search_space = None
         self.search_space_size = None
 
         self.__create_search_space()
+
+
+        if not self.controller_use_predictor:
+            self.controller_model = self.__create_control_model(self.controller_input_shape)
+        else:
+            self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
 
 
     def __create_search_space(self):
@@ -89,17 +89,13 @@ class NASController_4:
         print('Preparing controller data...')
         print(f' ..nas_data_history: {nas_data_history}')
         
-        controller_sequences = np.array([[item[0].to_numbers() for item in nas_data_history]])
-        print(f' ..controller_sequences: {controller_sequences}')
-        print(f' ..controller_sequences.shape: {controller_sequences.shape}')
-        
-        xc = controller_sequences.reshape(self.controller_batch_size, 1, self.max_len - 1)
+        xc = np.array([[item[0].to_numbers() for item in nas_data_history]])       
+        xc = xc.reshape(self.controller_batch_size, 1, self.max_len - 1)
         print(f' ..xc: {xc}')
         print(f' ..xc.shape: {xc.shape}')
 
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        yc = np.array([[random.randint(0,5) for _ in range(4)], [random.randint(0,5) for _ in range(4)]])
-        yc = yc.reshape(self.controller_batch_size, 1, self.max_len - 1)
+        yc = np.zeros((self.controller_batch_size, 1, self.max_len - 1))
         print(f' ..yc: {yc}')
         print(f' ..yc.shape: {yc.shape}')
         
@@ -137,10 +133,8 @@ class NASController_4:
     def custom_loss(self, target, output):
         # define baseline for rewards and subtract it from all validation accuracies to get reward.
         baseline = 0.5
-        #reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
-        #    self.samples_per_controller_epoch, 1)
         reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
-            self.controller_batch_size, 1)
+           self.samples_per_controller_epoch, 1)
         
         # get discounted reward
         discounted_reward = self.get_discounted_reward(reward)

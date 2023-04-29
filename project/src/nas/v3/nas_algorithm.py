@@ -30,7 +30,7 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
         self.nas_history_data : list = []
         self.nas_controller: NASController_4 = NASController_4(config_interp)
         self.nas_data_log = 'LOGS/nas_data.pkl'
-        
+
 
     def _feedback(self, dna, reward):
         self.nas_history_data.append([dna,reward])

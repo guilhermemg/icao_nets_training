@@ -2,7 +2,7 @@ import pyglove as pg
 
 
 @pg.functor([('n_denses', pg.typing.List(pg.typing.Int()))])
-def model_1_spc(n_denses):
+def model_1_spec(n_denses):
     return {f'n_denses_{idx}':x for idx,x in enumerate(n_denses)}
 
 
@@ -33,6 +33,6 @@ class New_MLPSearchSpace(object):
         #     #return model_sss_spc(pg.sublist_of(info['num_layers'], info['candidates'], choices_distinct=False))
         #     return model_sss_spc(pg.sublist_of(5, [8, 16, 24, 32, 40, 48, 56, 64], choices_distinct=False))
         if self.ss_indicator == 'ss_1':
-            return model_1_spc(pg.sublist_of(self.n_groups, self.n_denses_candidates, choices_distinct=False))
+            return model_1_spec(pg.sublist_of(self.n_groups, self.n_denses_candidates, choices_distinct=False))
 
         
