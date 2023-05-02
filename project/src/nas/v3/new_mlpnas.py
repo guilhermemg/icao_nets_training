@@ -4,10 +4,9 @@ import pyglove as pg
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 
-from src.nas.v3.nas_controller_4 import NASController_4
 from src.nas.v3.mlp_search_space import New_MLPSearchSpace
 from src.nas.v3.nas_algorithm import NASAlgorithmFactory
-from src.nas.v3.utils import clean_log, log_event
+from src.nas.v3.utils import clean_log, log_event, load_nas_data
 
 from src.configs.conf_interp import ConfigInterpreter
 from src.m_utils.neptune_utils import NeptuneUtils
@@ -35,8 +34,6 @@ class New_MLPNAS:
         nas_algo_factory : NASAlgorithmFactory = NASAlgorithmFactory(self.config_interp.nas_params['nas_algorithm'])
         self.nas_algorithm = nas_algo_factory.get_algorithm(self.config_interp)
 
-        
-
         self.data : list = []
         
         clean_log()
@@ -58,30 +55,6 @@ class New_MLPNAS:
         self.model_evaluator.set_data_src(DataSource.VALIDATION)
         final_eval = self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
         return final_eval
-
-
-    def append_model_metrics_BAK(self, sequence, history, pred_accuracy=None):
-        if len(history.history['val_accuracy']) == 1:
-            if pred_accuracy:
-                self.data.append([sequence,
-                                  history.history['val_accuracy'][0],
-                                  pred_accuracy])
-            else:
-                self.data.append([sequence,
-                                  history.history['val_accuracy'][0]])
-            print('validation accuracy: ', history.history['val_accuracy'][0])
-        else:
-            val_acc = np.ma.average(history.history['val_accuracy'],
-                                    weights=np.arange(1, len(history.history['val_accuracy']) + 1),
-                                    axis=-1)
-            if pred_accuracy:
-                self.data.append([sequence,
-                                  val_acc,
-                                  pred_accuracy])
-            else:
-                self.data.append([sequence,
-                                  val_acc])
-            print('validation accuracy: ', val_acc)
 
     
     def append_model_metrics(self, sequence, final_eval, pred_accuracy=None):
@@ -122,4 +95,21 @@ class New_MLPNAS:
         
         log_event()
 
-        return self.data
+        self.__print_nas_report()
+        self.__log_nas_data()
+    
+
+    def __print_nas_report(self):
+        print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
+        nas_data_df = load_nas_data()
+        nas_data_df = nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
+        for idx,(arch,val_acc) in nas_data_df.iloc[:5,:].iterrows():
+             print(f' . Architecture {idx}: {arch} | Validation accuracy: {val_acc}%')
+        print('------------------------------------------------------\n\n')
+    
+
+    def __log_nas_data(self):
+        if self.config_interp.use_neptune:
+            nas_data_df = load_nas_data()
+            nas_data_df = nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
+            self.neptune_utils.log_nas_data(nas_data_df)

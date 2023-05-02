@@ -29,7 +29,7 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
     def __init__(self, config_interp: ConfigInterpreter):
         self.nas_history_data : list = []
         self.nas_controller: NASController_4 = NASController_4(config_interp)
-        self.nas_data_log_path = 'LOGS/nas_data.pkl'
+        self.nas_data_log_path = 'LOGS/nas_data.csv'
 
 
     def _feedback(self, dna, reward):
@@ -45,10 +45,8 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
         print(f'logging nas_history_data...')
         print(f' ..self.nas_history_data: {self.nas_history_data}')
         print(f' ..nas_data_log_path: {self.nas_data_log_path}')
-        # df = pd.DataFrame(data=self.nas_history_data, columns=['dna', 'reward'])
-        # df.to_csv(self.nas_data_log_path, index=False)
-        with open(self.nas_data_log_path, 'wb') as f:
-           pickle.dump(self.nas_data_log_path, f)
+        df = pd.DataFrame(data=self.nas_history_data, columns=['dna', 'reward'])
+        df.to_csv(self.nas_data_log_path, index=False)
 
 
     def _propose(self):

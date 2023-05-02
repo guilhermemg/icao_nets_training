@@ -1,7 +1,8 @@
 import os
 import shutil
-import pickle
 import numpy as np
+import pandas as pd
+
 from itertools import groupby
 from matplotlib import pyplot as plt
 from typing import List, Dict
@@ -38,26 +39,14 @@ def get_latest_event_id():
     return int(latest_subdir.replace('LOGS/event', ''))
 
 
-
 ########################################################
 #                 RESULTS PROCESSING                   #
 ########################################################
 
 
 def load_nas_data():
-    event = get_latest_event_id()
-    data_file = 'LOGS/event{}/nas_data.pkl'.format(event)
-    with open(data_file, 'rb') as f:
-        data = pickle.load(f)
+    data = pd.read_csv('LOGS/event{}/nas_data.csv'.format(get_latest_event_id()))
     return data
-
-
-def sort_search_data(nas_data):
-    val_accs = [item[1] for item in nas_data]
-    sorted_idx = np.argsort(val_accs)[::-1]
-    nas_data = [nas_data[x] for x in sorted_idx]
-    return nas_data
-
 
 
 ########################################################
@@ -66,10 +55,11 @@ def sort_search_data(nas_data):
 
 
 def get_top_n_architectures(data, top_n=5) -> List[Dict]:
-    data = sort_search_data(data)
+    data_df = data.sort_values('reward', ascending=False, ignore_index=False)
+    data_df = data_df.iloc[:top_n,:]
     print('Top {} Architectures:'.format(top_n))
     best_archs = []
-    for idx,(arch,val_acc) in enumerate(data[:top_n]):
+    for idx,(arch,val_acc) in data_df.iterrows():
         print(f' . Architecture {idx}: {arch} | Validation accuracy: {val_acc}%')
         best_archs.append({'Architecture': arch, 'Validation accuracy': val_acc})
     return best_archs
@@ -77,15 +67,14 @@ def get_top_n_architectures(data, top_n=5) -> List[Dict]:
 
 def get_nas_accuracy_plot():
     data = load_nas_data()
-    accuracies = [x[1] for x in data]
+    accuracies = [x for x in data.reward.values]
     plt.plot(np.arange(len(data)), accuracies)
     plt.show()
 
 
 def get_accuracy_distribution():
-    event = get_latest_event_id()
     data = load_nas_data()
-    accuracies = [x[1]*100. for x in data]
+    accuracies = [x*100. for x in data.reward.values]
     accuracies = [int(x) for x in accuracies]
     sorted_accs = np.sort(accuracies)
     count_dict = {k: len(list(v)) for k, v in groupby(sorted_accs)}
