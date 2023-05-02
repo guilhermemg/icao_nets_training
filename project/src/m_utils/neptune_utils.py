@@ -101,7 +101,7 @@ class NeptuneUtils:
         finally:
             if prev_run is not None:
                 prev_run.stop()
-    
+
 
     def check_model_existence(self, trained_model_dir_path):
         print('----')   
@@ -228,3 +228,7 @@ class NeptuneUtils:
 
     def log_nas_data(self, nas_data_df):
         self.neptune_run['nas/search_data'].upload(File.as_html(nas_data_df))
+
+    
+    def log_kwargs(self, kwargs_dict):
+        self.neptune_run['kwargs/kwargs'] = kwargs_dict

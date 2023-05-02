@@ -40,6 +40,8 @@ class ExperimentRunner:
         self.model_trainer = ModelTrainer(self.config_interp, self.neptune_utils)
         self.model_evaluator = ModelEvaluator(self.config_interp, self.neptune_utils)
 
+        self.neptune_utils.log_kwargs(kwargs)
+
     
     def load_training_data(self) -> None:
         print_method_log_sig( 'load training data')
