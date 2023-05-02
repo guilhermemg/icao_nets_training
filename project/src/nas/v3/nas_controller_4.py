@@ -43,6 +43,8 @@ class NASController_4:
         self.search_space = None
         self.search_space_size = None
 
+        self.__clean_controller_weights()
+
         self.__create_search_space()
 
 
@@ -50,6 +52,11 @@ class NASController_4:
             self.controller_model = self.__create_control_model(self.controller_input_shape)
         else:
             self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
+
+
+    def __clean_controller_weights(self):
+        if os.path.exists(self.controller_weights_path):
+            os.remove(self.controller_weights_path)
 
 
     def __create_search_space(self):

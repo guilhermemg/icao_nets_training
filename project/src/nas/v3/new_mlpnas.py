@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pandas as pd
 import pyglove as pg
 
@@ -35,8 +37,8 @@ class New_MLPNAS:
         self.nas_algorithm = nas_algo_factory.get_algorithm(self.config_interp)
 
         self.nas_data_df : pd.DataFrame = None
-        
-        clean_log()
+        self.nas_data_df_path: str = 'LOGS/full_nas_data_history.csv'
+        self.sorted_nas_data_df_path: str = 'LOGS/sorted_nas_data_history.csv'
 
         self.model_trainer = ModelTrainer(config_interp, neptune_utils)
         self.model_evaluator = ModelEvaluator(config_interp, neptune_utils)
@@ -58,7 +60,12 @@ class New_MLPNAS:
 
 
     def __run_nas(self):
+        self.nas_data_df = pd.DataFrame(columns=['id','dna','reward','architecture','final_ACC','final_EER_mean','final_EER_median','final_EER_std_dv','elapsed_arch_training_time','elapsed_search_time'])
+
+        init_total_search_time = datetime.now()
+
         for model,feedback in pg.sample(self.search_space, self.nas_algorithm, num_examples=self.total_num_proposed_architectures):
+            init_arch_training_time = datetime.now()
         
             print(70*'=')
             print(f'  New Controller Epoch | Feedback ID: {feedback.id} | Feedback DNA: {feedback.dna}')
@@ -66,37 +73,69 @@ class New_MLPNAS:
             
             model_spec = model()
             
+            print(60*'-')
             print(f' -- Architecture {feedback.id}: {model_spec}')
-            
             self.create_architecture(model_spec)
             self.train_architecture()
             final_eval = self.evaluate_architecture()
-            
-            print(70*'=')
+            print(60*'-')
 
             feedback(final_eval['final_ACC'])
-        
-        log_event()
 
-        self.nas_data_df = load_nas_data()
-        self.nas_data_df = self.nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
-        return self.nas_data_df.iloc[0,0]
+            self.__log_nas_data(init_total_search_time, feedback, init_arch_training_time, model_spec, final_eval)
+
+            print(70*'=')
+        
+        self.__sort_nas_log_data()
+        
+        self.nas_data_df.to_csv(self.sorted_nas_data_df_path, index=False)
+        
+
+    def __log_nas_data(self, init_total_search_time, feedback, init_arch_training_time, model_spec, final_eval):
+        end_arch_training_time = datetime.now()
+        elapsed_arch_training_time = (end_arch_training_time - init_arch_training_time).total_seconds()
+        elapsed_search_time = (end_arch_training_time - init_total_search_time).total_seconds()
+
+        self.nas_data_df = self.nas_data_df.append({'id': feedback.id,
+                                                    'dna': feedback.dna,
+                                                    'reward': final_eval['final_ACC'],
+                                                    'architecture': model_spec, 
+                                                    'final_ACC': final_eval['final_ACC'],
+                                                    'final_EER_mean': final_eval['final_EER_mean'],
+                                                    'final_EER_median': final_eval['final_EER_median'],
+                                                    'final_EER_std_dv': final_eval['final_EER_std_dv'],
+                                                    'elapsed_arch_training_time': elapsed_arch_training_time, 
+                                                    'elapsed_search_time': elapsed_search_time,}, ignore_index=True)
+        
+        self.nas_data_df.to_csv(self.nas_data_df_path, index=False)
 
 
     def search(self):
-        best_arch = self.__run_nas()
+        self.__run_nas()
+
+        best_arch = self.__get_best_architecture()
+        
         self.__print_nas_report()
-        self.__log_nas_data()
+        self.__log_nas_data_to_neptune()
+        
         return best_arch
     
 
+    def __get_best_architecture(self):
+        return self.nas_data_df.at[0,'architecture']
+
+
+    def __sort_nas_log_data(self):
+        self.nas_data_df.sort_values('reward', ascending=False, ignore_index=False, inplace=True)
+
+
     def __print_nas_report(self):
         print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
-        for idx,(arch,val_acc) in self.nas_data_df.iloc[:5,:].iterrows():
-             print(f' . Architecture {idx}: {arch} | Validation accuracy: {val_acc}%')
+        for idx,row in self.nas_data_df.iloc[:5,:].iterrows():
+            print(f' . Architecture {idx}: {row["architecture"]} | Validation accuracy: {row["final_ACC"]}%')
         print('------------------------------------------------------\n\n')
 
 
-    def __log_nas_data(self):
+    def __log_nas_data_to_neptune(self):
         if self.config_interp.use_neptune:
             self.neptune_utils.log_nas_data(self.nas_data_df)
