@@ -1,4 +1,4 @@
-import numpy as np
+import pandas as pd
 import pyglove as pg
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -34,7 +34,7 @@ class New_MLPNAS:
         nas_algo_factory : NASAlgorithmFactory = NASAlgorithmFactory(self.config_interp.nas_params['nas_algorithm'])
         self.nas_algorithm = nas_algo_factory.get_algorithm(self.config_interp)
 
-        self.data : list = []
+        self.nas_data_df : pd.DataFrame = None
         
         clean_log()
 
@@ -56,26 +56,13 @@ class New_MLPNAS:
         final_eval = self.model_evaluator.test_model(self.validation_gen, self.model_trainer.model, verbose=False, running_nas=True)
         return final_eval
 
-    
-    def append_model_metrics(self, sequence, final_eval, pred_accuracy=None):
-        if pred_accuracy:
-            self.data.append([sequence, final_eval['final_ACC'], pred_accuracy])
-        else:
-            self.data.append([sequence, final_eval['final_ACC']])
 
-        print('validation accuracy: ', final_eval['final_ACC'])
-
-
-    def search(self):
+    def __run_nas(self):
         for model,feedback in pg.sample(self.search_space, self.nas_algorithm, num_examples=self.total_num_proposed_architectures):
         
             print(70*'=')
             print(f'  New Controller Epoch | Feedback ID: {feedback.id} | Feedback DNA: {feedback.dna}')
-            print(70*'-')
-                        
-            #if self.use_predictor:
-            #    pred_accuracies = self.get_predicted_accuracies_hybrid_model(self.controller_model, sequences)
-            #    print('Predicted accuracies: ', pred_accuracies)
+            print(70*'-')            
             
             model_spec = model()
             
@@ -85,31 +72,31 @@ class New_MLPNAS:
             self.train_architecture()
             final_eval = self.evaluate_architecture()
             
-            # if self.use_predictor:
-            #    self.append_model_metrics(model_spec, final_eval, pred_accuracies[i])
-            # else:
-            self.append_model_metrics(model_spec, final_eval)
             print(70*'=')
 
             feedback(final_eval['final_ACC'])
         
         log_event()
 
+        self.nas_data_df = load_nas_data()
+        self.nas_data_df = self.nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
+        return self.nas_data_df.iloc[0,0]
+
+
+    def search(self):
+        best_arch = self.__run_nas()
         self.__print_nas_report()
         self.__log_nas_data()
+        return best_arch
     
 
     def __print_nas_report(self):
         print('\n\n------------------ TOP ARCHITECTURES FOUND --------------------')
-        nas_data_df = load_nas_data()
-        nas_data_df = nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
-        for idx,(arch,val_acc) in nas_data_df.iloc[:5,:].iterrows():
+        for idx,(arch,val_acc) in self.nas_data_df.iloc[:5,:].iterrows():
              print(f' . Architecture {idx}: {arch} | Validation accuracy: {val_acc}%')
         print('------------------------------------------------------\n\n')
-    
+
 
     def __log_nas_data(self):
         if self.config_interp.use_neptune:
-            nas_data_df = load_nas_data()
-            nas_data_df = nas_data_df.sort_values('reward', ascending=False, ignore_index=False)
-            self.neptune_utils.log_nas_data(nas_data_df)
+            self.neptune_utils.log_nas_data(self.nas_data_df)

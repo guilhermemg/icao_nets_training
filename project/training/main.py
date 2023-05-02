@@ -42,11 +42,7 @@ kwargs = {
         'sample_prop': 1.0
     },
     'nas_params': {
-        #'max_blocks_per_branch': 5,
-        #'n_child_epochs': N_CHILD_EPOCHS,
-        #'controller_epochs': CONTROLLER_EPOCHS,
-        #'controller_batch_size': 64,
-        #'n_trials': N_TRIALS,
+        
         
         'samples_per_controller_epoch': 3,
         'architecture_training_epochs': 2,

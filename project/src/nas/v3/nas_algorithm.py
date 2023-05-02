@@ -50,8 +50,7 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
 
 
     def _propose(self):
-        samples_per_controller_epoch = self.nas_controller.samples_per_controller_epoch
-        if self.num_feedbacks % samples_per_controller_epoch == 0 and self.num_feedbacks > 0:
+        if self.num_feedbacks % self.nas_controller.controller_batch_size == 0 and self.num_feedbacks > 0:
             print(70*'.')
             print(' ..New batch of architectures. Training controller model...')
             self.nas_controller.train_model_controller(self.nas_history_data)    

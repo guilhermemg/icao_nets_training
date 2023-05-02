@@ -32,15 +32,14 @@ class NASController_4:
 
         self.n_tasks = len(self.config_interp.tasks)
 
-        self.samples_per_controller_epoch = self.config_interp.nas_params['samples_per_controller_epoch']
-
         #self.controller_classes = len(self.vocab) + 1
         self.controller_classes = 4
 
-        self.controller_batch_size = self.samples_per_controller_epoch
+        self.controller_batch_size = self.config_interp.controller_params['controller_batch_size']
         self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
         self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
         
+        self.nas_data_history = None
         self.search_space = None
         self.search_space_size = None
 
@@ -84,7 +83,7 @@ class NASController_4:
 
 
     def __prepare_controller_data(self, nas_data_history):
-        self.data = nas_data_history
+        self.nas_data_history = nas_data_history
 
         print('Preparing controller data...')
         print(f' ..nas_data_history: {nas_data_history}')
@@ -133,8 +132,8 @@ class NASController_4:
     def custom_loss(self, target, output):
         # define baseline for rewards and subtract it from all validation accuracies to get reward.
         baseline = 0.5
-        reward = np.array([item[1] - baseline for item in self.data[-self.samples_per_controller_epoch:]]).reshape(
-           self.samples_per_controller_epoch, 1)
+        reward = np.array([item[1] - baseline for item in self.nas_data_history[-self.controller_batch_size:]]).reshape(
+           self.controller_batch_size, 1)
         
         # get discounted reward
         discounted_reward = self.get_discounted_reward(reward)
