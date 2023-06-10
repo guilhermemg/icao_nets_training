@@ -9,15 +9,21 @@ class MLPSearchSpace(Enum):
 
 
 @pg.functor([('n_denses', pg.typing.List(pg.typing.Int()))])
-def model_1_spec(n_denses):
+def model_n_denses_spec(n_denses):
     return {f'n_denses_{idx}':x for idx,x in enumerate(n_denses)}
+
+
+@pg.functor([('task_groups', pg.typing.List(pg.typing.Str()))])
+def model_task_groups_spec(task_groups):
+    return {f'g_{idx}':x for idx,x in enumerate(task_groups)}
 
 
 class New_MLPSearchSpace(object):
 
-    def __init__(self, ss_indicator=MLPSearchSpace.SS_1):
+    def __init__(self, ss_indicator=MLPSearchSpace.SS_1, tasks_list=None):
         self.n_groups = 4
         self.n_denses_candidates = [1, 2, 3, 4, 5]
+        self.tasks_list = tasks_list
         self.ss_indicator = ss_indicator
 
         print(f' -- Using search space: {self.ss_indicator.value}')
@@ -41,6 +47,9 @@ class New_MLPSearchSpace(object):
         #     #return model_sss_spc(pg.sublist_of(info['num_layers'], info['candidates'], choices_distinct=False))
         #     return model_sss_spc(pg.sublist_of(5, [8, 16, 24, 32, 40, 48, 56, 64], choices_distinct=False))
         if self.ss_indicator.value == MLPSearchSpace.SS_1.value:
-            return model_1_spec(pg.sublist_of(self.n_groups, self.n_denses_candidates, choices_distinct=False))
+            n_denses_spec = model_n_denses_spec(pg.sublist_of(self.n_groups, self.n_denses_candidates, choices_distinct=False))
+            #task_groups_spec = model_task_groups_spec(pg.sublist_of(self.n_groups, self.tasks_list, choices_distinct=False))
+            #return n_denses_spec | task_groups_spec
+            return n_denses_spec
 
         
