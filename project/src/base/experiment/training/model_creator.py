@@ -282,21 +282,28 @@ class ModelCreator:
 
     def __create_nas_mtl_model_2(self, config):
         baseModel = self.__create_base_model()
-        
+
         x = baseModel.output
-        x = GlobalAveragePooling2D()(x)
+        x = self.__vgg_block(x, 1, 256, 'shared_branch')
+        x = Flatten()(x)
+        
+        split = Lambda( lambda k: tf.split(k, num_or_size_splits=4, axis=1), output_shape=(None,...))(x)
+        spl_0 = tf.reshape(tensor=split[0], shape=[tf.shape(split[0])[0],1,32,32])
+        spl_1 = tf.reshape(tensor=split[1], shape=[tf.shape(split[1])[0],1,32,32])
+        spl_2 = tf.reshape(tensor=split[2], shape=[tf.shape(split[2])[0],1,32,32])
+        spl_3 = tf.reshape(tensor=split[3], shape=[tf.shape(split[3])[0],1,32,32])
         
         tasks_groups = self.__get_tasks_groups()
-        
-        #br_lists = []
-        #for t_group in tasks_groups:
-            #br_list = [self.__create_fcs_block(x, config[f'n_denses'], t.value) for t in t_group]
-            #br_lists.append(br_list)
 
-        br_list_0 = [self.__create_fcs_block(x, config['n_denses_0'], t.value) for t in tasks_groups['g0']]
-        br_list_1 = [self.__create_fcs_block(x, config['n_denses_1'], t.value) for t in tasks_groups['g1']]
-        br_list_2 = [self.__create_fcs_block(x, config['n_denses_2'], t.value) for t in tasks_groups['g2']]
-        br_list_3 = [self.__create_fcs_block(x, config['n_denses_3'], t.value) for t in tasks_groups['g3']]
+        g0 = self.__vgg_block(spl_0, config['n_convs_0'], 32, 'g0')
+        g1 = self.__vgg_block(spl_1, config['n_convs_1'], 32, 'g1')
+        g2 = self.__vgg_block(spl_2, config['n_convs_2'], 32, 'g2')
+        g3 = self.__vgg_block(spl_3, config['n_convs_3'], 32, 'g3')
+
+        br_list_0 = [self.__create_fcs_block_2(g0, config['n_denses_0'], req.value) for req in tasks_groups['g0']]       
+        br_list_1 = [self.__create_fcs_block_2(g1, config['n_denses_1'], req.value) for req in tasks_groups['g1']]
+        br_list_2 = [self.__create_fcs_block_2(g2, config['n_denses_2'], req.value) for req in tasks_groups['g2']]
+        br_list_3 = [self.__create_fcs_block_2(g3, config['n_denses_3'], req.value) for req in tasks_groups['g3']]
         
         out_branches_list = br_list_0 + br_list_1 + br_list_2 + br_list_3
         
