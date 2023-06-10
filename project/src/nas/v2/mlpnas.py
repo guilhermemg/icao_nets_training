@@ -42,6 +42,7 @@ class MLPNAS(NASController_3):
         self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
         self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
         
+        self.controller_model = None
         if not self.controller_use_predictor:
             self.controller_model = self.create_control_model(self.controller_input_shape)
         else:
@@ -98,13 +99,25 @@ class MLPNAS(NASController_3):
 
     def prepare_controller_data(self, sequences):
         print('Preparing controller data...')
+        
+        print(f' ..Sequences: {sequences}')
+        
         controller_sequences = pad_sequences(sequences, maxlen=self.max_len, padding='post')
+        print(f' ..Controller sequences: {controller_sequences}')
+        
         xc = controller_sequences[:, :-1].reshape(len(controller_sequences), 1, self.max_len - 1)
+        print(f' ..Xc: {xc}')
+        
         yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
+        print(f' ..Yc: {yc}')
+        
         val_acc_target = [item[1] for item in self.data]
+        print(f' ..Val acc target: {val_acc_target}')
+        
         print(f'xc.shape: {xc.shape}')
         print(f'yc.shape: {yc.shape}')
         print(f'val_acc_target.shape: {len(val_acc_target)}')
+        
         return xc, yc, val_acc_target
 
 
@@ -171,6 +184,7 @@ class MLPNAS(NASController_3):
             print('                       CONTROLLER EPOCH: {}'.format(controller_epoch))
             print('------------------------------------------------------------------')
             sequences = self.sample_architecture_sequences(self.controller_model, self.samples_per_controller_epoch)
+            print(f'Sequences: {sequences}')
             
             if self.use_predictor:
                 pred_accuracies = self.get_predicted_accuracies_hybrid_model(self.controller_model, sequences)

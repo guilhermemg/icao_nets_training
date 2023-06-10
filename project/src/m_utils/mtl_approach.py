@@ -1,6 +1,6 @@
 from enum import Enum
 
 class MTLApproach(Enum):
-    HAND_1 = 'handcrafted_1'
-    HAND_2 = 'handcrafted_2'
-    HAND_3 = 'handcrafted_3'
+    HANDCRAFTED_1 = 'handcrafted_1'
+    HANDCRAFTED_2 = 'handcrafted_2'
+    HANDCRAFTED_3 = 'handcrafted_3'

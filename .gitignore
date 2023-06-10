@@ -36,3 +36,5 @@ etc/jupyter/jupyter_notebook_config.d/
 **/training_curves.png
 
 **/training/LOGS/
+
+project/training/nasbench/

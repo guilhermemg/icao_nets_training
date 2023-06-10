@@ -33,6 +33,8 @@ class NASController_3(MLPSearchSpace):
 
         self.controller_classes = len(self.vocab) + 1
 
+        print('Controller classes: ', self.controller_classes)
+
    
     def sample_architecture_sequences(self, model, number_of_samples):
         final_layer_id = len(self.vocab)
@@ -44,14 +46,19 @@ class NASController_3(MLPSearchSpace):
         while len(samples) < number_of_samples:
             seed = []
             while len(seed) < self.max_len:
+                print(f' ..Seed: {seed}')
                 sequence = pad_sequences([seed], maxlen=self.max_len - 1, padding='post')
+                print(f' ..Padded sequence: {sequence}')
                 sequence = sequence.reshape(1, 1, self.max_len - 1)
+                print(f' ..Reshaped sequence: {sequence}')
                 if self.use_predictor:
                     (probab, _) = model.predict(sequence)
                 else:
                     probab = model.predict(sequence)
                 probab = probab[0][0]
+                print(f' ..Probabilities: {probab}')
                 next = np.random.choice(vocab_idx, size=1, p=probab)[0]
+                print(f' ..Next: {next}')
                 if next == dropout_id and len(seed) == 0:
                     continue
                 if next == final_layer_id and len(seed) == 0:
@@ -216,6 +223,8 @@ class NASController_3(MLPSearchSpace):
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
         main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
         model = Model(inputs=[main_input], outputs=[main_output])
+        print(f'Controller model input shape: {main_input.shape}')
+        print(f'Controller model output shape: {main_output.shape}')
         return model
 
 
@@ -229,13 +238,19 @@ class NASController_3(MLPSearchSpace):
         
         print("TRAINING CONTROLLER...")
         
+        y_data = y_data.reshape(len(y_data), 1, self.controller_classes)
+
+        print(f' .. y_data.shape: {y_data.shape}')
+
         model.fit({'main_input': x_data},
-                  {'main_output': y_data.reshape(len(y_data), 1, self.controller_classes)},
+                  {'main_output': y_data},
                   epochs=nb_epochs,
                   batch_size=controller_batch_size,
                   verbose=0)
         
         model.save_weights(self.controller_weights_path)
+
+        print('training complete!')
 
 
     # ------------------- Hybrid Model -------------------

@@ -2,13 +2,11 @@ import os
 import shutil
 import zipfile
 
-import pandas as pd
-
 import neptune.new as neptune
 from neptune.new.types import File
 
 from src.m_utils.utils import print_method_log_sig
-from src.nas.v2.utils import load_nas_data
+
 
 class NeptuneUtils:
     def __init__(self, config_interp):
@@ -103,7 +101,7 @@ class NeptuneUtils:
         finally:
             if prev_run is not None:
                 prev_run.stop()
-    
+
 
     def check_model_existence(self, trained_model_dir_path):
         print('----')   
@@ -228,17 +226,9 @@ class NeptuneUtils:
             prev_run.stop()
     
 
-    def log_top_architectures_found(self, top_archs_list):
-        print('Logging top architectures found..')
-        for i,arch in enumerate(top_archs_list):
-            self.neptune_run[f'nas/top_architectures/{i}'] = arch
-        print(' .. done!')
+    def log_nas_data(self, nas_data_df):
+        self.neptune_run['nas/search_data'].upload(File.as_html(nas_data_df))
 
-
-    def log_nas_data(self):
-        nas_data = load_nas_data()
-        if not self.config_interp.controller_params['controller_use_predictor']:
-            nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy'])
-        else:
-            nas_data = pd.DataFrame(data=nas_data, columns=['Sequence','Validation accuracy','Predicted accuracy'])
-        self.neptune_run['nas/search_data'].upload(File.as_html(nas_data))
+    
+    def log_kwargs(self, kwargs_dict):
+        self.neptune_run['kwargs/kwargs'] = kwargs_dict
