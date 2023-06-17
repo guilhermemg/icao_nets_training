@@ -32,7 +32,7 @@ from src.base.experiment.training.optimizers import Optimizer
 from src.base.experiment.training.custom_base_model import CustomBaseModel
 
 from src.base.experiment.dataset.dataset import Dataset
-
+from src.nas.v3.mlp_search_space import MLPSearchSpaceIndicator
 
 class ModelCreator:
     def __init__(self, config_interp):
@@ -326,4 +326,7 @@ class ModelCreator:
                 self.config_interp.approach.value == NAS_MTLApproach.APPROACH_2.value:
             return self.__create_nas_mtl_model_1(config)
         elif self.config_interp.approach.value == NAS_MTLApproach.APPROACH_3.value:
-            return self.__create_nas_mtl_model_2(config)
+            if self.config_interp.nas_params['nas_search_space'].name == MLPSearchSpaceIndicator.SS_1.name:
+                return self.__create_nas_mtl_model_1(config)
+            elif self.config_interp.nas_params['nas_search_space'].name == MLPSearchSpaceIndicator.SS_2.name:            
+                return self.__create_nas_mtl_model_2(config)

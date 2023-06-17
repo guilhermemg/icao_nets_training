@@ -1,22 +1,23 @@
 import os
-import random
 import numpy as np
+
+from itertools import product
 
 import tensorflow.keras.backend as K
 from tensorflow.keras import optimizers
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.utils import to_categorical
+
 
 from src.base.experiment.training.optimizers import Optimizer
-
+from src.nas.v3.mlp_search_space import MLPSearchSpaceCandidate
 
 class NASController_4:
     def __init__(self, config_interp):        
         self.config_interp = config_interp
 
-        self.max_len                    = self.config_interp.mlp_params['max_architecture_length']
+        #self.max_len                    = self.config_interp.mlp_params['max_architecture_length']
         self.min_task_group_size        = self.config_interp.mlp_params['min_task_group_size']
         self.controller_lstm_dim        = self.config_interp.controller_params['controller_lstm_dim']
         self.controller_optimizer       = self.config_interp.controller_params['controller_optimizer']
@@ -31,27 +32,26 @@ class NASController_4:
         self.controller_weights_path = 'LOGS/controller_weights.h5'
 
         self.n_tasks = len(self.config_interp.tasks)
+        
+        self.controller_classes = self.config_interp.nas_params['nas_search_space'].value['n_classes']
 
-        #self.controller_classes = len(self.vocab) + 1
-        self.controller_classes = 4
-
+        self.controller_noise_dim = 4
+        self.controller_input_shape = (1, self.controller_classes+self.controller_noise_dim)
+        
         self.controller_batch_size = self.config_interp.controller_params['controller_batch_size']
-        self.controller_input_shape = (1, self.config_interp.mlp_params['max_architecture_length'] - 1)
+
         self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
         
         self.nas_data_history = None
-        self.search_space = None
-        self.search_space_size = None
+        self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
+        self.search_space_candidates_size = len(self.search_space_candidates)
 
-        self.__clean_controller_weights()
-
-        self.__create_search_space()
-
+        self.__clean_controller_weights()        
 
         if not self.controller_use_predictor:
-            self.controller_model = self.__create_control_model(self.controller_input_shape)
+            self.controller_model = self.__create_control_model()
         else:
-            self.controller_model = self.__create_hybrid_control_model(self.controller_input_shape, self.controller_batch_size)
+            self.controller_model = self.__create_hybrid_control_model()
 
 
     def __clean_controller_weights(self):
@@ -59,34 +59,51 @@ class NASController_4:
             os.remove(self.controller_weights_path)
 
 
-    def __create_search_space(self):
-        all_archs = [[i,j,p,q] for i in range(0,5) for j in range(0,5) for p in range(0,5) for q in range(0,5)]
-        print(f'all_archs[:10]: {all_archs[:10]}')
-        
-        search_space_size = len(all_archs)
-        print(f'search_space_size: {search_space_size}')
-
-        self.search_space = all_archs
-        self.search_space_size = len(self.search_space)
-
-
     def build_new_arch(self, prev_arch):
-        inp = np.array(prev_arch).reshape(1,1,4)
-        
-        print(f'input: {inp}')
-        
-        prob_list = self.controller_model.predict(inp)
-        
-        prob_list = prob_list[0][0]
-        print(f'prob_list[:5]: {prob_list[:5]}')
-        
-        chose_idx = np.random.choice(range(self.search_space_size), size=1, replace=False, p=prob_list)[0]
-        print(f'chose_idx: {chose_idx}')
-        
-        new_arch = self.search_space[chose_idx]
-        print(f'new_arch: {new_arch}')
+        inp = np.array(prev_arch).reshape(1,1,self.controller_classes)
 
-        return new_arch
+        print(f'input: {inp}')
+
+        final_arch = []
+        for i in range(self.controller_classes):
+            noise = np.random.randint(0, 10, size=4).reshape(1,1,4)
+            print(f'noise: {noise}')
+
+            inp = np.concatenate([inp,noise], axis=2)
+
+            prob_list = self.controller_model.predict(inp)   # output: (1,1,n_classes+noise_dim)
+            print(f'prob_list.shape: {prob_list.shape}')
+            prob_list = prob_list[0][0]
+            print(f'prob_list: {prob_list}')
+            print(f'len(prob_list): {len(prob_list)}')
+
+            lookup_search_space_candidates = None
+            if i < 4:   # first half of DNA
+                print(f'prob_list[:5]: {prob_list[:5]}')
+                print(f'len(prob_list[:5]): {len(prob_list[:5])}')
+                chose_idx = np.argmax(prob_list[:5])  # choose from the first part of the list (5 classes)
+                lookup_search_space_candidates = self.search_space_candidates[:5]
+            elif i >= 4:  # second half of DNA
+                print(f'prob_list[5:]: {prob_list[5:]}')
+                print(f'len(prob_list[5:]): {len(prob_list[5:])}')
+                chose_idx = np.argmax(prob_list[5:])  # choose from the second part of the list (3 classes)
+                lookup_search_space_candidates = self.search_space_candidates[5:]
+            
+            print(f'chose_idx: {chose_idx} | lookup_search_space_candidates[chose_idx]: {lookup_search_space_candidates[chose_idx]} | lookup_search_space_candidates: {lookup_search_space_candidates}')
+
+            final_arch.append(lookup_search_space_candidates[chose_idx])
+            print(f'final_arch: {final_arch}')
+
+            new_arch = pad_sequences([final_arch], maxlen=self.controller_classes, padding='post', value=-1)
+            print(new_arch.shape)
+
+            inp = np.array(new_arch).reshape(1,1,self.controller_classes)
+            print(f'new input: {inp}')
+        
+        final_arch = [[final_arch[:4], [final_arch[4:]]]]
+        print(f'final_arch: {final_arch}')
+
+        return final_arch
 
 
     def __prepare_controller_data(self, nas_data_history):
@@ -96,17 +113,18 @@ class NASController_4:
         print(f' ..nas_data_history: {nas_data_history}')
         
         xc = np.array([[item[0].to_numbers() for item in nas_data_history]])       
-        xc = xc.reshape(self.controller_batch_size, 1, self.max_len - 1)
-        print(f' ..xc: {xc}')
+        xc = xc.reshape(self.controller_batch_size, 1, self.controller_classes)
         print(f' ..xc.shape: {xc.shape}')
 
+        noise = np.random.randint(0, 10, size=(self.controller_batch_size, 1, self.controller_noise_dim))
+        xc = np.concatenate([xc, noise], axis=2)
+        print(f' ..xc + noise.shape: {xc.shape}')
+
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        yc = np.zeros((self.controller_batch_size, 1, self.max_len - 1))
-        print(f' ..yc: {yc}')
+        yc = np.zeros((self.controller_batch_size, 1, self.controller_classes))
         print(f' ..yc.shape: {yc.shape}')
         
         val_acc_target = [item[1] for item in nas_data_history]
-        print(f' ..val_acc_target: {val_acc_target}')
         print(f' ..val_acc_target.length: {len(val_acc_target)}')
         
         return xc, yc, val_acc_target
@@ -177,37 +195,6 @@ class NASController_4:
         print(' ..Controller model trained!')
 
 
-    def __check_sequence_validity_BAK(self, sequence):
-        decoded_seq = self.decode_sequence(sequence)
-        
-        n_groups = len(set([x for x in decoded_seq.keys() if 'g' in x]))
-        n_denses = len([x for x in decoded_seq.keys() if 'n_denses' in x])
-
-        print(f' .Decoded seq: {decoded_seq}')
-        if n_groups != n_denses:
-            print(f' ..invalid sequence: tasks group set size ({n_groups}) != n_denses set size ({n_denses})!')
-            return False
-        
-        n_different_tasks = len(set([x for x in decoded_seq.values() if type(x) == type(tuple)]))
-        if n_different_tasks != self.n_tasks:
-            print(f' ..invalid sequence: architecture does not contain all tasks: {n_different_tasks} != {self.n_tasks}!')
-            return False
-        
-        print('  ..valid sequence!')
-        return True
-    
-
-    def __check_sequence_validity(self, sequence):
-        print(f'Sequence: {sequence}')
-        decoded_seq = self.decode_sequence(sequence)
-        print(f' .Decoded seq: {decoded_seq}')
-        if len(set(decoded_seq.keys())) < 4:
-            print(' ..invalid sequence: less than 4 task groups!')
-            return False
-        print('  ..valid sequence!')
-        return True
-
-
     def __get_optimizer(self):
         if self.controller_optimizer.name == Optimizer.SGD.name:
             optim = optimizers.SGD(learning_rate=self.controller_lr, decay=self.controller_decay, momentum=self.controller_momentum, clipnorm=1.0)
@@ -218,12 +205,11 @@ class NASController_4:
         return optim
 
 
-    def __create_control_model(self, controller_input_shape):
-        main_input = Input(shape=controller_input_shape, name='main_input')        
+    def __create_control_model(self):
+        main_input = Input(shape=self.controller_input_shape, name='main_input')        
         print(f'Controller model input shape: {main_input.shape}')
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
-        #main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
-        main_output = Dense(self.search_space_size, activation='softmax', name='main_output')(x)
+        main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
         print(f'Controller model output shape: {main_output.shape}')
         model = Model(inputs=[main_input], outputs=[main_output])
         return model
@@ -251,9 +237,8 @@ class NASController_4:
     # ------------------- Hybrid Model -------------------
 
     
-    def __create_hybrid_control_model(self, controller_input_shape, controller_batch_size):
-        main_input = Input(shape=controller_input_shape, name='main_input')
-        #x = LSTM(self.controller_lstm_dim, return_sequences=True)(main_input)
+    def __create_hybrid_control_model(self):
+        main_input = Input(shape=self.controller_input_shape, name='main_input')
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
         predictor_output = Dense(1, activation='sigmoid', name='predictor_output')(x)
         main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
@@ -287,8 +272,8 @@ class NASController_4:
     def get_predicted_accuracies_hybrid_model(self, model, seqs):
         pred_accuracies = []
         for seq in seqs:
-            control_sequences = pad_sequences([seq], maxlen=self.max_len, padding='post')
-            xc = control_sequences[:, :-1].reshape(len(control_sequences), 1, self.max_len - 1)
+            control_sequences = pad_sequences([seq], maxlen=self.controller_classes, padding='post')
+            xc = control_sequences[:, :-1].reshape(len(control_sequences), 1, self.controller_classes - 1)
             (_, pred_accuracy) = [x[0][0] for x in model.predict(xc)]
             pred_accuracies.append(pred_accuracy[0])
         return pred_accuracies
