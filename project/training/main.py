@@ -60,8 +60,6 @@ kwargs = {
         'controller_training_epochs': 5
     },
     'mlp_params': {
-        'max_architecture_length': 5,
-        'min_task_group_size': 3,
         'mlp_base_model': BaseModel.MOBILENET_V2,
         'mlp_n_epochs': 50,
         'mlp_batch_size': 64,

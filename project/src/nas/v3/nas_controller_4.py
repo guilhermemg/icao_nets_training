@@ -1,8 +1,6 @@
 import os
 import numpy as np
 
-from itertools import product
-
 import tensorflow.keras.backend as K
 from tensorflow.keras import optimizers
 from tensorflow.keras.models import Model
@@ -17,8 +15,6 @@ class NASController_4:
     def __init__(self, config_interp):        
         self.config_interp = config_interp
 
-        #self.max_len                    = self.config_interp.mlp_params['max_architecture_length']
-        self.min_task_group_size        = self.config_interp.mlp_params['min_task_group_size']
         self.controller_lstm_dim        = self.config_interp.controller_params['controller_lstm_dim']
         self.controller_optimizer       = self.config_interp.controller_params['controller_optimizer']
         self.controller_lr              = self.config_interp.controller_params['controller_learning_rate']
@@ -91,7 +87,7 @@ class NASController_4:
             
             print(f'chose_idx: {chose_idx} | lookup_search_space_candidates[chose_idx]: {lookup_search_space_candidates[chose_idx]} | lookup_search_space_candidates: {lookup_search_space_candidates}')
 
-            final_arch.append(lookup_search_space_candidates[chose_idx])
+            final_arch.append(int(chose_idx))
             print(f'final_arch: {final_arch}')
 
             new_arch = pad_sequences([final_arch], maxlen=self.controller_classes, padding='post', value=-1)
