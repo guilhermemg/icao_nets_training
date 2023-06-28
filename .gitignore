@@ -38,3 +38,7 @@ etc/jupyter/jupyter_notebook_config.d/
 **/training/LOGS/
 
 project/training/nasbench/
+
+project/training/nas_v3_validation/LOGS/
+
+project/training/nas_v3_validation/data/
