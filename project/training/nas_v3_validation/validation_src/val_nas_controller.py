@@ -15,29 +15,25 @@ class NASController_4:
     def __init__(self, config_interp):        
         self.config_interp = config_interp
         
-        self.controller_classes         = self.config_interp.controller_params['controller_classes']
-        self.controller_lstm_dim        = self.config_interp.controller_params['controller_lstm_dim']
-        self.controller_optimizer       = self.config_interp.controller_params['controller_optimizer']
-        self.controller_lr              = self.config_interp.controller_params['controller_learning_rate']
-        self.controller_decay           = self.config_interp.controller_params['controller_decay']
-        self.controller_momentum        = self.config_interp.controller_params['controller_momentum']
-        self.use_predictor              = self.config_interp.controller_params['controller_use_predictor']
-        self.controller_loss_alpha      = self.config_interp.controller_params['controller_loss_alpha']
-        self.controller_train_epochs    = self.config_interp.controller_params['controller_training_epochs']
-        self.controller_sampling_epochs = self.config_interp.controller_params['controller_sampling_epochs']
-        
-        self.max_proposed_arch_length = self.config_interp.nas_params['max_proposed_arch_length']
+        self.controller_classes               = self.config_interp.controller_params['controller_classes']
+        self.controller_lstm_dim              = self.config_interp.controller_params['controller_lstm_dim']
+        self.controller_optimizer             = self.config_interp.controller_params['controller_optimizer']
+        self.controller_lr                    = self.config_interp.controller_params['controller_learning_rate']
+        self.controller_decay                 = self.config_interp.controller_params['controller_decay']
+        self.controller_momentum              = self.config_interp.controller_params['controller_momentum']
+        self.controller_loss_alpha            = self.config_interp.controller_params['controller_loss_alpha']
+        self.controller_train_epochs          = self.config_interp.controller_params['controller_training_epochs']
+        self.controller_max_proposed_arch_len = self.config_interp.controller_params['controller_max_proposed_arch_len']
+        self.controller_batch_size            = self.config_interp.controller_params['controller_batch_size']
         
         self.controller_weights_path = 'LOGS/controller_weights.h5'
 
-        self.n_tasks = len(self.config_interp.tasks)
+        # self.n_tasks = len(self.config_interp.tasks)
         
         self.controller_noise_dim = 4
-        self.controller_input_shape = (1, self.controller_classes+self.controller_noise_dim)
         
-        self.controller_batch_size = self.config_interp.controller_params['controller_batch_size']
-
-        self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
+        self.controller_model_input_shape = (1, self.controller_max_proposed_arch_len+self.controller_noise_dim) # (1,5+4)
+        self.controller_model_output_shape = (1, self.controller_classes)  # (1,8)
         
         self.nas_data_history = None
         self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
@@ -45,6 +41,7 @@ class NASController_4:
 
         self.__clean_controller_weights()        
 
+        self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
         if not self.controller_use_predictor:
             self.controller_model = self.__create_control_model()
         else:
@@ -73,29 +70,31 @@ class NASController_4:
     
             
     def build_new_arch(self, prev_arch):
-        inp = np.array(prev_arch).reshape(1,1,self.max_proposed_arch_length)
+        inp = np.array(prev_arch).reshape(1,1,self.controller_max_proposed_arch_len)
 
         # print(f' ..input: {inp}')
 
         final_arch = []
-        for i in range(self.max_proposed_arch_length):
-            noise = np.random.randint(0, 10, size=4).reshape(1,1,4)
+        for i in range(self.controller_max_proposed_arch_len):
+            noise = np.random.randint(0, 10, size=self.controller_noise_dim).reshape(1,1,self.controller_noise_dim)
             # print(f' ..noise: {noise}')
 
             inp = np.concatenate([inp,noise], axis=2)
+            # print(inp.shape)
 
-            prob_list = self.controller_model.predict(inp)   # output: (1,1,n_classes+noise_dim)
+            prob_list = self.controller_model.predict(inp)   # output: (1,1,controller_max_proposed_arch_len+noise_dim)
             prob_list = prob_list[0][0]
+            # print(prob_list)
             
-            chose_idx = np.argmax(prob_list)  # choose from the first part of the list (5 classes)
+            chose_idx = np.argmax(prob_list)  # choose from the first part of the list (controller_max_proposed_arch_len)
             
             final_arch.append(int(chose_idx))
             # print(f'final_arch: {final_arch}')
 
-            new_arch = pad_sequences([final_arch], maxlen=self.max_proposed_arch_length, padding='post', value=-1)
+            new_arch = pad_sequences([final_arch], maxlen=self.controller_max_proposed_arch_len, padding='post', value=-1)
             # print(new_arch.shape)
 
-            inp = np.array(new_arch).reshape(1,1,self.max_proposed_arch_length)
+            inp = np.array(new_arch).reshape(1,1,self.controller_max_proposed_arch_len)
             # print(f' ..new input: {inp}')
         
         final_arch = [[final_arch]]
@@ -115,7 +114,7 @@ class NASController_4:
         # print(f' ..nas_data_history: {nas_data_history}')
         
         xc = np.array([[item[0].to_numbers() for item in nas_data_history]])       
-        xc = xc.reshape(self.controller_batch_size, 1, self.controller_classes)
+        xc = xc.reshape(self.controller_batch_size, 1, self.controller_max_proposed_arch_len)
         # print(f' ..xc.shape: {xc.shape}')
 
         noise = np.random.randint(0, 10, size=(self.controller_batch_size, 1, self.controller_noise_dim))
@@ -123,7 +122,7 @@ class NASController_4:
         # print(f' ..xc + noise.shape: {xc.shape}')
 
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        yc = np.zeros((self.controller_batch_size, 1, self.controller_classes))
+        yc = np.zeros((self.controller_batch_size, 1, self.controller_max_proposed_arch_len))
         # print(f' ..yc.shape: {yc.shape}')
         
         val_acc_target = [item[1] for item in nas_data_history]
@@ -180,7 +179,7 @@ class NASController_4:
 
         xc, yc, val_acc_target = self.__prepare_controller_data(nas_data_history)
 
-        if self.use_predictor:
+        if self.controller_use_predictor:
             self.__train_hybrid_control_model(
                                             xc,
                                             yc,
@@ -210,10 +209,10 @@ class NASController_4:
 
 
     def __create_control_model(self):
-        main_input = Input(shape=self.controller_input_shape, name='main_input')        
+        main_input = Input(shape=self.controller_model_input_shape, name='main_input')        
         # print(f'Controller model input shape: {main_input.shape}')
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
-        main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
+        main_output = Dense(self.controller_model_output_shape[1], activation='softmax', name='main_output')(x)
         # print(f'Controller model output shape: {main_output.shape}')
         model = Model(inputs=[main_input], outputs=[main_output])
         return model
@@ -230,10 +229,10 @@ class NASController_4:
         # print("TRAINING CONTROLLER...")
         
         self.controller_model.fit({'main_input': x_data},
-                  {'main_output': y_data.reshape(len(y_data), 1, self.controller_classes)},
-                  epochs=nb_epochs,
-                  batch_size=controller_batch_size,
-                  verbose=0)
+                                    {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len)},
+                                    epochs=nb_epochs,
+                                    batch_size=controller_batch_size,
+                                    verbose=0)
         
         self.controller_model.save_weights(self.controller_weights_path)
 
@@ -242,10 +241,10 @@ class NASController_4:
 
     
     def __create_hybrid_control_model(self):
-        main_input = Input(shape=self.controller_input_shape, name='main_input')
+        main_input = Input(shape=self.controller_model_input_shape, name='main_input')
         x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
         predictor_output = Dense(1, activation='sigmoid', name='predictor_output')(x)
-        main_output = Dense(self.controller_classes, activation='softmax', name='main_output')(x)
+        main_output = Dense(self.controller_model_output_shape[1], activation='softmax', name='main_output')(x)
         model = Model(inputs=[main_input], outputs=[main_output, predictor_output])
         return model
 
@@ -276,8 +275,8 @@ class NASController_4:
     def get_predicted_accuracies_hybrid_model(self, model, seqs):
         pred_accuracies = []
         for seq in seqs:
-            control_sequences = pad_sequences([seq], maxlen=self.controller_classes, padding='post')
-            xc = control_sequences[:, :-1].reshape(len(control_sequences), 1, self.controller_classes - 1)
+            control_sequences = pad_sequences([seq], maxlen=self.controller_model_input_shape[1], padding='post')
+            xc = control_sequences[:, :-1].reshape(len(control_sequences), 1, self.controller_model_input_shape[1] - 1)
             (_, pred_accuracy) = [x[0][0] for x in model.predict(xc)]
             pred_accuracies.append(pred_accuracy[0])
         return pred_accuracies

@@ -43,9 +43,9 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
         if self.num_feedbacks > 0:
             prev_arch = self.nas_history_data[-1][0].to_numbers()
         else:
-            prev_arch = [random.randint(0,10) for _ in range(self.nas_controller.max_proposed_arch_length)]
+            prev_arch = [random.randint(0,10) for _ in range(self.nas_controller.controller_max_proposed_arch_len)]
 
-        prev_arch = np.array(prev_arch).reshape(1,1,self.nas_controller.max_proposed_arch_length)
+        prev_arch = np.array(prev_arch).reshape(1,1,self.nas_controller.controller_max_proposed_arch_len)
 
         # print(f' ..prev_arch: {prev_arch}')
         # print(f' ..prev_arch.shape: {prev_arch.shape}')

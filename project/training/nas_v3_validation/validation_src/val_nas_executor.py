@@ -3,7 +3,6 @@ import nats_bench
 
 import pyglove as pg
 import pandas as pd
-import numpy as np
 
 from validation_src.val_rl_dna_generator import RL_DNAGenerator
 from validation_src.val_config_interp import ConfigInterpreter
@@ -101,7 +100,7 @@ class NASExecutor:
                                                'train_accuracy': more_info['train-accuracy'],
                                                'train_per_time': more_info['train-per-time'],
                                                'train_all_time': more_info['train-all-time'],
-                                               'comment': more_info['comment']}
+                                               'comment': more_info['comment'] if 'comment' in more_info else ''}
 
 
         print(f'Total time elapse: {time.time() - start_time} seconds.')
@@ -109,7 +108,7 @@ class NASExecutor:
         return results_df
 
 
-    def test_nas_algo(self, algo_name):
+    def test_nas_algo(self, algo_name, dataset, max_train_hours):
         SEARCH_SPACE = 'sss'    
 
         nats_bench.api_utils.reset_file_system('default')
@@ -120,7 +119,7 @@ class NASExecutor:
 
         algorithm = self.__get_algorithm(algo_name)
 
-        results_df = self.__search(nats_api, search_model, algorithm, 'cifar10', reporting_epoch, max_train_hours=3)
+        results_df = self.__search(nats_api, search_model, algorithm, dataset, reporting_epoch, max_train_hours)
 
         sorted_results = results_df.sort_values(by='val_acc', ascending=False)
 
@@ -128,7 +127,18 @@ class NASExecutor:
 
 
     def print_report(self, sorted_results_df):
-        n_trials = len(sorted_results_df)
-        print(f'Best architecture found after {n_trials} evaluated models!')
-        print('Best model found: ')
-        display(sorted_results_df.iloc[:,:13].head(1))
+        row_0 = sorted_results_df.iloc[0]
+        print('-'*80)
+        print(f'Total evaluated architectures: {len(sorted_results_df)}')
+        print(f'Total time spent:              {row_0["time_spent_in_hours"]} hours')
+        print(f'Best model found:              {row_0["cell_spec"]}')
+        print(f'Best model DNA:                {row_0["dna"]}')
+        print(f'Validation accuracy:           {row_0["val_acc"]}')
+        print(f'Test accuracy:                 {row_0["test_acc"]}')
+        print('-'*80)
+
+        #display(sorted_results_df.iloc[:,:13].head(1))
+
+
+    def save_report(self, sorted_results_df, filename):
+        sorted_results_df.to_csv(filename, index=False)    
