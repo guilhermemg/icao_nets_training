@@ -9,7 +9,7 @@ from validation_src.val_config_interp import ConfigInterpreter
 from validation_src.val_config_args import kwargs
 
 
-DEFAULT_NATS_FILEs = dict(tss=None, sss=None)
+DEFAULT_NATS_FILES = dict(tss=None, sss=None)
 DEFAULT_REPORTING_EPOCH = dict(tss=200, sss=90)
 VALIDATION_SET_REPORTING_EPOCH = 12
 
@@ -112,7 +112,7 @@ class NASExecutor:
         SEARCH_SPACE = 'sss'    
 
         nats_bench.api_utils.reset_file_system('default')
-        nats_api = nats_bench.create(DEFAULT_NATS_FILEs[SEARCH_SPACE], SEARCH_SPACE, fast_mode=True, verbose=False)
+        nats_api = nats_bench.create(DEFAULT_NATS_FILES[SEARCH_SPACE], SEARCH_SPACE, fast_mode=True, verbose=False)
 
         search_model = self.__get_search_space(SEARCH_SPACE)
         reporting_epoch = DEFAULT_REPORTING_EPOCH[SEARCH_SPACE]
@@ -122,6 +122,10 @@ class NASExecutor:
         results_df = self.__search(nats_api, search_model, algorithm, dataset, reporting_epoch, max_train_hours)
 
         sorted_results = results_df.sort_values(by='val_acc', ascending=False)
+
+        sorted_results['algorithm'] = algo_name
+        sorted_results['dataset'] = dataset
+        sorted_results['max_train_hours'] = max_train_hours
 
         return sorted_results
 
