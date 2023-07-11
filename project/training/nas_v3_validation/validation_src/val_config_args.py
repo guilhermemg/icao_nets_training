@@ -11,6 +11,9 @@ from src.m_utils.stl_approach import STLApproach
 DATASET = Dataset.MNIST
 APPROACH = NAS_MTLApproach.APPROACH_3
 
+NEPTUNE_API_TOKEN="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI5NDc0ZmNhNi0wODFlLTRhYTktYjgwZS01MWJkMDMxNWJhNTAifQ=="
+NEPTUNE_PROJECT="guilhermemg/nas-v3" 
+
 
 kwargs = { 
     # 'use_neptune': False,
