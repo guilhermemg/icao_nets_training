@@ -2,6 +2,8 @@ import time
 import neptune
 import nats_bench
 
+from copy import deepcopy
+
 import pyglove as pg
 import pandas as pd
 
@@ -20,12 +22,36 @@ def model_sss_spc(channels):
     return ':'.join(str(x) for x in channels)
 
 
+@pg.functor([('ops', pg.typing.List(pg.typing.Str())),('num_nodes', pg.typing.Int())])
+def model_tss_spc(ops, num_nodes):
+    """The architecture in the topology search space of NATS-Bench."""
+    nodes, k = [], 0
+    for i in range(1, num_nodes):
+        xstrs = []
+        for j in range(i):
+            xstrs.append('{:}~{:}'.format(ops[k], j))
+            k += 1
+        nodes.append('|' + '|'.join(xstrs) + '|')
+    return '+'.join(nodes)
+
+
+
 class NASExecutor:
-    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator='sss'):
+    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator, use_neptune):
+        print(80*'-')
+        print(f'Preparing NASExecutor:')
+        print(f'  Algorithm: {algorithm_name}')
+        print(f'  Dataset: {dataset_name}')
+        print(f'  Max Training Hours: {max_train_hours}')
+        print(f'  Search Space Indicator: {ss_indicator}')
+        print(f'  Use Neptune: {use_neptune}')
+        
         self.algorithm_name = algorithm_name
         self.dataset_name = dataset_name
         self.ss_indicator = ss_indicator
         self.max_train_hours = max_train_hours
+
+        self.use_neptune = use_neptune
 
         self.nats_api = self.__create_nats_api()
         self.search_space = self.__get_search_space()
@@ -45,9 +71,15 @@ class NASExecutor:
 
     def __get_search_space(self):
         info = nats_bench.search_space_info('nats-bench', self.ss_indicator)
-        print(f'Candidates: {info["candidates"]}')
         if self.ss_indicator == 'sss':
+            print(f'  .. Number of layers: {info["num_layers"]}')
+            print(f'  .. Candidates: {info["candidates"]}')
             return model_sss_spc(pg.sublist_of(info['num_layers'], info['candidates'], choices_distinct=False))
+        elif self.ss_indicator == 'tss':
+            print(f'  .. Operations: {info["op_names"]}')
+            print(f'  .. Nodes: {info["num_nodes"]}')
+            total = info['num_nodes'] * (info['num_nodes'] - 1) // 2
+            return model_tss_spc(pg.sublist_of(total, info['op_names'], choices_distinct=False), info['num_nodes'])
 
 
     def __get_algorithm(self):
@@ -103,7 +135,11 @@ class NASExecutor:
                       f'elapse since last report: {round(now - last_report_time,3)}s.')
                 last_report_time = now
 
-            formatted_spec = ':'.join(['{:02d}'.format(int(x)) for x in spec.split(':')])
+            if self.ss_indicator == 'sss':
+                formatted_spec = ':'.join(['{:02d}'.format(int(x)) for x in spec.split(':')])
+            elif self.ss_indicator == 'tss':
+                formatted_spec = spec
+                
             #print(f'Cell-spec: {formatted_spec} | ID: {feedback.id} | DNA: {feedback.dna} | Validation Acc: {validation_accuracy}')
 
             results_df.loc[len(results_df)] = {'id': feedback.id,
@@ -141,7 +177,12 @@ class NASExecutor:
         sorted_results['max_train_hours'] = self.max_train_hours
 
         self.print_report(sorted_results)
-        self.log_data_to_neptune(sorted_results)
+
+        if self.use_neptune:
+            self.log_data_to_neptune(sorted_results)
+
+        print('Search completed.')
+        print('-'*80)
 
         return sorted_results
 
@@ -164,7 +205,6 @@ class NASExecutor:
         sorted_results_df.to_csv(filename, index=False)    
 
     
-
     def __log_best_arch(self, sorted_results_df, run):
         first_row = sorted_results_df.iloc[0]
 
@@ -203,9 +243,9 @@ class NASExecutor:
 
 
     def log_data_to_neptune(self, sorted_results_df):        
-        run = neptune.init_run(name='NAS with NATS and SSS',
-                               tags=['nas', 'nats', 'sss'], 
-                               description='NAS with NATS and SSS',
+        run = neptune.init_run(name=f'NAS with NATS and {self.ss_indicator.upper()}',
+                               tags=['nas', 'nats', self.ss_indicator], 
+                               description=f'NAS with NATS and {self.ss_indicator.upper()}',
                                project=NEPTUNE_PROJECT, 
                                api_token=NEPTUNE_API_TOKEN,
                                source_files=['*.py'])
@@ -214,7 +254,11 @@ class NASExecutor:
                          'max_train_hours': self.max_train_hours,
                          'algorithm': self.algorithm_name,
                          'search_space': self.ss_indicator}
-
+        
+        if self.algorithm_name == 'rl':
+            ctr_params = deepcopy(kwargs['controller_params'])
+            ctr_params['controller_optimizer'] = str(ctr_params['controller_optimizer'])
+            run['controller_params'] = ctr_params
         
         self.__log_best_arch(sorted_results_df, run)
         self.__log_nas_history(sorted_results_df, run)

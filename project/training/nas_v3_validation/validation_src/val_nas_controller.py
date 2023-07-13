@@ -25,7 +25,7 @@ class NASController_4:
         self.controller_train_epochs          = self.config_interp.controller_params['controller_training_epochs']
         self.controller_max_proposed_arch_len = self.config_interp.controller_params['controller_max_proposed_arch_len']
         self.controller_batch_size            = self.config_interp.controller_params['controller_batch_size']
-        
+
         self.controller_weights_path = 'LOGS/controller_weights.h5'
 
         # self.n_tasks = len(self.config_interp.tasks)
@@ -36,8 +36,8 @@ class NASController_4:
         self.controller_model_output_shape = (1, self.controller_classes)  # (1,8)
         
         self.nas_data_history = None
-        self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
-        self.search_space_candidates_size = len(self.search_space_candidates)
+        #self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
+        #self.search_space_candidates_size = len(self.search_space_candidates)
 
         self.__clean_controller_weights()        
 

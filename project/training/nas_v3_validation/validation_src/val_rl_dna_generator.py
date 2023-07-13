@@ -9,6 +9,7 @@ from validation_src.val_nas_controller import NASController_4
 
 class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
     def __init__(self, config_interp: ConfigInterpreter):
+        super().__init__()
         self.nas_history_data : list = []
         self.nas_controller: NASController_4 = NASController_4(config_interp)
         self.nas_data_log_path = 'LOGS/nas_data.csv'
