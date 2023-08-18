@@ -51,22 +51,6 @@ class NASController_4:
     def __clean_controller_weights(self):
         if os.path.exists(self.controller_weights_path):
             os.remove(self.controller_weights_path)
-
-
-    def __check_nas_data_history(self, new_dna_value):
-        if self.nas_data_history is None:
-            return True
-        else:
-            for tup in self.nas_data_history:
-                existing_dna = tup[0].to_numbers()
-                new_dna_value_rep = list(new_dna_value[0][0])
-                #print(f' ..{existing_dna}, {new_dna_value_rep}')
-                if np.array_equal(existing_dna, new_dna_value_rep):
-                    #print(f' ...Invalid DNA -> existing_dna: {existing_dna} | new_dna_value: {new_dna_value_rep}')
-                    #print(f' ....Proposing new architecture!')
-                    return False
-            #print(f' ..New valid DNA: {new_dna_value}')
-            return True
     
             
     def build_new_arch(self, prev_arch):
@@ -82,10 +66,18 @@ class NASController_4:
             inp = np.concatenate([inp,noise], axis=2)
             # print(inp.shape)
 
-            prob_list = self.controller_model.predict(inp)   # output: (1,1,controller_max_proposed_arch_len+noise_dim)
+            prob_list, pred_acc = None, None
+            if self.controller_use_predictor:
+                prob_list, pred_acc = self.controller_model.predict(inp)   # output: (1,1,controller_max_proposed_arch_len+noise_dim), pred_accuracy
+                pred_acc = pred_acc[0][0][0]*100
+            else:
+                prob_list = self.controller_model.predict(inp)   # output: (1,1,controller_max_proposed_arch_len+noise_dim)
+
             prob_list = prob_list[0][0]
-            # print(prob_list)
-            
+
+            # print(f'prob_list: {prob_list}')
+            # print(f'pred_acc: {pred_acc}')
+
             chose_idx = np.argmax(prob_list)  # choose from the first part of the list (controller_max_proposed_arch_len)
             
             final_arch.append(int(chose_idx))
@@ -100,34 +92,41 @@ class NASController_4:
         final_arch = [[final_arch]]
         # print(f' .final_arch: {final_arch}')
         
-        # if not self.__check_nas_data_history(prev_arch):
-        #     print(' ..redoing proposal')
-        #     self.build_new_arch(prev_arch)   # redo the process if architecture already exists
-
-        return final_arch
+        return final_arch, pred_acc
 
 
     def __prepare_controller_data(self, nas_data_history):
-        self.nas_data_history = nas_data_history
-
-        # print('Preparing controller data...')
-        # print(f' ..nas_data_history: {nas_data_history}')
+        print('Preparing controller data...')
         
-        xc = np.array([[item[0].to_numbers() for item in nas_data_history]])       
+        self.nas_data_history = nas_data_history
+        print(f' ..len(nas_data_history): {len(nas_data_history)}')
+
+        last_nas_data_history_batch = nas_data_history[-self.controller_batch_size:] 
+        print(f'len(last_nas_data_history_batch): {len(last_nas_data_history_batch)}')
+        print(f' ..last_nas_data_history_batch[:10]: {last_nas_data_history_batch[:10]}')
+        
+        xc = np.array([[item[0].to_numbers() for item in last_nas_data_history_batch]])       
         xc = xc.reshape(self.controller_batch_size, 1, self.controller_max_proposed_arch_len)
-        # print(f' ..xc.shape: {xc.shape}')
+        print(f' ..xc.shape: {xc.shape}')
 
         noise = np.random.randint(0, 10, size=(self.controller_batch_size, 1, self.controller_noise_dim))
         xc = np.concatenate([xc, noise], axis=2)
-        # print(f' ..xc + noise.shape: {xc.shape}')
+        print(f' ..xc + noise.shape: {xc.shape}')
 
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
-        yc = np.zeros((self.controller_batch_size, 1, self.controller_max_proposed_arch_len))
-        # print(f' ..yc.shape: {yc.shape}')
+        yc = np.array([item[1].to_numbers() for item in last_nas_data_history_batch])
+        print(f' ..yc[:10]: {yc[:10]}')
+
+        yc = yc.reshape(self.controller_batch_size, 1, self.controller_max_proposed_arch_len)
+        #yc = np.zeros((self.controller_batch_size, 1, self.controller_max_proposed_arch_len))
+        print(f' ..yc.shape: {yc.shape}')
         
-        val_acc_target = [item[1] for item in nas_data_history]
-        # print(f' ..val_acc_target.length: {len(val_acc_target)}')
-        
+        val_acc_target = [item[2] for item in last_nas_data_history_batch]
+        print(f' ..val_acc_target[:10]: {val_acc_target[:10]}')  
+
+        val_acc_target = np.array(val_acc_target).reshape(self.controller_batch_size, 1, 1)
+        print(f' ..val_acc_target.shape: {val_acc_target.shape}')
+              
         # print(' ..done!')
         
         return xc, yc, val_acc_target
@@ -160,7 +159,7 @@ class NASController_4:
     def custom_loss(self, target, output):
         # define baseline for rewards and subtract it from all validation accuracies to get reward.
         baseline = 0.5
-        reward = np.array([item[1] - baseline for item in self.nas_data_history[-self.controller_batch_size:]]).reshape(
+        reward = np.array([item[2] - baseline for item in self.nas_data_history[-self.controller_batch_size:]]).reshape(
            self.controller_batch_size, 1)
         
         # get discounted reward
@@ -174,8 +173,6 @@ class NASController_4:
 
     def train_model_controller(self, nas_data_history):
         # print(' ..Training controller model...')
-
-        nas_data_history = nas_data_history[-self.controller_batch_size:]
 
         xc, yc, val_acc_target = self.__prepare_controller_data(nas_data_history)
 
@@ -254,20 +251,27 @@ class NASController_4:
         optim = self.__get_optimizer()
         
         self.controller_model.compile(optimizer=optim,
-                      loss={'main_output': loss_func, 'predictor_output': 'mse'},
-                      loss_weights={'main_output': 1, 'predictor_output': 1})
+                                      loss={'main_output': loss_func, 'predictor_output': 'mse'},
+                                      loss_weights={'main_output': 1, 'predictor_output': 1})
         
         if os.path.exists(self.controller_weights_path):
             self.controller_model.load_weights(self.controller_weights_path)
         
         print("TRAINING CONTROLLER...")
         
-        self.controller_model.fit({'main_input': x_data},
-                  {'main_output': y_data.reshape(len(y_data), 1, self.controller_classes),
-                   'predictor_output': np.array(pred_target).reshape(len(pred_target), 1, 1)},
-                  epochs=nb_epochs,
-                  batch_size=controller_batch_size,
-                  verbose=0)
+        # self.controller_model.fit({'main_input': x_data}, 
+        #                           {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len), 
+        #                            'predictor_output': np.array(pred_target).reshape(len(pred_target), 1, 1)}, 
+        #                            epochs=nb_epochs,
+        #                            batch_size=controller_batch_size,
+        #                            verbose=0)
+        
+        self.controller_model.fit({'main_input': x_data}, 
+                                  {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len), 
+                                   'predictor_output': pred_target}, 
+                                   epochs=nb_epochs,
+                                   batch_size=controller_batch_size,
+                                   verbose=1)
         
         self.controller_model.save_weights(self.controller_weights_path)
 

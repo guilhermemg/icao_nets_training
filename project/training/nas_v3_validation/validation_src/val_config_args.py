@@ -42,16 +42,16 @@ kwargs = {
     #     'nas_search_space': MLPSearchSpaceIndicator.SS_2
     # },
     'controller_params': {
-        'controller_max_proposed_arch_len': 6,   
-        'controller_classes': 5,    # == n_candidates in sss search_space / n_operations in tss search space
+        'controller_max_proposed_arch_len': 6,   # == sss = 5 / tss = 6
+        'controller_classes': 5,    # == n_candidates ==> sss = 8 / n_operations ==> tss = 5
         'controller_lstm_dim': 100,
-        'controller_optimizer': Optimizer.ADAM,
+        'controller_optimizer': Optimizer.ADAMAX,
         'controller_learning_rate': 0.01,
         'controller_decay': 0.1,
         'controller_momentum': 0.0,
-        'controller_use_predictor': False,
+        'controller_use_predictor': True,
         'controller_loss_alpha': 0.9,
-        'controller_training_epochs': 2,
+        'controller_training_epochs': 20,
         'controller_batch_size': 256
     },
     # 'mlp_params': {

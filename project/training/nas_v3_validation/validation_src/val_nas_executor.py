@@ -1,3 +1,4 @@
+import os
 import time
 import neptune
 import nats_bench
@@ -52,6 +53,13 @@ class NASExecutor:
         self.max_train_hours = max_train_hours
 
         self.use_neptune = use_neptune
+        if self.use_neptune:
+            self.run = neptune.init_run(name=f'NAS with NATS and {self.ss_indicator.upper()}',
+                                        tags=['nas', 'nats', self.ss_indicator, 'adamax'], 
+                                        description=f'NAS with NATS and {self.ss_indicator.upper()} using ADAMAX as optimizer.',
+                                        project=NEPTUNE_PROJECT, 
+                                        api_token=NEPTUNE_API_TOKEN,
+                                        source_files=['*.py'])
 
         self.nats_api = self.__create_nats_api()
         self.search_space = self.__get_search_space()
@@ -103,7 +111,7 @@ class NASExecutor:
         last_report_time = start_time
 
         results_df = pd.DataFrame(columns=['id','dna','cell_spec',
-                                           'val_acc','latency','time_cost','total_time',
+                                           'val_acc','pred_acc','latency','time_cost','total_time',
                                            'test_acc','test_loss','test_per_time','test_all_time',
                                            'time_spent_in_hours','time_spent_in_secs',
                                            'train_accuracy','train_loss','train_per_time','train_all_time',
@@ -139,13 +147,19 @@ class NASExecutor:
                 formatted_spec = ':'.join(['{:02d}'.format(int(x)) for x in spec.split(':')])
             elif self.ss_indicator == 'tss':
                 formatted_spec = spec
-                
+
+            pred_acc = -1
+            if self.algorithm_name == 'rl':
+                df = pd.read_csv('./LOGS/nas_data.csv')
+                pred_acc = df['pred_acc'].values[-1]
+
             #print(f'Cell-spec: {formatted_spec} | ID: {feedback.id} | DNA: {feedback.dna} | Validation Acc: {validation_accuracy}')
 
             results_df.loc[len(results_df)] = {'id': feedback.id,
                                                'cell_spec': formatted_spec, 
                                                'dna': feedback.dna, 
                                                'val_acc': validation_accuracy, 
+                                               'pred_acc': pred_acc,
                                                'latency': latency,
                                                'time_cost': time_cost,
                                                'total_time': total_time,
@@ -167,7 +181,7 @@ class NASExecutor:
         return results_df
 
 
-    def test_nas_algo(self):
+    def test_nas_algo(self, dest_path=None):
         results_df = self.__search(self.nats_api, self.search_space, self.algorithm, self.dataset_name, self.reporting_epoch, self.max_train_hours)
 
         sorted_results = results_df.sort_values(by='val_acc', ascending=False)
@@ -177,6 +191,10 @@ class NASExecutor:
         sorted_results['max_train_hours'] = self.max_train_hours
 
         self.print_report(sorted_results)
+        
+        dest_path = f'./data/pred_acc/{self.ss_indicator}/{self.algorithm_name}_{str(self.max_train_hours)}h_{self.dataset_name}.csv' if dest_path is None else dest_path
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        self.save_report(sorted_results, dest_path)
 
         if self.use_neptune:
             self.log_data_to_neptune(sorted_results)
@@ -242,15 +260,8 @@ class NASExecutor:
                 run['nas_history/'+col].append(v)
 
 
-    def log_data_to_neptune(self, sorted_results_df):        
-        run = neptune.init_run(name=f'NAS with NATS and {self.ss_indicator.upper()}',
-                               tags=['nas', 'nats', self.ss_indicator], 
-                               description=f'NAS with NATS and {self.ss_indicator.upper()}',
-                               project=NEPTUNE_PROJECT, 
-                               api_token=NEPTUNE_API_TOKEN,
-                               source_files=['*.py'])
-        
-        run['params'] = {'dataset': self.dataset_name,
+    def log_data_to_neptune(self, sorted_results_df):
+        self.run['params'] = {'dataset': self.dataset_name,
                          'max_train_hours': self.max_train_hours,
                          'algorithm': self.algorithm_name,
                          'search_space': self.ss_indicator}
@@ -258,10 +269,10 @@ class NASExecutor:
         if self.algorithm_name == 'rl':
             ctr_params = deepcopy(kwargs['controller_params'])
             ctr_params['controller_optimizer'] = str(ctr_params['controller_optimizer'])
-            run['controller_params'] = ctr_params
+            self.run['controller_params'] = ctr_params
         
-        self.__log_best_arch(sorted_results_df, run)
-        self.__log_nas_history(sorted_results_df, run)
+        self.__log_best_arch(sorted_results_df, self.run)
+        self.__log_nas_history(sorted_results_df, self.run)
 
-        run.stop()
+        self.run.stop()
         
