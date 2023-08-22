@@ -49,7 +49,7 @@ kwargs = {
         'controller_learning_rate': 0.01,
         'controller_decay': 0.1,
         'controller_momentum': 0.0,
-        'controller_use_predictor': True,
+        'controller_use_predictor': False,
         'controller_loss_alpha': 0.9,
         'controller_training_epochs': 20,
         'controller_batch_size': 256

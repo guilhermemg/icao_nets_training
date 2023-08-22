@@ -75,6 +75,8 @@ class RL_DNAGenerator(pg.generators.geno.DNAGenerator):
         
         if self.nas_controller.controller_use_predictor:
             self.nas_history_data.append([prev_arch_dna,None,None,pred_acc])
+        else:
+            self.nas_history_data.append([prev_arch_dna,None,None,None])
 
         # print(f' ..new_arch: {new_arch} | pred_acc: {pred_acc}')
         # print(70*'*')

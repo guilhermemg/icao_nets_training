@@ -61,6 +61,8 @@ class NASExecutor:
                                         api_token=NEPTUNE_API_TOKEN,
                                         source_files=['*.py'])
 
+        self.config_interp = ConfigInterpreter(kwargs)
+
         self.nats_api = self.__create_nats_api()
         self.search_space = self.__get_search_space()
         self.reporting_epoch = self.__get_reporting_epoch()
@@ -97,8 +99,7 @@ class NASExecutor:
         elif self.algorithm_name == 'evolution':
             return pg.evolution.regularized_evolution(mutator=pg.evolution.mutators.Uniform(), population_size=50, tournament_size=10)
         elif self.algorithm_name == 'rl':
-            config_interp = ConfigInterpreter(kwargs)
-            return RL_DNAGenerator(config_interp)
+            return RL_DNAGenerator(self.config_interp)
         else:
             return pg.load(self.algorithm_name)
 
@@ -150,8 +151,9 @@ class NASExecutor:
 
             pred_acc = -1
             if self.algorithm_name == 'rl':
-                df = pd.read_csv('./LOGS/nas_data.csv')
-                pred_acc = df['pred_acc'].values[-1]
+                if self.config_interp.controller_params['controller_use_predictor']:
+                    df = pd.read_csv('./LOGS/nas_data.csv')
+                    pred_acc = df['pred_acc'].values[-1]
 
             #print(f'Cell-spec: {formatted_spec} | ID: {feedback.id} | DNA: {feedback.dna} | Validation Acc: {validation_accuracy}')
 
