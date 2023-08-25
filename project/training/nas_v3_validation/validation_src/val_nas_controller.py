@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import numpy as np
 
 import tensorflow.keras.backend as K
@@ -6,7 +7,9 @@ from tensorflow.keras import optimizers
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.utils import normalize
 
+import matplotlib.pyplot as plt
 
 from src.base.experiment.training.optimizers import Optimizer
 from src.nas.v3.mlp_search_space import MLPSearchSpaceCandidate
@@ -27,6 +30,7 @@ class NASController_4:
         self.controller_batch_size            = self.config_interp.controller_params['controller_batch_size']
 
         self.controller_weights_path = 'LOGS/controller_weights.h5'
+        self.controller_losses_path = 'LOGS/controller_losses.csv'
 
         # self.n_tasks = len(self.config_interp.tasks)
         
@@ -39,6 +43,7 @@ class NASController_4:
         #self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
         #self.search_space_candidates_size = len(self.search_space_candidates)
 
+        self.__clean_controller_losses()
         self.__clean_controller_weights()        
 
         self.controller_use_predictor = self.config_interp.controller_params['controller_use_predictor']
@@ -46,6 +51,11 @@ class NASController_4:
             self.controller_model = self.__create_control_model()
         else:
             self.controller_model = self.__create_hybrid_control_model()
+
+
+    def __clean_controller_losses(self):
+        if os.path.exists(self.controller_losses_path):
+            os.remove(self.controller_losses_path)
 
 
     def __clean_controller_weights(self):
@@ -96,36 +106,43 @@ class NASController_4:
 
 
     def __prepare_controller_data(self, nas_data_history):
-        print('Preparing controller data...')
+        # print('Preparing controller data...')
         
         self.nas_data_history = nas_data_history
-        print(f' ..len(nas_data_history): {len(nas_data_history)}')
+        # print(f' ..len(nas_data_history): {len(nas_data_history)}')
 
-        last_nas_data_history_batch = nas_data_history[-self.controller_batch_size:] 
-        print(f'len(last_nas_data_history_batch): {len(last_nas_data_history_batch)}')
-        print(f' ..last_nas_data_history_batch[:10]: {last_nas_data_history_batch[:10]}')
+        last_nas_data_history_batch = self.nas_data_history[-self.controller_batch_size:] 
+        # print(f'len(last_nas_data_history_batch): {len(last_nas_data_history_batch)}')
+        # print(f' ..last_nas_data_history_batch[:10]: {last_nas_data_history_batch[:10]}')
         
         xc = np.array([[item[0].to_numbers() for item in last_nas_data_history_batch]])       
         xc = xc.reshape(self.controller_batch_size, 1, self.controller_max_proposed_arch_len)
-        print(f' ..xc.shape: {xc.shape}')
+        # print(f' ..xc.shape: {xc.shape}')
 
         noise = np.random.randint(0, 10, size=(self.controller_batch_size, 1, self.controller_noise_dim))
         xc = np.concatenate([xc, noise], axis=2)
-        print(f' ..xc + noise.shape: {xc.shape}')
+        xc = normalize(xc, axis=2)
+        # print(f' ..xc + noise.shape: {xc.shape}')
+        # print(f' ..xc + noise[:10]: {xc[:10]}')
 
         #yc = to_categorical(controller_sequences[:, -1], self.controller_classes)
         yc = np.array([item[1].to_numbers() for item in last_nas_data_history_batch])
-        print(f' ..yc[:10]: {yc[:10]}')
+        # print(f' ..yc[:10]: {yc[:10]}')
+        yc = normalize(yc, axis=1)
+        # print(f' ..yc[:10]: {yc[:10]}')
 
         yc = yc.reshape(self.controller_batch_size, 1, self.controller_max_proposed_arch_len)
         #yc = np.zeros((self.controller_batch_size, 1, self.controller_max_proposed_arch_len))
-        print(f' ..yc.shape: {yc.shape}')
+        # print(f' ..yc.shape: {yc.shape}')
         
         val_acc_target = [item[2] for item in last_nas_data_history_batch]
-        print(f' ..val_acc_target[:10]: {val_acc_target[:10]}')  
+        # print(f' ..val_acc_target[:10]: {val_acc_target[:10]}')  
+
+        val_acc_target = normalize(val_acc_target, axis=0)
+        # print(f' ..val_acc_target[:10]: {val_acc_target[:10]}')
 
         val_acc_target = np.array(val_acc_target).reshape(self.controller_batch_size, 1, 1)
-        print(f' ..val_acc_target.shape: {val_acc_target.shape}')
+        # print(f' ..val_acc_target.shape: {val_acc_target.shape}')
               
         # print(' ..done!')
         
@@ -215,6 +232,34 @@ class NASController_4:
         return model
 
 
+    def __draw_training_history(self):
+        df = pd.read_csv(self.controller_losses_path)
+        losses = df['loss']
+
+        plt.title('Training Loss')
+        plt.ylabel('Loss')
+        plt.plot(range(len(losses)), losses, label='loss')
+        
+        for i in range(0, len(losses)+1, self.controller_train_epochs):
+            plt.axvline(x=i, color='r', linestyle='--')
+
+        plt.show()
+
+
+    def __save_controller_losses(self, history):
+        if os.path.exists(self.controller_losses_path):
+            df = pd.read_csv(self.controller_losses_path)
+        else:
+            df = pd.DataFrame(columns=['loss'])
+
+        aux_df = pd.DataFrame(history.history['loss'], columns=['loss'])
+
+        final_df = pd.concat([df, aux_df], ignore_index=True)
+        final_df.to_csv(self.controller_losses_path, index=False)
+
+        # print(f'Losses saved into {self.controller_losses_path}!')
+
+
     def __train_control_model(self, x_data, y_data, loss_func, controller_batch_size, nb_epochs):
         optim = self.__get_optimizer()
         
@@ -225,12 +270,16 @@ class NASController_4:
         
         # print("TRAINING CONTROLLER...")
         
-        self.controller_model.fit({'main_input': x_data},
-                                    {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len)},
-                                    epochs=nb_epochs,
-                                    batch_size=controller_batch_size,
-                                    verbose=0)
+        H = self.controller_model.fit({'main_input': x_data},
+                                      {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len)},
+                                       epochs=nb_epochs,
+                                       batch_size=controller_batch_size,
+                                       verbose=0)
         
+        self.__save_controller_losses(H)
+
+        self.__draw_training_history()
+
         self.controller_model.save_weights(self.controller_weights_path)
 
 
@@ -257,22 +306,19 @@ class NASController_4:
         if os.path.exists(self.controller_weights_path):
             self.controller_model.load_weights(self.controller_weights_path)
         
-        print("TRAINING CONTROLLER...")
-        
-        # self.controller_model.fit({'main_input': x_data}, 
-        #                           {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len), 
-        #                            'predictor_output': np.array(pred_target).reshape(len(pred_target), 1, 1)}, 
-        #                            epochs=nb_epochs,
-        #                            batch_size=controller_batch_size,
-        #                            verbose=0)
-        
-        self.controller_model.fit({'main_input': x_data}, 
+        # print("TRAINING CONTROLLER...")
+                
+        H = self.controller_model.fit({'main_input': x_data}, 
                                   {'main_output': y_data.reshape(len(y_data), 1, self.controller_max_proposed_arch_len), 
                                    'predictor_output': pred_target}, 
                                    epochs=nb_epochs,
                                    batch_size=controller_batch_size,
-                                   verbose=1)
+                                   verbose=0)
         
+        self.__save_controller_losses(H)
+
+        self.__draw_training_history()
+
         self.controller_model.save_weights(self.controller_weights_path)
 
     

@@ -39,6 +39,6 @@ etc/jupyter/jupyter_notebook_config.d/
 
 project/training/nasbench/
 
-project/training/nas_v3_validation/LOGS/
-
-project/training/nas_v3_validation/data/
+**/nas_v3_validation/LOGS/
+**/nas_v3_validation/data/
+**/nas_v3_validation/results/**/*.csv

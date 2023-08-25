@@ -5,12 +5,15 @@ import nats_bench
 
 from copy import deepcopy
 
+import numpy as np
 import pyglove as pg
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
 from validation_src.val_rl_dna_generator import RL_DNAGenerator
 from validation_src.val_config_interp import ConfigInterpreter
-from validation_src.val_config_args import kwargs, NEPTUNE_API_TOKEN, NEPTUNE_PROJECT
+from validation_src.val_config_args import NEPTUNE_API_TOKEN, NEPTUNE_PROJECT
 
 
 DEFAULT_NATS_FILES = dict(tss=None, sss=None)
@@ -38,7 +41,7 @@ def model_tss_spc(ops, num_nodes):
 
 
 class NASExecutor:
-    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator, use_neptune):
+    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator, use_neptune, kwargs):
         print(80*'-')
         print(f'Preparing NASExecutor:')
         print(f'  Algorithm: {algorithm_name}')
@@ -46,6 +49,12 @@ class NASExecutor:
         print(f'  Max Training Hours: {max_train_hours}')
         print(f'  Search Space Indicator: {ss_indicator}')
         print(f'  Use Neptune: {use_neptune}')
+        
+        print(f'-----')
+        print(f'  kwargs: {kwargs}')
+        print(f'-----')
+
+        self.kwargs = kwargs
         
         self.algorithm_name = algorithm_name
         self.dataset_name = dataset_name
@@ -55,13 +64,13 @@ class NASExecutor:
         self.use_neptune = use_neptune
         if self.use_neptune:
             self.run = neptune.init_run(name=f'NAS with NATS and {self.ss_indicator.upper()}',
-                                        tags=['nas', 'nats', self.ss_indicator, 'adamax'], 
-                                        description=f'NAS with NATS and {self.ss_indicator.upper()} using ADAMAX as optimizer.',
+                                        tags=['nas', 'nats', 'grid_search', self.ss_indicator, self.dataset_name, f'{self.max_train_hours}h', self.algorithm_name], 
+                                        description=f'NAS-v3 RL grid search.',
                                         project=NEPTUNE_PROJECT, 
                                         api_token=NEPTUNE_API_TOKEN,
                                         source_files=['*.py'])
 
-        self.config_interp = ConfigInterpreter(kwargs)
+        self.config_interp = ConfigInterpreter(self.kwargs)
 
         self.nats_api = self.__create_nats_api()
         self.search_space = self.__get_search_space()
@@ -186,7 +195,7 @@ class NASExecutor:
     def test_nas_algo(self, dest_path=None):
         results_df = self.__search(self.nats_api, self.search_space, self.algorithm, self.dataset_name, self.reporting_epoch, self.max_train_hours)
 
-        sorted_results = results_df.sort_values(by='val_acc', ascending=False)
+        sorted_results = results_df.sort_values(by=['val_acc','id'], ascending=[False,True])
 
         sorted_results['algorithm'] = self.algorithm
         sorted_results['dataset'] = self.dataset_name
@@ -262,6 +271,20 @@ class NASExecutor:
                 run['nas_history/'+col].append(v)
 
 
+    def __draw_training_history(self):
+        df = pd.read_csv('LOGS/controller_losses.csv')
+        losses = df['loss']
+
+        plt.title('Training Loss')
+        plt.ylabel('Loss')
+        plt.plot(range(len(losses)), losses, label='loss')
+        
+        for i in range(0, len(losses)+1, 20):  # controller_training_epochs
+            plt.axvline(x=i, color='r', linestyle='--')
+
+        self.run['controller_training_history'].upload(neptune.types.File.as_image(plt.gcf()))
+
+
     def log_data_to_neptune(self, sorted_results_df):
         self.run['params'] = {'dataset': self.dataset_name,
                          'max_train_hours': self.max_train_hours,
@@ -269,9 +292,11 @@ class NASExecutor:
                          'search_space': self.ss_indicator}
         
         if self.algorithm_name == 'rl':
-            ctr_params = deepcopy(kwargs['controller_params'])
+            ctr_params = deepcopy(self.kwargs['controller_params'])
             ctr_params['controller_optimizer'] = str(ctr_params['controller_optimizer'])
             self.run['controller_params'] = ctr_params
+
+            self.__draw_training_history()
         
         self.__log_best_arch(sorted_results_df, self.run)
         self.__log_nas_history(sorted_results_df, self.run)
