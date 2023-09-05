@@ -34,7 +34,7 @@ class NASController_4:
 
         # self.n_tasks = len(self.config_interp.tasks)
         
-        self.controller_noise_dim = 4
+        self.controller_noise_dim = 2
         
         self.controller_model_input_shape = (1, self.controller_max_proposed_arch_len+self.controller_noise_dim) # (1,5+4)
         self.controller_model_output_shape = (1, self.controller_classes)  # (1,8)

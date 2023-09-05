@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from validation_src.val_rl_dna_generator import RL_DNAGenerator
 from validation_src.val_config_interp import ConfigInterpreter
 from validation_src.val_config_args import NEPTUNE_API_TOKEN, NEPTUNE_PROJECT
-
+from validation_src.val_config_args import kwargs as default_kwargs
 
 DEFAULT_NATS_FILES = dict(tss=None, sss=None)
 DEFAULT_REPORTING_EPOCH = dict(tss=200, sss=90)
@@ -41,7 +41,7 @@ def model_tss_spc(ops, num_nodes):
 
 
 class NASExecutor:
-    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator, use_neptune, kwargs):
+    def __init__(self, algorithm_name, dataset_name, max_train_hours, ss_indicator, use_neptune, kwargs=default_kwargs):
         print(80*'-')
         print(f'Preparing NASExecutor:')
         print(f'  Algorithm: {algorithm_name}')
@@ -64,8 +64,8 @@ class NASExecutor:
         self.use_neptune = use_neptune
         if self.use_neptune:
             self.run = neptune.init_run(name=f'NAS with NATS and {self.ss_indicator.upper()}',
-                                        tags=['nas', 'nats', 'grid_search', self.ss_indicator, self.dataset_name, f'{self.max_train_hours}h', self.algorithm_name], 
-                                        description=f'NAS-v3 RL grid search.',
+                                        tags=['nas', 'nats', 'rl_best_setup', self.ss_indicator, self.dataset_name, f'{self.max_train_hours}h', self.algorithm_name], 
+                                        description=f'NAS-v3 RL best setup.',
                                         project=NEPTUNE_PROJECT, 
                                         api_token=NEPTUNE_API_TOKEN,
                                         source_files=['*.py'])

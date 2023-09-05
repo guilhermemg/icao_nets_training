@@ -42,3 +42,4 @@ project/training/nasbench/
 **/nas_v3_validation/LOGS/
 **/nas_v3_validation/data/
 **/nas_v3_validation/results/**/*.csv
+project/training/nas_v3_validation/neptune_data/
