@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-from neptune.new.types import File
+from neptune.types import File
 
 from typing import List
 
