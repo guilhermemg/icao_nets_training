@@ -4,10 +4,14 @@ import numpy as np
 
 import tensorflow.keras.backend as K
 from tensorflow.keras import optimizers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input, BatchNormalization, Reshape, InputLayer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import normalize
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.utils import plot_model
+
+from IPython.display import display
 
 import matplotlib.pyplot as plt
 
@@ -237,11 +241,11 @@ class NASController_4:
 
     def __create_control_model(self):
         main_input = Input(shape=self.controller_model_input_shape, name='main_input')        
-        # print(f'Controller model input shape: {main_input.shape}')
-        x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
+        lstm_cell = LSTMCell(self.controller_lstm_dim, kernel_regularizer=l2(0.001), recurrent_regularizer=l2(0.001))
+        x = RNN(lstm_cell, return_sequences=True)(main_input)
         main_output = Dense(self.controller_model_output_shape[1], activation='softmax', name='main_output')(x)
-        # print(f'Controller model output shape: {main_output.shape}')
         model = Model(inputs=[main_input], outputs=[main_output])
+        print(model.summary())
         return model
 
 

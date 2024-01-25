@@ -42,9 +42,9 @@ kwargs = {
     #     'nas_search_space': MLPSearchSpaceIndicator.SS_2
     # },
     'controller_params': {
-        'controller_max_proposed_arch_len': 6,   # == sss = 5 / tss = 6
-        'controller_classes': 5,    # == n_candidates ==> sss = 8 / n_operations ==> tss = 5
-        'controller_lstm_dim': 35,
+        'controller_max_proposed_arch_len': 5,   # == sss = 5 / tss = 6
+        'controller_classes': 8,    # == n_candidates ==> sss = 8 / n_operations ==> tss = 5
+        'controller_lstm_dim': 100,
         'controller_optimizer': Optimizer.ADAM,
         'controller_learning_rate': 0.006,
         'controller_decay': 0.0,

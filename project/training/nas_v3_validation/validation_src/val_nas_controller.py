@@ -4,15 +4,18 @@ import numpy as np
 
 import tensorflow.keras.backend as K
 from tensorflow.keras import optimizers
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Dense, RNN, LSTMCell, Input, BatchNormalization, Reshape, InputLayer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import normalize
+from tensorflow.keras.regularizers import l2
+from tensorflow.keras.utils import plot_model
+
+from IPython.display import display
 
 import matplotlib.pyplot as plt
 
 from src.base.experiment.training.optimizers import Optimizer
-from src.nas.v3.mlp_search_space import MLPSearchSpaceCandidate
 
 class NASController_4:
     def __init__(self, config_interp):        
@@ -32,16 +35,12 @@ class NASController_4:
         self.controller_weights_path = 'LOGS/controller_weights.h5'
         self.controller_losses_path = 'LOGS/controller_losses.csv'
 
-        # self.n_tasks = len(self.config_interp.tasks)
-        
         self.controller_noise_dim = 2
         
         self.controller_model_input_shape = (1, self.controller_max_proposed_arch_len+self.controller_noise_dim) # (1,5+4)
         self.controller_model_output_shape = (1, self.controller_classes)  # (1,8)
         
         self.nas_data_history = None
-        #self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
-        #self.search_space_candidates_size = len(self.search_space_candidates)
 
         self.__clean_controller_losses()
         self.__clean_controller_weights()        
@@ -221,14 +220,14 @@ class NASController_4:
             optim = getattr(optimizers, self.controller_optimizer.value)(learning_rate=self.controller_lr, decay=self.controller_decay, clipnorm=1.0)
         return optim
 
-
+   
     def __create_control_model(self):
         main_input = Input(shape=self.controller_model_input_shape, name='main_input')        
-        # print(f'Controller model input shape: {main_input.shape}')
-        x = RNN(LSTMCell(self.controller_lstm_dim), return_sequences=True)(main_input)
+        lstm_cell = LSTMCell(self.controller_lstm_dim, kernel_regularizer=l2(0.001), recurrent_regularizer=l2(0.001))
+        x = RNN(lstm_cell, return_sequences=True)(main_input)
         main_output = Dense(self.controller_model_output_shape[1], activation='softmax', name='main_output')(x)
-        # print(f'Controller model output shape: {main_output.shape}')
         model = Model(inputs=[main_input], outputs=[main_output])
+        print(model.summary())
         return model
 
 
@@ -264,7 +263,7 @@ class NASController_4:
         optim = self.__get_optimizer()
         
         self.controller_model.compile(optimizer=optim, loss={'main_output': loss_func})
-        
+
         if os.path.exists(self.controller_weights_path):
             self.controller_model.load_weights(self.controller_weights_path)
         

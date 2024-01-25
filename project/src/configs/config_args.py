@@ -33,11 +33,11 @@ kwargs = {
         'exec_nas': True,
         'orig_model_experiment_id': '',
         'sample_training_data': True,
-        'sample_prop': 0.02
+        'sample_prop': 1
     },
     'nas_params': {
-        'architecture_training_epochs': 2,     # n_epochs for training proposed architecture
-        'total_num_proposed_architectures': 10,
+        'architecture_training_epochs': 5,     # n_epochs for training proposed architecture
+        'total_num_proposed_architectures': 20,
         'nas_algorithm': NASAlgorithm.RL,
         'nas_search_space': MLPSearchSpaceIndicator.SS_2
     },
@@ -46,8 +46,8 @@ kwargs = {
         'controller_classes': 8,    # == n_candidates ==> sss = 8 / n_operations ==> tss = 5
         'controller_lstm_dim': 100,
         'controller_optimizer': Optimizer.ADAM,
-        'controller_learning_rate': 0.001,
-        'controller_decay': 0.1,
+        'controller_learning_rate': 0.006,
+        'controller_decay': 0.0,
         'controller_momentum': 0.0,
         'controller_use_predictor': False,
         'controller_loss_alpha': 0.3,  # 0.9, 0.6, 0.3
