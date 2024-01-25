@@ -1,4 +1,5 @@
 import os
+import copy
 import argparse
 
 from typing import List, Dict
@@ -13,7 +14,6 @@ from src.m_utils.neptune_utils import NeptuneUtils
 from src.nas.v1.nas_controller_factory import NASControllerFactory
 from src.nas.v2.mlpnas import MLPNAS
 from src.nas.v3.new_mlpnas import New_MLPNAS
-from src.nas.v3.utils import get_top_n_architectures
 from src.m_utils.utils import print_method_log_sig
 from src.configs.conf_interp import ConfigInterpreter
 from src.configs import config as cfg
@@ -106,10 +106,12 @@ class ExperimentRunner:
         if self.config_interp.use_neptune:
             print('Setting up neptune experiment')
 
-            params = self.config_interp.mlp_params
-            params['n_train'] = self.train_gen.n
-            params['n_validation'] = self.validation_gen.n
-            params['n_test'] = self.test_gen.n
+            mlp_params = copy.deepcopy(self.config_interp.mlp_params)
+            mlp_params['n_train'] = self.train_gen.n
+            mlp_params['n_validation'] = self.validation_gen.n
+            mlp_params['n_test'] = self.test_gen.n
+            mlp_params['mlp_base_model'] = str(mlp_params['mlp_base_model'])
+            mlp_params['mlp_optimizer'] = str(mlp_params['mlp_optimizer'])
             
             props = {}
             
@@ -118,6 +120,7 @@ class ExperimentRunner:
 
             props['dataset'] = str(dataset.name)
             props['tasks'] = str([x.name for x in tasks])
+            props['approach'] = str(self.config_interp.prop_args['approach'])
             props['balance_input_data'] = self.config_interp.prop_args['balance_input_data']
             props['train_model'] = self.config_interp.prop_args['train_model']
             props['orig_model_experiment_id'] = self.config_interp.prop_args['orig_model_experiment_id']
@@ -125,12 +128,18 @@ class ExperimentRunner:
             props['sample_training_data'] = self.config_interp.prop_args['sample_training_data']
             props['sample_prop'] = self.config_interp.prop_args['sample_prop']
             props['is_mtl_model'] = self.config_interp.is_mtl_model
-            props['approach'] = self.config_interp.prop_args['approach']
             
+            contr_params = copy.deepcopy(self.config_interp.controller_params)
+            contr_params['controller_optimizer'] = str(contr_params['controller_optimizer'])
+
+            nas_params = copy.deepcopy(self.config_interp.nas_params)
+            nas_params['nas_algorithm'] = str(nas_params['nas_algorithm'])
+            nas_params['nas_search_space'] = str(nas_params['nas_search_space'])
+
             self.neptune_utils.neptune_run['properties'] = props
-            self.neptune_utils.neptune_run['mlp_params'] = params
-            self.neptune_utils.neptune_run['nas_params'] = self.config_interp.nas_params
-            self.neptune_utils.neptune_run['controller_params'] = self.config_interp.controller_params
+            self.neptune_utils.neptune_run['mlp_params'] = mlp_params
+            self.neptune_utils.neptune_run['nas_params'] = nas_params
+            self.neptune_utils.neptune_run['controller_params'] = contr_params            
             
             print('Neptune experiment setup done!')
         else:

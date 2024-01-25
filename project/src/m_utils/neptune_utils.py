@@ -1,9 +1,10 @@
 import os
+import copy
 import shutil
 import zipfile
 
-import neptune.new as neptune
-from neptune.new.types import File
+import neptune
+from neptune.types import File
 
 from src.m_utils.utils import print_method_log_sig
 
@@ -23,7 +24,7 @@ class NeptuneUtils:
         print_method_log_sig(' starting neptune ')
         if self.config_interp.use_neptune:
             print('Starting Neptune')
-            self.neptune_run = neptune.init(name=self.config_interp.exp_args['name'],
+            self.neptune_run = neptune.init_run(name=self.config_interp.exp_args['name'],
                                             description=self.config_interp.exp_args['description'],
                                             tags=self.config_interp.exp_args['tags'],
                                             source_files=self.config_interp.exp_args['src_files'])    
@@ -231,4 +232,15 @@ class NeptuneUtils:
 
     
     def log_kwargs(self, kwargs_dict):
-        self.neptune_run['kwargs/kwargs'] = kwargs_dict
+        new_kwargs_dict = copy.deepcopy(kwargs_dict)
+        new_kwargs_dict['exp_params']['tags'] = str(new_kwargs_dict['exp_params']['tags'])
+        new_kwargs_dict['exp_params']['src_files'] = str(new_kwargs_dict['exp_params']['src_files'])
+        new_kwargs_dict['properties']['tasks'] = str(new_kwargs_dict['properties']['tasks'])
+        new_kwargs_dict['properties']['approach'] = str(new_kwargs_dict['properties']['approach'])
+        new_kwargs_dict['properties']['dataset'] = str(new_kwargs_dict['properties']['dataset'])
+        new_kwargs_dict['nas_params']['nas_algorithm'] = str(new_kwargs_dict['nas_params']['nas_algorithm'])
+        new_kwargs_dict['nas_params']['nas_search_space'] = str(new_kwargs_dict['nas_params']['nas_search_space'])
+        new_kwargs_dict['mlp_params']['mlp_base_model'] = str(new_kwargs_dict['mlp_params']['mlp_base_model'])
+        new_kwargs_dict['mlp_params']['mlp_optimizer'] = str(new_kwargs_dict['mlp_params']['mlp_optimizer'])
+        new_kwargs_dict['controller_params']['controller_optimizer'] = str(new_kwargs_dict['controller_params']['controller_optimizer'])
+        self.neptune_run['kwargs/kwargs'] = new_kwargs_dict

@@ -16,8 +16,6 @@ from IPython.display import display
 import matplotlib.pyplot as plt
 
 from src.base.experiment.training.optimizers import Optimizer
-from src.nas.v3.mlp_search_space import MLPSearchSpaceCandidate
-
 
 class NASController_4:
     def __init__(self, config_interp):        
@@ -43,9 +41,6 @@ class NASController_4:
         self.controller_model_output_shape = (1, self.controller_classes)  # (1,8)
         
         self.nas_data_history = None
-        
-        self.search_space_candidates = MLPSearchSpaceCandidate.N_DENSES.value + MLPSearchSpaceCandidate.N_CONVS.value
-        self.search_space_candidates_size = len(self.search_space_candidates)
 
         self.__clean_controller_losses()
         self.__clean_controller_weights()        
@@ -92,31 +87,18 @@ class NASController_4:
             # print(f'prob_list: {prob_list}')
             # print(f'pred_acc: {pred_acc}')
 
-            # lookup_search_space_candidates = None
-            if i < 4:   # first half of DNA
-                # print(f'prob_list[:5]: {prob_list[:5]}')
-                # print(f'len(prob_list[:5]): {len(prob_list[:5])}')
-                chose_idx = np.argmax(prob_list[:5])  # choose from the first part of the list (5 classes)
-                # lookup_search_space_candidates = self.search_space_candidates[:5]
-            elif i >= 4:  # second half of DNA
-                # print(f'prob_list[5:]: {prob_list[5:]}')
-                # print(f'len(prob_list[5:]): {len(prob_list[5:])}')
-                chose_idx = np.argmax(prob_list[5:])  # choose from the second part of the list (3 classes)
-                # lookup_search_space_candidates = self.search_space_candidates[5:]
+            chose_idx = np.argmax(prob_list)  # choose from the first part of the list (controller_max_proposed_arch_len)
             
-            # print(f'chose_idx: {chose_idx} | lookup_search_space_candidates[chose_idx]: {lookup_search_space_candidates[chose_idx]} | lookup_search_space_candidates: {lookup_search_space_candidates}')
-
             final_arch.append(int(chose_idx))
             # print(f'final_arch: {final_arch}')
 
-            new_arch = pad_sequences([final_arch], maxlen=self.controller_classes, padding='post', value=-1)
+            new_arch = pad_sequences([final_arch], maxlen=self.controller_max_proposed_arch_len, padding='post', value=-1)
             # print(new_arch.shape)
 
-            inp = np.array(new_arch).reshape(1,1,self.controller_classes)
-            # print(f'new input: {inp}')
+            inp = np.array(new_arch).reshape(1,1,self.controller_max_proposed_arch_len)
+            # print(f' ..new input: {inp}')
         
-        #final_arch = [[final_arch]]
-        final_arch = [[final_arch[:4], [final_arch[4:]]]]
+        final_arch = [[final_arch]]
         # print(f' .final_arch: {final_arch}')
         
         return final_arch, pred_acc
@@ -206,7 +188,7 @@ class NASController_4:
 
 
     def train_model_controller(self, nas_data_history):
-        print(' ..Training controller model...')
+        # print(' ..Training controller model...')
 
         xc, yc, val_acc_target = self.__prepare_controller_data(nas_data_history)
 
@@ -226,7 +208,7 @@ class NASController_4:
                                      self.controller_batch_size,
                                      self.controller_train_epochs)
         
-        print(' ..Controller model trained!')
+        # print(' ..Controller model trained!')
 
 
     def __get_optimizer(self):
@@ -238,7 +220,7 @@ class NASController_4:
             optim = getattr(optimizers, self.controller_optimizer.value)(learning_rate=self.controller_lr, decay=self.controller_decay, clipnorm=1.0)
         return optim
 
-
+   
     def __create_control_model(self):
         main_input = Input(shape=self.controller_model_input_shape, name='main_input')        
         lstm_cell = LSTMCell(self.controller_lstm_dim, kernel_regularizer=l2(0.001), recurrent_regularizer=l2(0.001))
@@ -281,7 +263,7 @@ class NASController_4:
         optim = self.__get_optimizer()
         
         self.controller_model.compile(optimizer=optim, loss={'main_output': loss_func})
-        
+
         if os.path.exists(self.controller_weights_path):
             self.controller_model.load_weights(self.controller_weights_path)
         
