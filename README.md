@@ -65,16 +65,16 @@ Our experiments show that:
 
 If you use this code in your research, please cite:
 
-  @phdthesis{gadelha2024investigation,
-      author = {Gadelha, Guilherme Monteiro},
-      title = {An Investigation of Neural Architecture Search in the Context of Deep Multi-Task Learning},
-      school = {Federal University of Campina Grande},
-      year = {2024},
-      month = {January},
-      address = {Campina Grande, PB, Brazil},
-      note = {Advisors: Leonardo Vidal Batista and Herman Martins Gomes},
-      type = {Ph.D. Thesis}
-  }
+    @phdthesis{gadelha2024investigation,
+        author = {Gadelha, Guilherme Monteiro},
+        title = {An Investigation of Neural Architecture Search in the Context of Deep Multi-Task Learning},
+        school = {Federal University of Campina Grande},
+        year = {2024},
+        month = {January},
+        address = {Campina Grande, PB, Brazil},
+        note = {Advisors: Leonardo Vidal Batista and Herman Martins Gomes},
+        type = {Ph.D. Thesis}
+    }
 
 ## Acknowledgments
 
